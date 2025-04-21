@@ -87,6 +87,7 @@
             const card = document.getElementById(`card-${data.index}`);
             card.style.backgroundImage = `url('${data.image}')`;
             card.classList.remove("hidden");
+            card.classList.add("revealed"); // Lisää "revealed"-luokka korttiin
         });
 
         socket.on("hide_cards", (data) => {
@@ -94,6 +95,7 @@
                 const card = document.getElementById(`card-${i}`);
                 card.classList.add("hidden");
                 card.style.backgroundImage = "none";
+                card.classList.remove("revealed"); // Poista "revealed"-luokka kortista
             });
         });
 
