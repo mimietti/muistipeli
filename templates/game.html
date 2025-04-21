@@ -13,15 +13,12 @@
             margin: 0;
             padding: 0;
         }
-
         #players {
             margin-top: 20px;
         }
-
         .active {
             color: limegreen;
         }
-
         #grid {
             display: grid;
             grid-template-columns: repeat(4, 150px);
@@ -29,7 +26,6 @@
             justify-content: center;
             padding: 40px;
         }
-
         .card {
             width: 150px;
             height: 150px;
@@ -40,11 +36,9 @@
             background-position: center;
             transition: transform 0.2s;
         }
-
         .card:hover {
             transform: scale(1.05);
         }
-
         .hidden {
             background-image: none !important;
         }
@@ -52,79 +46,78 @@
 </head>
 <body>
     <h1>Muistipeli</h1>
-        <div id="players"></div>
+    <div id="players"></div>
     <div id="grid"></div>
 
     <script>
         const socket = io();
-        let myName = localStorage.getItem("username"); // Käytä localStoragea
+console.log("[DEBUG] Socket yhteys avattu game.html");
+
+// Ilmoita palvelimelle että ollaan valmiina vastaanottamaan peli
+socket.emit("ready_for_game");
+
+        
+
+        let myName = localStorage.getItem("username");
+        let cards = [];
+        let currentTurn = "";
+        let matched = new Set();
 
         if (!myName) {
             console.error("[ERROR] Käyttäjänimeä ei löydy localStoragesta.");
-            window.location.href = "/"; // Palauta käyttäjä aloitussivulle
+            window.location.href = "/";
         }
-
-        localStorage.setItem("username", username); // Tallenna nimi localStorageen
 
         socket.emit("join", { username: myName });
 
-        let cards = [];
-        let matched = new Set();
+        socket.on("start_game", () => {
+            console.log("[DEBUG] start_game vastaanotettu – pyydetään request_grid");
+            socket.emit("request_grid");
+        });
 
         socket.on("init_grid", (data) => {
+            console.log("[DEBUG] init_grid saapui! Kortteja:", data.cards.length);
             cards = data.cards;
             currentTurn = data.turn;
-            updatePlayers(data.players);
+            sessionStorage.setItem("players", JSON.stringify(data.players));
             drawGrid();
+            updatePlayers();
         });
 
         socket.on("update_turn", (data) => {
+            console.log("[DEBUG] Vuoro vaihtui:", data.turn);
             currentTurn = data.turn;
             updatePlayers();
         });
 
         socket.on("reveal_card", (data) => {
+            console.log("[DEBUG] Paljastetaan kortti:", data);
             const card = document.getElementById(`card-${data.index}`);
-            card.style.backgroundImage = `url('${data.image}')`;
-            card.classList.remove("hidden");
-            card.classList.add("revealed"); // Lisää "revealed"-luokka korttiin
+            if (card) {
+                card.classList.remove("hidden");
+                card.style.backgroundImage = `url('${data.image}')`;
+            }
         });
 
         socket.on("hide_cards", (data) => {
+            console.log("[DEBUG] Piilotetaan kortit:", data.indices);
             data.indices.forEach(i => {
                 const card = document.getElementById(`card-${i}`);
-                card.classList.add("hidden");
-                card.style.backgroundImage = "none";
-                card.classList.remove("revealed"); // Poista "revealed"-luokka kortista
+                if (card) {
+                    card.classList.add("hidden");
+                    card.style.backgroundImage = "none";
+                }
             });
         });
 
         socket.on("pair_found", (data) => {
+            console.log("[DEBUG] Pari löytyi:", data.word);
             data.indices.forEach(i => matched.add(i));
             showWordMessage(data.word);
         });
 
-        socket.on("start_game", () => {
-            console.log("[DEBUG] start_game vastaanotettu");
-            socket.emit("request_grid");
-        });
-
-        socket.on("player_joined", ({ players }) => {
-            console.log("[DEBUG] player_joined vastaanotettu:", players);
-            const playersDiv = document.getElementById("players");
-            playersDiv.innerHTML = players.join(" & ");
-            if (players.length === 2) {
-                console.log("[DEBUG] Molemmat pelaajat liittyneet, näytetään Aloita peli -painike");
-                const startBtn = document.getElementById("startBtn");
-                if (startBtn) {
-                    startBtn.style.display = "inline-block"; // Näytä painike molemmissa laitteissa
-                } else {
-                    console.log("[DEBUG] startBtn-elementtiä ei löydy, kun molemmat pelaajat liittyivät");
-                }
-            }
-        });
-
         function drawGrid() {
+            console.log("[DEBUG] Piirretään ruudukko...");
             const grid = document.getElementById("grid");
             grid.innerHTML = "";
 
@@ -133,21 +126,24 @@
                 div.classList.add("card", "hidden");
                 div.id = `card-${index}`;
                 div.addEventListener("click", () => {
+                    console.log(`[DEBUG] Klikattiin korttia: ${index}`);
                     if (myName === currentTurn && !matched.has(index)) {
-                        socket.emit("card_clicked", { index: index });
+                        socket.emit("card_clicked", { index });
                     }
                 });
                 grid.appendChild(div);
             });
 
-            updatePlayers();
+            // Testataan näkyykö eka kortti oikein
+            if (cards.length > 0) {
+                const test = document.getElementById("card-0");
+                test.classList.remove("hidden");
+                test.style.backgroundImage = `url('${cards[0].image}')`;
+            }
         }
 
-        function updatePlayers(playersList = null) {
-            if (playersList) {
-                sessionStorage.setItem("players", JSON.stringify(playersList));
-            }
-            const players = JSON.parse(sessionStorage.getItem("players"));
+        function updatePlayers() {
+            const players = JSON.parse(sessionStorage.getItem("players")) || [];
             const playersDiv = document.getElementById("players");
             playersDiv.innerHTML = "";
 

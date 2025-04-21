@@ -2,21 +2,38 @@
 <html lang="fi">
 <head>
     <meta charset="UTF-8">
-    <title>Muistipeli – Liity peliin</title>
+    <title>Tervetuloa muistipeliin</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
         body {
-            background-color: #222;
+            background-color: #111;
             color: white;
             font-family: sans-serif;
             text-align: center;
             padding-top: 100px;
         }
 
-        input, button {
-            font-size: 24px;
+        input[type="text"] {
+            font-size: 18px;
             padding: 10px;
-            margin: 10px;
+            width: 300px;
+            border-radius: 5px;
+            border: none;
+        }
+
+        button {
+            font-size: 18px;
+            padding: 10px 20px;
+            margin-top: 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: limegreen;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: green;
         }
 
         #error {
@@ -27,7 +44,7 @@
 </head>
 <body>
     <h1>Tervetuloa muistipeliin!</h1>
-    <input type="text" id="username" placeholder="Nimesi">
+    <input type="text" id="nameInput" placeholder="Nimesi" />
     <br>
     <button onclick="joinGame()">Liity peliin</button>
     <div id="error"></div>
@@ -36,16 +53,13 @@
         const socket = io();
 
         function joinGame() {
-            const username = document.getElementById("username").value.trim();
-            const errorDiv = document.getElementById("error");
-            errorDiv.textContent = "";
-
+            const username = document.getElementById("nameInput").value.trim();
             if (!username) {
-                errorDiv.textContent = "Anna nimesi.";
+                document.getElementById("error").textContent = "Syötä nimi ensin.";
                 return;
             }
 
-            localStorage.setItem("username", username); // Tallenna nimi localStorageen
+            localStorage.setItem("username", username);
             socket.emit("join", { username: username });
         }
 
@@ -57,21 +71,8 @@
         });
 
         socket.on("connect_error", (err) => {
-            console.log("Yhteysvirhe:", err);
+            console.error("[Yhteysvirhe]", err);
             document.getElementById("error").textContent = "Yhteyttä ei saatu palvelimeen.";
-        });
-
-        // Palvelinpuolen koodi
-        io.on("connection", (socket) => {
-            socket.on("join", (data) => {
-                // Lisää pelaaja ja lähetä päivitetty lista kaikille
-                players.push(data.username);
-                io.emit("player_joined", { players });
-            });
-
-            socket.on("start_game_clicked", () => {
-                io.emit("start_game", { players, cards });
-            });
         });
     </script>
 </body>

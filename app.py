@@ -12,11 +12,10 @@ socketio = SocketIO(app, async_mode='eventlet')
 
 players = []
 max_players = 2
-words = ["cat", "dog", "fish", "car", "tree", "sun", "apple", "book"]
 grid_data = []
 revealed_cards = []
 matched_indices = set()
-turn = 0  # 0 tai 1
+turn = 0
 
 @app.route("/")
 def index():
@@ -39,10 +38,33 @@ def on_join(data):
         print(f"[DEBUG] {username} liittyi peliin.")
         emit("player_joined", {"username": username, "players": players}, broadcast=True)
 
-@socketio.on("start_game")
-def start_game():
+@socketio.on("start_game_clicked")
+def handle_start_game():
+    if len(players) == max_players:
+        print("[DEBUG] Molemmat pelaajat liittyneet, aloitetaan peli")
+        # Luo pelidata jo tässä
+        generate_grid()
+        emit("start_game", broadcast=True)
+    else:
+        print("[DEBUG] Pelaajia ei ole tarpeeksi pelin aloittamiseen")
+
+
+@socketio.on("request_grid")
+def handle_grid_request():
+    print("[DEBUG] request_grid vastaanotettu – lähetetään init_grid")
+    emit("init_grid", {
+        "cards": grid_data,
+        "turn": players[turn],
+        "players": players
+    }, broadcast=True)
+@socketio.on("ready_for_game")
+def handle_ready_for_game():
+    print("[DEBUG] Client ilmoitti olevansa valmis peliin")
+    emit("start_game", broadcast=True)
+
+def generate_grid():
     global grid_data, revealed_cards, matched_indices, turn
-    print("[DEBUG] Peli käynnistyy...")
+    print("[DEBUG] Peli käynnistyy – luodaan ruudukko")
     images = []
     for filename in sorted(os.listdir("static/images")):
         if filename.endswith(".jpg"):
@@ -54,47 +76,48 @@ def start_game():
     revealed_cards = []
     matched_indices = set()
     turn = 0
-    emit("init_grid", {"cards": grid_data, "turn": players[turn], "players": players}, broadcast=True)
-
-@socketio.on("start_game_clicked")
-def handle_start_game():
-    if len(players) == max_players:
-        print("[DEBUG] Molemmat pelaajat liittyneet, aloitetaan peli")
-        emit("start_game", broadcast=True)
-    else:
-        print("[DEBUG] Pelaajia ei ole tarpeeksi pelin aloittamiseen")
+    print(f"[DEBUG] Kortteja yhteensä: {len(grid_data)}")
 
 @socketio.on("card_clicked")
 def handle_card_click(data):
     global revealed_cards, turn, matched_indices
+
     index = data["index"]
     if index in matched_indices or index in revealed_cards:
         return
 
+    print(f"[DEBUG] Kortti klikattu: index {index}, sana: {grid_data[index]['word']}")
     revealed_cards.append(index)
-    emit("reveal_card", {"index": index, "image": grid_data[index]["image"]}, broadcast=True)
+    emit("reveal_card", {
+        "index": index,
+        "image": grid_data[index]["image"]
+    }, broadcast=True)
 
     if len(revealed_cards) == 2:
         idx1, idx2 = revealed_cards
         word1 = grid_data[idx1]["word"]
         word2 = grid_data[idx2]["word"]
+
         if word1 == word2:
             matched_indices.update(revealed_cards)
+            print(f"[DEBUG] Pari löytyi: {word1}")
             emit("pair_found", {"indices": revealed_cards, "word": word1}, broadcast=True)
         else:
+            print(f"[DEBUG] Ei paria: {word1} vs {word2}")
             def hide_cards():
                 socketio.sleep(1.5)
                 emit("hide_cards", {"indices": revealed_cards}, broadcast=True)
             socketio.start_background_task(hide_cards)
             turn = (turn + 1) % 2
-        revealed_cards = []
 
-    emit("update_turn", {"turn": players[turn]}, broadcast=True)
+        revealed_cards = []
+        emit("update_turn", {"turn": players[turn]}, broadcast=True)
 
 @socketio.on("disconnect")
 def on_disconnect():
     print("[DEBUG] Yhteys katkaistu")
 
 if __name__ == "__main__":
+    players.clear()
     print("[DEBUG] Sovellus käynnissä osoitteessa http://0.0.0.0:5000")
     socketio.run(app, host="0.0.0.0", port=5000)

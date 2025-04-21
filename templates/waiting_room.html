@@ -1,57 +1,74 @@
-<!-- waiting_room.html -->
 <!DOCTYPE html>
 <html lang="fi">
 <head>
     <meta charset="UTF-8">
     <title>Odotushuone</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-</head>
-<body style="background-color: #111; color: white; text-align: center; font-family: sans-serif;">
-    <h1>Odotetaan pelaajia...</h1>
-    <div id="player-list"></div>
-    <button id="start-button" style="display:none; padding: 10px 20px; margin-top: 30px;">Aloita peli</button>
-    
-    <script>
-        const socket = io();
-        const myName = localStorage.getItem("username"); // Käytä localStoragea
-        if (!myName) {
-            console.error("[ERROR] Käyttäjänimeä ei löydy localStoragesta.");
+    <style>
+        body {
+            background-color: #111;
+            color: #fff;
+            font-family: sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
         }
 
-        socket.on("player_joined", (data) => {
-            console.log("[DEBUG] player_joined vastaanotettu:", data.players);
-            const list = document.getElementById("player-list");
-            list.innerHTML = "<h2>Liittyneet pelaajat:</h2><ul>" + 
-                data.players.map(p => `<li>${p}</li>`).join("") + "</ul>";
+        h1 {
+            margin-top: 40px;
+            font-size: 36px;
+        }
 
-            // Näytä "Aloita peli" -painike, kun molemmat pelaajat ovat liittyneet
-            if (data.players.length === 2) {
-                const startButton = document.getElementById("start-button");
-                if (startButton) {
-                    startButton.style.display = "inline-block";
-                    console.log("[DEBUG] Aloita peli -painike näytetään");
-                } else {
-                    console.log("[DEBUG] start-button-elementtiä ei löydy DOM:sta");
-                }
+        #players {
+            margin: 20px 0;
+            font-size: 24px;
+        }
+
+        #startBtn {
+            background-color: limegreen;
+            color: black;
+            font-size: 20px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: none;
+        }
+
+        #startBtn:hover {
+            background-color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>Odotushuone</h1>
+    <div id="players"></div>
+    <button id="startBtn">Aloita peli</button>
+
+    <script>
+        const socket = io();
+        const myName = localStorage.getItem("username");
+
+        console.log("[DEBUG] Socket yhteys OK (waiting_room.html)");
+
+        socket.emit("join", { username: myName });
+
+        socket.on("player_joined", ({ players }) => {
+            console.log("[DEBUG] Pelaajat:", players);
+            const playersDiv = document.getElementById("players");
+            playersDiv.textContent = players.join(" & ");
+            if (players.length === 2) {
+                document.getElementById("startBtn").style.display = "inline-block";
             }
         });
 
-        document.addEventListener("DOMContentLoaded", () => {
-            const startButton = document.getElementById("start-button");
-            if (!startButton) {
-                console.log("[DEBUG] start-button-elementtiä ei löydy DOM:sta");
-                return;
-            }
-            console.log("[DEBUG] start-button löydetty DOM:sta");
-
-            startButton.addEventListener("click", () => {
-                console.log("[DEBUG] Aloita peli -painiketta painettiin");
-                socket.emit("start_game_clicked");
-            });
+        document.getElementById("startBtn").addEventListener("click", () => {
+            console.log("[DEBUG] Aloita peli painettu");
+            socket.emit("start_game_clicked");
         });
 
         socket.on("start_game", () => {
-            console.log("[DEBUG] start_game vastaanotettu");
+            console.log("[DEBUG] Vastaanotettiin 'start_game', siirrytään peliin");
             window.location.href = "/game";
         });
     </script>
