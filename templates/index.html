@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <title>Muistipeli – Liity peliin</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        body {
+            background-color: #222;
+            color: white;
+            font-family: sans-serif;
+            text-align: center;
+            padding-top: 100px;
+        }
+
+        input, button {
+            font-size: 24px;
+            padding: 10px;
+            margin: 10px;
+        }
+
+        #error {
+            color: red;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tervetuloa muistipeliin!</h1>
+    <input type="text" id="username" placeholder="Nimesi">
+    <br>
+    <button onclick="joinGame()">Liity peliin</button>
+    <div id="error"></div>
+
+    <script>
+        const socket = io();
+
+        function joinGame() {
+            const username = document.getElementById("username").value.trim();
+            const errorDiv = document.getElementById("error");
+            errorDiv.textContent = "";
+
+            if (!username) {
+                errorDiv.textContent = "Anna nimesi.";
+                return;
+            }
+
+            localStorage.setItem("username", username); // Tallenna nimi localStorageen
+            socket.emit("join", { username: username });
+        }
+
+        socket.on("player_joined", (data) => {
+            const myName = localStorage.getItem("username");
+            if (data.players.includes(myName)) {
+                window.location.href = "/waiting";
+            }
+        });
+
+        socket.on("connect_error", (err) => {
+            console.log("Yhteysvirhe:", err);
+            document.getElementById("error").textContent = "Yhteyttä ei saatu palvelimeen.";
+        });
+
+        // Palvelinpuolen koodi
+        io.on("connection", (socket) => {
+            socket.on("join", (data) => {
+                // Lisää pelaaja ja lähetä päivitetty lista kaikille
+                players.push(data.username);
+                io.emit("player_joined", { players });
+            });
+
+            socket.on("start_game_clicked", () => {
+                io.emit("start_game", { players, cards });
+            });
+        });
+    </script>
+</body>
+</html>

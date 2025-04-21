@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <title>Muistipeli – Peli</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        body {
+            background-color: #111;
+            color: #fff;
+            font-family: sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        #players {
+            margin-top: 20px;
+        }
+
+        .active {
+            color: limegreen;
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(4, 150px);
+            gap: 20px;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .card {
+            width: 150px;
+            height: 150px;
+            background-color: #444;
+            border-radius: 8px;
+            cursor: pointer;
+            background-size: cover;
+            background-position: center;
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: scale(1.05);
+        }
+
+        .hidden {
+            background-image: none !important;
+        }
+    </style>
+</head>
+<body>
+    <h1>Muistipeli</h1>
+        <div id="players"></div>
+    <div id="grid"></div>
+
+    <script>
+        const socket = io();
+        let myName = localStorage.getItem("username"); // Käytä localStoragea
+
+        if (!myName) {
+            console.error("[ERROR] Käyttäjänimeä ei löydy localStoragesta.");
+            window.location.href = "/"; // Palauta käyttäjä aloitussivulle
+        }
+
+        localStorage.setItem("username", username); // Tallenna nimi localStorageen
+
+        socket.emit("join", { username: myName });
+
+        let cards = [];
+        let matched = new Set();
+
+        socket.on("init_grid", (data) => {
+            cards = data.cards;
+            currentTurn = data.turn;
+            updatePlayers(data.players);
+            drawGrid();
+        });
+
+        socket.on("update_turn", (data) => {
+            currentTurn = data.turn;
+            updatePlayers();
+        });
+
+        socket.on("reveal_card", (data) => {
+            const card = document.getElementById(`card-${data.index}`);
+            card.style.backgroundImage = `url('${data.image}')`;
+            card.classList.remove("hidden");
+        });
+
+        socket.on("hide_cards", (data) => {
+            data.indices.forEach(i => {
+                const card = document.getElementById(`card-${i}`);
+                card.classList.add("hidden");
+                card.style.backgroundImage = "none";
+            });
+        });
+
+        socket.on("pair_found", (data) => {
+            data.indices.forEach(i => matched.add(i));
+            showWordMessage(data.word);
+        });
+
+        socket.on("start_game", () => {
+            console.log("[DEBUG] start_game vastaanotettu");
+            socket.emit("request_grid");
+        });
+
+        socket.on("player_joined", ({ players }) => {
+            console.log("[DEBUG] player_joined vastaanotettu:", players);
+            const playersDiv = document.getElementById("players");
+            playersDiv.innerHTML = players.join(" & ");
+            if (players.length === 2) {
+                console.log("[DEBUG] Molemmat pelaajat liittyneet, näytetään Aloita peli -painike");
+                const startBtn = document.getElementById("startBtn");
+                if (startBtn) {
+                    startBtn.style.display = "inline-block"; // Näytä painike molemmissa laitteissa
+                } else {
+                    console.log("[DEBUG] startBtn-elementtiä ei löydy, kun molemmat pelaajat liittyivät");
+                }
+            }
+        });
+
+        function drawGrid() {
+            const grid = document.getElementById("grid");
+            grid.innerHTML = "";
+
+            cards.forEach((card, index) => {
+                const div = document.createElement("div");
+                div.classList.add("card", "hidden");
+                div.id = `card-${index}`;
+                div.addEventListener("click", () => {
+                    if (myName === currentTurn && !matched.has(index)) {
+                        socket.emit("card_clicked", { index: index });
+                    }
+                });
+                grid.appendChild(div);
+            });
+
+            updatePlayers();
+        }
+
+        function updatePlayers(playersList = null) {
+            if (playersList) {
+                sessionStorage.setItem("players", JSON.stringify(playersList));
+            }
+            const players = JSON.parse(sessionStorage.getItem("players"));
+            const playersDiv = document.getElementById("players");
+            playersDiv.innerHTML = "";
+
+            players.forEach(name => {
+                const span = document.createElement("span");
+                span.textContent = name + " ";
+                if (name === currentTurn) {
+                    span.classList.add("active");
+                }
+                playersDiv.appendChild(span);
+            });
+        }
+
+        function showWordMessage(word) {
+            const message = document.createElement("div");
+            message.textContent = `Löysit parin: ${word}`;
+            message.style.marginTop = "10px";
+            message.style.color = "lime";
+            message.style.fontSize = "20px";
+            document.body.appendChild(message);
+            setTimeout(() => message.remove(), 1500);
+        }
+    </script>
+</body>
+</html>
