@@ -100,15 +100,16 @@ socket.emit("ready_for_game");
         });
 
         socket.on("hide_cards", (data) => {
-            console.log("[DEBUG] Piilotetaan kortit:", data.indices);
-            data.indices.forEach(i => {
-                const card = document.getElementById(`card-${i}`);
-                if (card) {
-                    card.classList.add("hidden");
-                    card.style.backgroundImage = "none";
-                }
-            });
-        });
+    console.log("[DEBUG] Piilotetaan kortit:", data.indices);
+    data.indices.forEach(i => {
+        const card = document.getElementById(`card-${i}`);
+        if (card && !matched.has(i)) {
+            card.classList.add("hidden");
+            card.style.backgroundImage = "none";
+        }
+    });
+});
+
 
         socket.on("pair_found", (data) => {
             console.log("[DEBUG] Pari löytyi:", data.word);
@@ -134,12 +135,7 @@ socket.emit("ready_for_game");
                 grid.appendChild(div);
             });
 
-            // Testataan näkyykö eka kortti oikein
-            if (cards.length > 0) {
-                const test = document.getElementById("card-0");
-                test.classList.remove("hidden");
-                test.style.backgroundImage = `url('${cards[0].image}')`;
-            }
+            
         }
 
         function updatePlayers() {

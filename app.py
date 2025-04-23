@@ -52,11 +52,19 @@ def handle_start_game():
 @socketio.on("request_grid")
 def handle_grid_request():
     print("[DEBUG] request_grid vastaanotettu – lähetetään init_grid")
+    print(f"[DEBUG] Pelaajat: {players}")
+    print(f"[DEBUG] Grid sisältää {len(grid_data)} korttia")
+
+    if len(players) < 2:
+        print("[WARNING] Ei tarpeeksi pelaajia ruudukon alustamiseen.")
+        return
+
     emit("init_grid", {
         "cards": grid_data,
         "turn": players[turn],
         "players": players
-    }, broadcast=True)
+    })
+
 @socketio.on("ready_for_game")
 def handle_ready_for_game():
     print("[DEBUG] Client ilmoitti olevansa valmis peliin")
@@ -78,6 +86,7 @@ def generate_grid():
     turn = 0
     print(f"[DEBUG] Kortteja yhteensä: {len(grid_data)}")
 
+
 @socketio.on("card_clicked")
 def handle_card_click(data):
     global revealed_cards, turn, matched_indices
@@ -88,10 +97,10 @@ def handle_card_click(data):
 
     print(f"[DEBUG] Kortti klikattu: index {index}, sana: {grid_data[index]['word']}")
     revealed_cards.append(index)
-    emit("reveal_card", {
+    socketio.emit("reveal_card", {
         "index": index,
         "image": grid_data[index]["image"]
-    }, broadcast=True)
+    })
 
     if len(revealed_cards) == 2:
         idx1, idx2 = revealed_cards
@@ -101,17 +110,23 @@ def handle_card_click(data):
         if word1 == word2:
             matched_indices.update(revealed_cards)
             print(f"[DEBUG] Pari löytyi: {word1}")
-            emit("pair_found", {"indices": revealed_cards, "word": word1}, broadcast=True)
+            socketio.emit("pair_found", {"indices": revealed_cards, "word": word1})
+            revealed_cards = []
         else:
             print(f"[DEBUG] Ei paria: {word1} vs {word2}")
-            def hide_cards():
-                socketio.sleep(1.5)
-                emit("hide_cards", {"indices": revealed_cards}, broadcast=True)
-            socketio.start_background_task(hide_cards)
-            turn = (turn + 1) % 2
+            indices_to_hide = list(revealed_cards)  # Tee kopio!
+            revealed_cards = []
 
-        revealed_cards = []
-        emit("update_turn", {"turn": players[turn]}, broadcast=True)
+            def hide_later():
+                socketio.sleep(2)  # Odota 2 sekuntia
+                socketio.emit("hide_cards", {"indices": indices_to_hide})
+            
+            socketio.start_background_task(hide_later)
+            turn = (turn + 1) % len(players)
+        
+        socketio.emit("update_turn", {"turn": players[turn]})
+
+
 
 @socketio.on("disconnect")
 def on_disconnect():
