@@ -79,12 +79,27 @@ def generate_grid():
             word = filename.split("_")[0]
             path = f"/static/images/{filename}"
             images.append({"image": path, "word": word})
-    random.shuffle(images)
-    grid_data = images
+
+    # 👉 Ryhmittele sanojen mukaan
+    word_dict = {}
+    for item in images:
+        word = item["word"]
+        word_dict.setdefault(word, []).append(item)
+
+    # 👉 Valitse 8 satunnaista sanaa, joilla on 2 kuvaa
+    valid_pairs = [v for v in word_dict.values() if len(v) >= 2]
+    selected = random.sample(valid_pairs, 8)
+    selected_images = [img for pair in selected for img in pair[:2]]
+
+    random.shuffle(selected_images)
+    grid_data = selected_images
     revealed_cards = []
     matched_indices = set()
     turn = 0
     print(f"[DEBUG] Kortteja yhteensä: {len(grid_data)}")
+
+
+           
 
 
 @socketio.on("card_clicked")
