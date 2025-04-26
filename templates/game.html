@@ -49,6 +49,7 @@
     <h1>Muistipeli</h1>
     <div id="players"></div>
     <div id="grid"></div>
+    <div id="winner-message" style="display: none; margin-top: 20px; color: gold; font-size: 24px;"></div>
 
     <script>
         const socket = io();
@@ -116,6 +117,13 @@ socket.emit("ready_for_game");
             console.log("[DEBUG] Pari löytyi:", data.word);
             data.indices.forEach(i => matched.add(i));
             showWordMessage(data.word);
+        });
+
+        socket.on("game_over", (data) => {
+            console.log("[DEBUG] Peli ohi! Voittaja:", data.winner);
+            const winnerMessage = document.getElementById("winner-message");
+            winnerMessage.textContent = `Peli ohi! Voittaja: ${data.winner}`;
+            winnerMessage.style.display = "block";
         });
 
         function drawGrid() {

@@ -131,7 +131,6 @@ def handle_card_click(data):
                 print("[DEBUG] Kaikki parit löytyneet – peli ohi!")
                 socketio.emit("game_over", {"winner": players[turn]})
 
-
         else:
             print(f"[DEBUG] Ei paria: {word1} vs {word2}")
             indices_to_hide = list(revealed_cards)  # Tee kopio!
