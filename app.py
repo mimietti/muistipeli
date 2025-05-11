@@ -16,6 +16,9 @@ grid_data = []
 revealed_cards = []
 matched_indices = set()
 turn = 0
+player_points = {}
+rounds_win={}
+
 
 @app.route("/")
 def index():
@@ -71,7 +74,7 @@ def handle_ready_for_game():
     emit("start_game", broadcast=True)
 
 def generate_grid():
-    global grid_data, revealed_cards, matched_indices, turn
+    global grid_data, revealed_cards, matched_indices, turn, player_points
     print("[DEBUG] Peli käynnistyy – luodaan ruudukko")
     images = []
     for filename in sorted(os.listdir("static/images")):
@@ -96,6 +99,7 @@ def generate_grid():
     revealed_cards = []
     matched_indices = set()
     turn = 0
+    player_points = {player: 0 for player in players}  # Alusta pisteet
     print(f"[DEBUG] Kortteja yhteensä: {len(grid_data)}")
 
 
@@ -128,8 +132,42 @@ def handle_card_click(data):
             socketio.emit("pair_found", {"indices": revealed_cards, "word": word1})
             revealed_cards = []
             if len(matched_indices) == len(grid_data):
-                print("[DEBUG] Kaikki parit löytyneet – peli ohi!")
-                socketio.emit("game_over", {"winner": players[turn]})
+                print("[DEBUG] Peli päättyi!")
+                winner = max(player_points, key=player_points.get)
+                round_wins[winner] += 1
+                socketio.emit("game_over", {
+                    "points": player_points,
+                    "round_wins": rounds_win
+            })
+
+                if len(matched_indices) == len(grid_data):
+                    print("[DEBUG] Kaikki parit löytyneet – peli ohi!")
+
+                    # Alustetaan player_points, jos se on tyhjä
+                    if not player_points:
+                        for player in players:
+                            player_points[player] = 0
+
+                    # Päivitetään pelaajien pisteet
+                    for idx in matched_indices:
+                        word = grid_data[idx]["word"]
+                        for player in players:
+                            if word in player:  # Päivitä tämä logiikka tarpeen mukaan
+                                player_points[player] += 1
+
+                    # Tarkistetaan voittaja
+                    if player_points:
+                        winner = max(player_points, key=player_points.get)
+                        print(f"[DEBUG] Voittaja: {winner}")
+
+                        # Lähetetään game_over-tapahtuma
+                        socketio.emit("game_over", {
+                            "winner": winner,
+                            "points": player_points,
+                            "round_wins": rounds_win
+                        })
+                    else:
+                        print("[ERROR] Ei voittajaa, player_points on tyhjä.")
 
         else:
             print(f"[DEBUG] Ei paria: {word1} vs {word2}")

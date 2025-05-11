@@ -118,13 +118,55 @@ socket.emit("ready_for_game");
             data.indices.forEach(i => matched.add(i));
             showWordMessage(data.word);
         });
+        
+        socket.on("game_over", (data) => {
+            console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
+            const playersDiv = document.getElementById("players");
+            playersDiv.innerHTML = ""; // Tyhjennetään pelaajalista
+
+            const results = document.createElement("div");
+            results.style.marginTop = "20px";
+
+            const points = data.points;
+            const wins = data.round_wins;
+
+            results.innerHTML = `
+                <h2>Peli päättyi!</h2>
+                <p>${Object.keys(points)[0]}: ${points[Object.keys(points)[0]]} paria</p>
+                <p>${Object.keys(points)[1]}: ${points[Object.keys(points)[1]]} paria</p>
+                <h3>Erävoitot</h3>
+                <p>${Object.keys(wins)[0]}: ${wins[Object.keys(wins)[0]]} voittoa</p>
+                <p>${Object.keys(wins)[1]}: ${wins[Object.keys(wins)[1]]} voittoa</p>
+                <button onclick="restartGame()">Uusi erä</button>
+                <button onclick="endGame()">Lopeta peli</button>
+            `;
+            document.body.appendChild(results);
+        });
 
         socket.on("game_over", (data) => {
-            console.log("[DEBUG] Peli ohi! Voittaja:", data.winner);
-            const winnerMessage = document.getElementById("winner-message");
-            winnerMessage.textContent = `Peli ohi! Voittaja: ${data.winner}`;
-            winnerMessage.style.display = "block";
-        });
+    console.log("[DEBUG] Peli päättyi, voittaja:", data.winner);
+    const winnerMessage = document.getElementById("winner-message");
+    winnerMessage.textContent = `Peli päättyi! Voittaja: ${data.winner}`;
+    winnerMessage.style.display = "block";
+});
+
+        function restartGame() {
+            console.log("[DEBUG] Lähetetään uusi erä -pyyntö");
+            socket.emit("start_game_clicked");
+        }
+
+        function endGame() {
+            console.log("[DEBUG] Peli lopetetaan.");
+            window.location.href = "/";
+        }
+
+
+        
+
+
+
+
+       
 
         function drawGrid() {
             console.log("[DEBUG] Piirretään ruudukko...");
