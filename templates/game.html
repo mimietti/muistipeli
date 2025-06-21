@@ -120,34 +120,43 @@ socket.emit("ready_for_game");
         });
         
         socket.on("game_over", (data) => {
-            console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
-            const playersDiv = document.getElementById("players");
-            playersDiv.innerHTML = ""; // Tyhjennetään pelaajalista
+    console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
+    const playersDiv = document.getElementById("players");
+    playersDiv.innerHTML = ""; // Tyhjennetään pelaajalista
 
-            const results = document.createElement("div");
-            results.style.marginTop = "20px";
+    // Poista mahdollinen vanha results-div
+    const oldResults = document.getElementById("results");
+    if (oldResults) oldResults.remove();
 
-            const points = data.points;
-            const wins = data.round_wins;
+    const results = document.createElement("div");
+    results.id = "results";
+    results.style.marginTop = "20px";
+    results.style.color = "gold";
+    results.style.fontSize = "24px";
 
-            results.innerHTML = `
-                <h2>Peli päättyi!</h2>
-                <p>${Object.keys(points)[0]}: ${points[Object.keys(points)[0]]} paria</p>
-                <p>${Object.keys(points)[1]}: ${points[Object.keys(points)[1]]} paria</p>
-                <h3>Erävoitot</h3>
-                <p>${Object.keys(wins)[0]}: ${wins[Object.keys(wins)[0]]} voittoa</p>
-                <p>${Object.keys(wins)[1]}: ${wins[Object.keys(wins)[1]]} voittoa</p>
-                <button onclick="restartGame()">Uusi erä</button>
-                <button onclick="endGame()">Lopeta peli</button>
-            `;
-            document.body.appendChild(results);
-        });
+    // Pisteet
+    const points = data.points;
+    const wins = data.round_wins;
 
-        socket.on("game_over", (data) => {
-    console.log("[DEBUG] Peli päättyi, voittaja:", data.winner);
+    results.innerHTML = `
+        <div style="margin-bottom:20px;">
+            <strong>Peli päättyi! Voittaja: ${data.winner}</strong><br><br>
+            <span style="font-size:20px;">Pisteet:</span><br>
+            ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} paria`).join("<br>")}
+        </div>
+        <div style="color:white; font-size:22px;">
+            <strong>Erävoitot</strong><br>
+            ${Object.entries(wins).map(([name, w]) => `${name}: ${w} voittoa`).join("<br>")}
+        </div>
+        <br>
+        <button onclick="restartGame()">Uusi erä</button>
+        <button onclick="endGame()">Lopeta peli</button>
+    `;
+    document.body.appendChild(results);
+
+    // Piilota winner-message-div jos sellainen on
     const winnerMessage = document.getElementById("winner-message");
-    winnerMessage.textContent = `Peli päättyi! Voittaja: ${data.winner}`;
-    winnerMessage.style.display = "block";
+    if (winnerMessage) winnerMessage.style.display = "none";
 });
 
         function restartGame() {
