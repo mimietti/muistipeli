@@ -17,7 +17,7 @@ revealed_cards = []
 matched_indices = set()
 turn = 0
 player_points = {}
-rounds_win={}
+round_win={}
 
 
 @app.route("/")
@@ -108,7 +108,7 @@ def generate_grid():
 
 @socketio.on("card_clicked")
 def handle_card_click(data):
-    global revealed_cards, turn, matched_indices
+    global revealed_cards, turn, matched_indices, player_points, round_win
 
     index = data["index"]
     if index in matched_indices or index in revealed_cards:
@@ -130,57 +130,35 @@ def handle_card_click(data):
             matched_indices.update(revealed_cards)
             print(f"[DEBUG] Pari löytyi: {word1}")
             socketio.emit("pair_found", {"indices": revealed_cards, "word": word1})
+
+            # Lisää pisteet vuorossa olevalle pelaajalle
+            current_player = players[turn]
+            player_points[current_player] += 1
+
             revealed_cards = []
             if len(matched_indices) == len(grid_data):
                 print("[DEBUG] Peli päättyi!")
                 winner = max(player_points, key=player_points.get)
-                round_wins[winner] += 1
+                if winner not in round_win:
+                    round_win[winner] = 0
+                round_win[winner] += 1
                 socketio.emit("game_over", {
+                    "winner": winner,
                     "points": player_points,
-                    "round_wins": rounds_win
-            })
-
-                if len(matched_indices) == len(grid_data):
-                    print("[DEBUG] Kaikki parit löytyneet – peli ohi!")
-
-                    # Alustetaan player_points, jos se on tyhjä
-                    if not player_points:
-                        for player in players:
-                            player_points[player] = 0
-
-                    # Päivitetään pelaajien pisteet
-                    for idx in matched_indices:
-                        word = grid_data[idx]["word"]
-                        for player in players:
-                            if word in player:  # Päivitä tämä logiikka tarpeen mukaan
-                                player_points[player] += 1
-
-                    # Tarkistetaan voittaja
-                    if player_points:
-                        winner = max(player_points, key=player_points.get)
-                        print(f"[DEBUG] Voittaja: {winner}")
-
-                        # Lähetetään game_over-tapahtuma
-                        socketio.emit("game_over", {
-                            "winner": winner,
-                            "points": player_points,
-                            "round_wins": rounds_win
-                        })
-                    else:
-                        print("[ERROR] Ei voittajaa, player_points on tyhjä.")
-
+                    "round_wins": round_win
+                })
         else:
             print(f"[DEBUG] Ei paria: {word1} vs {word2}")
-            indices_to_hide = list(revealed_cards)  # Tee kopio!
+            indices_to_hide = list(revealed_cards)
             revealed_cards = []
 
             def hide_later():
-                socketio.sleep(2)  # Odota 2 sekuntia
+                socketio.sleep(2)
                 socketio.emit("hide_cards", {"indices": indices_to_hide})
-            
+
             socketio.start_background_task(hide_later)
             turn = (turn + 1) % len(players)
-        
+
         socketio.emit("update_turn", {"turn": players[turn]})
 
 
