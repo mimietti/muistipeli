@@ -78,10 +78,19 @@ socket.emit("ready_for_game");
         });
 
         socket.on("init_grid", (data) => {
+            // Palauta pelilauta ja pelaajalista näkyviin
+            document.getElementById("grid").style.display = "";
+            document.getElementById("players").style.display = "";
+
+            // Poista mahdollinen vanha results-div
+            const oldResults = document.getElementById("results");
+            if (oldResults) oldResults.remove();
+
             console.log("[DEBUG] init_grid saapui! Kortteja:", data.cards.length);
             cards = data.cards;
             currentTurn = data.turn;
             sessionStorage.setItem("players", JSON.stringify(data.players));
+            matched = new Set(); // <-- TÄRKEÄ: nollaa matched!
             drawGrid();
             updatePlayers();
         });
@@ -121,8 +130,10 @@ socket.emit("ready_for_game");
         
         socket.on("game_over", (data) => {
     console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
-    const playersDiv = document.getElementById("players");
-    playersDiv.innerHTML = ""; // Tyhjennetään pelaajalista
+
+    // Piilota pelilauta ja pelaajalista
+    document.getElementById("grid").style.display = "none";
+    document.getElementById("players").style.display = "none";
 
     // Poista mahdollinen vanha results-div
     const oldResults = document.getElementById("results");
@@ -130,7 +141,7 @@ socket.emit("ready_for_game");
 
     const results = document.createElement("div");
     results.id = "results";
-    results.style.marginTop = "20px";
+    results.style.marginTop = "40px";
     results.style.color = "gold";
     results.style.fontSize = "24px";
 
