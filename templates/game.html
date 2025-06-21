@@ -19,7 +19,6 @@
         .active {
             color: limegreen;
         }
-        
         #grid {
             display: grid;
             grid-template-columns: repeat(4, 150px);
@@ -53,12 +52,7 @@
 
     <script>
         const socket = io();
-console.log("[DEBUG] Socket yhteys avattu game.html");
-
-// Ilmoita palvelimelle että ollaan valmiina vastaanottamaan peli
-socket.emit("ready_for_game");
-
-        
+        console.log("[DEBUG] Socket yhteys avattu game.html");
 
         let myName = localStorage.getItem("username");
         let cards = [];
@@ -72,17 +66,16 @@ socket.emit("ready_for_game");
 
         socket.emit("join", { username: myName });
 
-        socket.on("start_game", () => {
-            console.log("[DEBUG] start_game vastaanotettu – pyydetään request_grid");
-            socket.emit("request_grid");
-        });
+        // Käynnistä peli custom game -polulla
+        if (window.startCustomGameOnce !== true) {
+            window.startCustomGameOnce = true;
+            console.log("[DEBUG] Lähetetään start_custom_game heti pelin alussa");
+            socket.emit("start_custom_game");
+        }
 
         socket.on("init_grid", (data) => {
-            // Palauta pelilauta ja pelaajalista näkyviin
             document.getElementById("grid").style.display = "";
             document.getElementById("players").style.display = "";
-
-            // Poista mahdollinen vanha results-div
             const oldResults = document.getElementById("results");
             if (oldResults) oldResults.remove();
 
@@ -90,7 +83,7 @@ socket.emit("ready_for_game");
             cards = data.cards;
             currentTurn = data.turn;
             sessionStorage.setItem("players", JSON.stringify(data.players));
-            matched = new Set(); // <-- TÄRKEÄ: nollaa matched!
+            matched = new Set();
             drawGrid();
             updatePlayers();
         });
@@ -111,82 +104,89 @@ socket.emit("ready_for_game");
         });
 
         socket.on("hide_cards", (data) => {
-    console.log("[DEBUG] Piilotetaan kortit:", data.indices);
-    data.indices.forEach(i => {
-        const card = document.getElementById(`card-${i}`);
-        if (card && !matched.has(i)) {
-            card.classList.add("hidden");
-            card.style.backgroundImage = "none";
-        }
-    });
-});
-
+            console.log("[DEBUG] Piilotetaan kortit:", data.indices);
+            data.indices.forEach(i => {
+                const card = document.getElementById(`card-${i}`);
+                if (card && !matched.has(i)) {
+                    card.classList.add("hidden");
+                    card.style.backgroundImage = "none";
+                }
+            });
+        });
 
         socket.on("pair_found", (data) => {
             console.log("[DEBUG] Pari löytyi:", data.word);
             data.indices.forEach(i => matched.add(i));
             showWordMessage(data.word);
         });
-        
+
         socket.on("game_over", (data) => {
-    console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
+            console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
+            document.getElementById("grid").style.display = "none";
+            document.getElementById("players").style.display = "none";
+            const oldResults = document.getElementById("results");
+            if (oldResults) oldResults.remove();
 
-    // Piilota pelilauta ja pelaajalista
-    document.getElementById("grid").style.display = "none";
-    document.getElementById("players").style.display = "none";
+            const results = document.createElement("div");
+            results.id = "results";
+            results.style.marginTop = "40px";
+            results.style.color = "gold";
+            results.style.fontSize = "24px";
 
-    // Poista mahdollinen vanha results-div
-    const oldResults = document.getElementById("results");
-    if (oldResults) oldResults.remove();
+            const points = data.points;
+            const win = data.round_win;
 
-    const results = document.createElement("div");
-    results.id = "results";
-    results.style.marginTop = "40px";
-    results.style.color = "gold";
-    results.style.fontSize = "24px";
+            results.innerHTML = `
+                <div style="margin-bottom:20px;">
+                    <strong>Peli päättyi! Voittaja: ${data.winner}</strong><br><br>
+                    <span style="font-size:20px;">Pisteet:</span><br>
+                    ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} paria`).join("<br>")}
+                </div>
+                <div style="color:white; font-size:22px;">
+                    <strong>Erävoitot</strong><br>
+                    ${Object.entries(wins).map(([name, w]) => `${name}: ${w} voittoa`).join("<br>")}
+                </div>
+                <br>
+                <button onclick="restartGame()">Uusi erä</button>
+                <button onclick="endGame()">Lopeta peli</button>
+            `;
+            document.body.appendChild(results);
 
-    // Pisteet
-    const points = data.points;
-    const wins = data.round_wins;
+            const winnerMessage = document.getElementById("winner-message");
+            if (winnerMessage) winnerMessage.style.display = "none";
+        });
 
-    results.innerHTML = `
-        <div style="margin-bottom:20px;">
-            <strong>Peli päättyi! Voittaja: ${data.winner}</strong><br><br>
-            <span style="font-size:20px;">Pisteet:</span><br>
-            ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} paria`).join("<br>")}
-        </div>
-        <div style="color:white; font-size:22px;">
-            <strong>Erävoitot</strong><br>
-            ${Object.entries(wins).map(([name, w]) => `${name}: ${w} voittoa`).join("<br>")}
-        </div>
-        <br>
-        <button onclick="restartGame()">Uusi erä</button>
-        <button onclick="endGame()">Lopeta peli</button>
-    `;
-    document.body.appendChild(results);
+        // Sanojen kysely Pixabayn käyttöön
+        socket.on("ask_for_word", (data) => {
+            console.log("[DEBUG] ask_for_word vastaanotettu:", data);
+            if (myName === data.player) {
+                let sana = prompt(`Anna ${data.pair}/8 parin sana (Describe the pair with a common word):`);
+                console.log("[DEBUG] Annettiin sana:", sana);
+                if (sana) {
+                    socket.emit("word_given", {word: sana});
+                    console.log("[DEBUG] Lähetettiin word_given palvelimelle:", sana);
+                }
+            }
+        });
 
-    // Piilota winner-message-div jos sellainen on
-    const winnerMessage = document.getElementById("winner-message");
-    if (winnerMessage) winnerMessage.style.display = "none";
-});
+        socket.on("word_failed", (data) => {
+            console.log("[DEBUG] word_failed vastaanotettu:", data);
+            if (myName === data.player) {
+                alert("Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.");
+                socket.emit("ask_for_word", {player: myName, pair: data.pair});
+                console.log("[DEBUG] Lähetettiin ask_for_word uudestaan:", data.pair);
+            }
+        });
 
         function restartGame() {
-            console.log("[DEBUG] Lähetetään uusi erä -pyyntö");
-            socket.emit("start_game_clicked");
+            console.log("[DEBUG] Lähetetään uusi erä -pyyntö (custom game)");
+            socket.emit("start_custom_game");
         }
 
         function endGame() {
             console.log("[DEBUG] Peli lopetetaan.");
             window.location.href = "/";
         }
-
-
-        
-
-
-
-
-       
 
         function drawGrid() {
             console.log("[DEBUG] Piirretään ruudukko...");
@@ -205,8 +205,6 @@ socket.emit("ready_for_game");
                 });
                 grid.appendChild(div);
             });
-
-            
         }
 
         function updatePlayers() {
