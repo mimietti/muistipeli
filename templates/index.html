@@ -43,13 +43,72 @@
     </style>
 </head>
 <body>
-    <h1>Tervetuloa muistipeliin!</h1>
+    <h1>Tervetuloa muistipeliin!!!</h1>
     <input type="text" id="nameInput" placeholder="Nimesi" />
     <br>
     <button onclick="joinGame()">Liity peliin</button>
+    <br>
+    <button id="showTokenBtn" style="background-color:#2d7dd2; margin-left: 8px;">Näytä reconnect_token</button>
+    <div id="tokenInfo" style="margin-top:16px; font-size:14px; color:#ccc;"></div>
     <div id="error"></div>
 
     <script>
+        // Turvallinen UUID myös laitteille, joissa crypto.randomUUID puuttuu
+        function safeUUID() {
+            if (self.crypto && typeof self.crypto.randomUUID === "function") {
+                try { return self.crypto.randomUUID(); } catch (_) {}
+            }
+            // RFC4122 v4 likimääräinen polyfill
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function getNameToken() {
+            try {
+                const m = String(window.name || '').match(/(?:^|;)reconnect_token=([A-Za-z0-9-]+)/);
+                return m ? m[1] : null;
+            } catch (_) { return null; }
+        }
+        function setNameToken(tok) {
+            try {
+                window.name = `reconnect_token=${tok}`;
+            } catch (_) {}
+        }
+
+        // Luo reconnect_token synkronisesti ennen mitään muuta (iOS-yhteensopiva)
+        (function ensureReconnectToken() {
+            let token = null;
+            try { token = localStorage.getItem("reconnect_token"); } catch (_) {}
+            if (!token) { try { token = sessionStorage.getItem("reconnect_token"); } catch (_) {} }
+            if (!token) { token = getNameToken(); }
+            if (!token) {
+                token = safeUUID();
+                let stored = false;
+                try { localStorage.setItem("reconnect_token", token); stored = true; } catch (_) {}
+                if (!stored) { try { sessionStorage.setItem("reconnect_token", token); stored = true; } catch (_) {} }
+                if (!stored) { setNameToken(token); stored = true; }
+                if (!stored) { window._reconnect_token = token; }
+                console.log("DEBUG: created reconnect_token:", token);
+            } else {
+                console.log("DEBUG: reconnect_token already present:", token);
+            }
+        })();
+
+        function getReconnectToken() {
+            let t = null;
+            try {
+                t = localStorage.getItem("reconnect_token") || sessionStorage.getItem("reconnect_token");
+            } catch (_) {}
+            if (!t) t = getNameToken();
+            if (!t) t = window._reconnect_token;
+            if (!t) { t = safeUUID(); setNameToken(t); }
+            window.reconnect_token = t;
+            console.log("DEBUG: getReconnectToken() returns:", t, ", typeof:", typeof t);
+            return t;
+        }
+
         const socket = io();
 
         function joinGame() {
@@ -58,10 +117,43 @@
                 document.getElementById("error").textContent = "Syötä nimi ensin.";
                 return;
             }
-
+            const reconnectToken = getReconnectToken();
+            if (!reconnectToken) {
+                alert("Reconnect_token puuttuu! Lataa sivu uudelleen.");
+                location.reload();
+                return;
+            }
             localStorage.setItem("username", username);
-            socket.emit("join", { username: username });
+            const joinPayload = { username: username, reconnect_token: reconnectToken };
+            console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
+            socket.emit("join", joinPayload);
         }
+
+        // Apurit tokenin kanavan tunnistamiseen ja näyttöön
+        function detectTokenChannel(token) {
+            try { if (localStorage.getItem("reconnect_token") === token) return "localStorage"; } catch(_) {}
+            try { if (sessionStorage.getItem("reconnect_token") === token) return "sessionStorage"; } catch(_) {}
+            try {
+                const m = String(window.name||'').match(/(?:^|;)reconnect_token=([A-Za-z0-9-]+)/);
+                if (m && m[1] === token) return "window.name";
+            } catch(_) {}
+            if (window._reconnect_token === token) return "window._reconnect_token";
+            return "tuntematon";
+        }
+
+        document.getElementById('showTokenBtn').addEventListener('click', () => {
+            const token = getReconnectToken();
+            const channel = detectTokenChannel(token);
+            const user = (function(){ try { return localStorage.getItem('username')||''; } catch(_) { return ''; }})();
+            const info = `reconnect_token: ${token}\nkanava: ${channel}${user?`\nusername: ${user}`:''}`;
+            console.log("DEBUG:", info.replace(/\n/g, " | "));
+            const div = document.getElementById('tokenInfo');
+            div.textContent = info;
+            try {
+                navigator.clipboard.writeText(info);
+                div.textContent += "\n(Kopioitu leikepöydälle)";
+            } catch(_) {}
+        });
 
         socket.on("player_joined", (data) => {
             const myName = localStorage.getItem("username");

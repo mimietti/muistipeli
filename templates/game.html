@@ -42,6 +42,21 @@
         .hidden {
             background-image: none !important;
         }
+        #toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.85);
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 18px;
+            border: 1px solid #2ecc71;
+            z-index: 9999;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -49,31 +64,85 @@
     <div id="players"></div>
     <div id="grid"></div>
     <div id="winner-message" style="display: none; margin-top: 20px; color: gold; font-size: 24px;"></div>
+    <div id="toast"></div>
 
     <script>
+        function safeUUID() {
+            if (self.crypto && typeof self.crypto.randomUUID === "function") {
+                try { return self.crypto.randomUUID(); } catch (_) {}
+            }
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8);
+                return v.toString(16);
+            });
+        }
+        function getNameToken() {
+            try {
+                const m = String(window.name || '').match(/(?:^|;)reconnect_token=([A-Za-z0-9-]+)/);
+                return m ? m[1] : null;
+            } catch (_) { return null; }
+        }
+        function setNameToken(tok) { try { window.name = `reconnect_token=${tok}`; } catch (_) {} }
+
+        // Luo reconnect_token synkronisesti ennen mitään muuta (iOS-yhteensopiva)
+        (function ensureReconnectToken() {
+            let token = null;
+            try { token = localStorage.getItem("reconnect_token"); } catch (_) {}
+            if (!token) { try { token = sessionStorage.getItem("reconnect_token"); } catch (_) {} }
+            if (!token) { token = getNameToken(); }
+            if (!token) {
+                token = safeUUID();
+                let stored = false;
+                try { localStorage.setItem("reconnect_token", token); stored = true; } catch (_) {}
+                if (!stored) { try { sessionStorage.setItem("reconnect_token", token); stored = true; } catch (_) {} }
+                if (!stored) { setNameToken(token); stored = true; }
+                if (!stored) { window._reconnect_token = token; }
+                console.log("DEBUG: created reconnect_token:", token);
+            } else {
+                console.log("DEBUG: reconnect_token already present:", token);
+            }
+        })();
+
+        function getReconnectToken() {
+            let t = null;
+            try { t = localStorage.getItem("reconnect_token") || sessionStorage.getItem("reconnect_token"); } catch (_) {}
+            if (!t) t = getNameToken();
+            if (!t) t = window._reconnect_token;
+            if (!t) { t = safeUUID(); setNameToken(t); }
+            window.reconnect_token = t;
+            console.log("DEBUG: getReconnectToken() returns:", t, ", typeof:", typeof t);
+            return t;
+        }
+
         const socket = io();
-        console.log("[DEBUG] Socket yhteys avattu game.html");
-
         let myName = localStorage.getItem("username");
-        let cards = [];
-        let currentTurn = "";
-        let matched = new Set();
-
         if (!myName) {
             console.error("[ERROR] Käyttäjänimeä ei löydy localStoragesta.");
             window.location.href = "/";
         }
-
-        socket.emit("join", { username: myName });
-
-        // Käynnistä peli custom game -polulla
-        if (window.startCustomGameOnce !== true) {
-            window.startCustomGameOnce = true;
-            console.log("[DEBUG] Lähetetään start_custom_game heti pelin alussa");
-            socket.emit("start_custom_game");
+        const reconnectToken = getReconnectToken();
+        if (!reconnectToken) {
+            alert("Reconnect_token puuttuu! Lataa sivu uudelleen.");
+            location.reload();
         }
+        // Liity peliin reconnect_tokenin kanssa
+        const joinPayload = { username: myName, reconnect_token: reconnectToken };
+        console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
+        socket.emit("join", joinPayload);
 
+        // Pyydä aina nykyinen ruudukko yhteyden muodostuessa
+        socket.emit("request_grid");
+
+        // Älä auto-käynnistä peliä tässä näkymässä; odota odotushuoneessa aloitusta
+        socket.on("player_joined", (data) => {
+            console.log("[DEBUG] player_joined(game):", data.players);
+            // Vain UI-päivitystä varten; varsinainen aloitus tehdään odotushuoneessa
+        });
+
+        // Kun peli käynnistyy, aseta front-flag
         socket.on("init_grid", (data) => {
+            sessionStorage.setItem("game_started", "1");
+            sessionStorage.setItem("words_given", "1"); // Merkitse että kaikki sanat on jo annettu
             document.getElementById("grid").style.display = "";
             document.getElementById("players").style.display = "";
             const oldResults = document.getElementById("results");
@@ -81,11 +150,18 @@
 
             console.log("[DEBUG] init_grid saapui! Kortteja:", data.cards.length);
             cards = data.cards;
+            console.log("[DEBUG] cards:", cards);
             currentTurn = data.turn;
             sessionStorage.setItem("players", JSON.stringify(data.players));
             matched = new Set();
             drawGrid();
             updatePlayers();
+        });
+
+        // Jos palvelimella ei ole ruudukkoa (esim. peliä ei ole vielä aloitettu), ei tehdä mitään.
+        // Aloitus tapahtuu odotushuoneessa, tai käyttäjä voi palata sinne.
+        socket.on("no_grid", (data) => {
+            console.log("[DEBUG] no_grid vastaanotettu:", data && data.reason);
         });
 
         socket.on("update_turn", (data) => {
@@ -133,8 +209,8 @@
             results.style.color = "gold";
             results.style.fontSize = "24px";
 
-            const points = data.points;
-            const win = data.round_win;
+            const points = data.points || {};
+            const wins = data.round_win || {};
 
             results.innerHTML = `
                 <div style="margin-bottom:20px;">
@@ -154,11 +230,21 @@
 
             const winnerMessage = document.getElementById("winner-message");
             if (winnerMessage) winnerMessage.style.display = "none";
+
+            // Kysy heti pelataanko uusi erä
+            setTimeout(() => {
+                const uudenEra = confirm(`Voittaja: ${data.winner}.\nPelataanko uusi erä?`);
+                if (uudenEra) restartGame();
+            }, 50);
         });
 
         // Sanojen kysely Pixabayn käyttöön
         socket.on("ask_for_word", (data) => {
             console.log("[DEBUG] ask_for_word vastaanotettu:", data);
+            if (sessionStorage.getItem("words_given")) {
+                console.log("[DEBUG] Ei näytetä promptia, sanat jo annettu tässä selaimessa.");
+                return;
+            }
             if (myName === data.player) {
                 let sana = prompt(`Anna ${data.pair}/8 parin sana (Describe the pair with a common word):`);
                 console.log("[DEBUG] Annettiin sana:", sana);
@@ -178,12 +264,39 @@
             }
         });
 
+        // Jos odotushuoneessa tuli ensimmäinen ask_for_word jo ennen kuin tämä sivu ehti avautua,
+        // käsitellään se tässä talletetusta sessionStoragesta.
+        (function handlePendingAsk() {
+            let raw = null;
+            try { raw = sessionStorage.getItem("pending_ask"); } catch (e) {}
+            if (!raw) return;
+            try { sessionStorage.removeItem("pending_ask"); } catch (e) {}
+            let data = null;
+            try { data = JSON.parse(raw); } catch (e) {}
+            if (!data) return;
+            console.log("[DEBUG] Käsitellään pending_ask pelisivulla:", data);
+            if (sessionStorage.getItem("words_given")) return; // jos jo merkitty valmiiksi
+            if (myName === data.player) {
+                let sana = prompt(`Anna ${data.pair}/8 parin sana (Describe the pair with a common word):`);
+                console.log("[DEBUG] (pending) Annettiin sana:", sana);
+                if (sana) {
+                    socket.emit("word_given", {word: sana});
+                    console.log("[DEBUG] (pending) Lähetettiin word_given palvelimelle:", sana);
+                }
+            }
+        })();
+
         function restartGame() {
             console.log("[DEBUG] Lähetetään uusi erä -pyyntö (custom game)");
+            // Tyhjennä flag, jotta sana-promptit näytetään uudessa erässä
+            try { sessionStorage.removeItem("words_given"); } catch (e) {}
             socket.emit("start_custom_game");
         }
 
+        // Tyhjennä front-flag kun peli päättyy tai käyttäjä palaa etusivulle
         function endGame() {
+            sessionStorage.removeItem("game_started");
+            sessionStorage.removeItem("words_given");
             console.log("[DEBUG] Peli lopetetaan.");
             window.location.href = "/";
         }
@@ -223,13 +336,13 @@
         }
 
         function showWordMessage(word) {
-            const message = document.createElement("div");
-            message.textContent = `Löysit parin: ${word}`;
-            message.style.marginTop = "10px";
-            message.style.color = "lime";
-            message.style.fontSize = "20px";
-            document.body.appendChild(message);
-            setTimeout(() => message.remove(), 1500);
+            const toast = document.getElementById("toast");
+            toast.textContent = `Löysit sanan: ${word}`;
+            toast.style.display = "block";
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => {
+                toast.style.display = "none";
+            }, 1800);
         }
     </script>
 </body>

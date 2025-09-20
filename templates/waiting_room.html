@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Odotushuone</title>
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
         body {
             background-color: #111;
@@ -24,7 +23,7 @@
             font-size: 24px;
         }
 
-        #startBtn {
+        #startBtn, #changeNameBtn {
             background-color: limegreen;
             color: black;
             font-size: 20px;
@@ -35,42 +34,218 @@
             display: none;
         }
 
-        #startBtn:hover {
+        #startBtn:hover, #changeNameBtn:hover {
             background-color: green;
         }
     </style>
 </head>
 <body>
-    <h1>Odotushuone</h1>
+    <h1>Odotushuone <span style="color:yellow;">[DEBUG 2025-09-20]</span></h1>
     <div id="players"></div>
     <button id="startBtn">Aloita peli</button>
+    <button id="changeNameBtn" style="margin-top: 20px;">Vaihda nimi</button>
 
     <script>
-        const socket = io();
-        const myName = localStorage.getItem("username");
-
-        console.log("[DEBUG] Socket yhteys OK (waiting_room.html)");
-
-        socket.emit("join", { username: myName });
-
-        socket.on("player_joined", ({ players }) => {
-            console.log("[DEBUG] Pelaajat:", players);
-            const playersDiv = document.getElementById("players");
-            playersDiv.textContent = players.join(" & ");
-            if (players.length === 2) {
-                document.getElementById("startBtn").style.display = "inline-block";
+        function safeUUID() {
+            if (self.crypto && typeof self.crypto.randomUUID === "function") {
+                try { return self.crypto.randomUUID(); } catch (_) {}
             }
-        });
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8);
+                return v.toString(16);
+            });
+        }
+        function getNameToken() {
+            try {
+                const m = String(window.name || '').match(/(?:^|;)reconnect_token=([A-Za-z0-9-]+)/);
+                return m ? m[1] : null;
+            } catch (_) { return null; }
+        }
+        function setNameToken(tok) { try { window.name = `reconnect_token=${tok}`; } catch (_) {} }
 
-        document.getElementById("startBtn").addEventListener("click", () => {
-            console.log("[DEBUG] Aloita peli painettu");
-            socket.emit("start_game_clicked");
-        });
+        // Luo reconnect_token ennen socket.io:n latausta
+        (function ensureReconnectToken() {
+            let token = null;
+            try { token = localStorage.getItem("reconnect_token"); } catch (_) {}
+            if (!token) { try { token = sessionStorage.getItem("reconnect_token"); } catch (_) {} }
+            if (!token) { token = getNameToken(); }
+            if (!token) {
+                token = safeUUID();
+                let stored = false;
+                try { localStorage.setItem("reconnect_token", token); stored = true; } catch (_) {}
+                if (!stored) { try { sessionStorage.setItem("reconnect_token", token); stored = true; } catch (_) {} }
+                if (!stored) { setNameToken(token); stored = true; }
+                if (!stored) { window._reconnect_token = token; }
+                console.log("DEBUG: created reconnect_token:", token);
+            } else {
+                console.log("DEBUG: reconnect_token already present:", token);
+            }
+        })();
 
-        socket.on("start_game", () => {
-            console.log("[DEBUG] Vastaanotettiin 'start_game', siirrytään peliin");
-            window.location.href = "/game";
-        });
+        function getReconnectToken() {
+            let t = null;
+            try { t = localStorage.getItem("reconnect_token") || sessionStorage.getItem("reconnect_token"); } catch (_) {}
+            if (!t) t = getNameToken();
+            if (!t) t = window._reconnect_token;
+            if (!t) { t = safeUUID(); setNameToken(t); }
+            window.reconnect_token = t;
+            console.log("DEBUG: getReconnectToken() returns:", t, ", typeof:", typeof t);
+            return t;
+        }
+
+        // DEBUG: reconnect_token ennen socket.io-client latausta
+        console.log("DEBUG: reconnect_token before socket.io load:", getReconnectToken());
+        console.log("DEBUG: localStorage reconnect_token:", localStorage.getItem("reconnect_token"));
+        console.log("DEBUG: sessionStorage reconnect_token:", sessionStorage.getItem("reconnect_token"));
+        console.log("DEBUG: window._reconnect_token:", window._reconnect_token);
+        console.log("DEBUG: localStorage username:", localStorage.getItem("username"));
+
+        // Yleinen window.onerror-debuggaus
+        window.onerror = function(msg, url, line, col, error) {
+            console.error("[DEBUG] window.onerror:", msg, url, line, col, error);
+        };
+
+        if (!getReconnectToken()) {
+            alert("Reconnect_token puuttuu! Sivua ei voi ladata, yritä uudelleen.");
+            throw new Error("Reconnect_token puuttuu!");
+        }
+
+        // Kysy nimi synkronisesti ennen mitään muuta!
+        (function ensureUsername() {
+            if (!localStorage.getItem("username")) {
+                let name = prompt("Anna nimesi:", "");
+                while (!name || name.trim().length === 0) {
+                    name = prompt("Anna nimesi:", "");
+                }
+                localStorage.setItem("username", name.trim());
+            }
+        })();
+
+        // Poista mahdollinen vanha window.io ennen uuden socket.io-clientin latausta
+        if (window.io) {
+            try { delete window.io; } catch (e) { window.io = undefined; }
+        }
+
+        // Lataa socket.io-client vasta kun reconnect_token ja username on varmasti olemassa
+        const script = document.createElement('script');
+        script.src = "https://cdn.socket.io/4.5.4/socket.io.min.js";
+        script.onload = startSocketWhenReady;
+        document.body.appendChild(script);
+
+        // Käynnistä socket vasta kun reconnect_token ja username on varmasti olemassa JA window.io on ladattu
+        function startSocketWhenReady() {
+            if (!window.io) {
+                setTimeout(startSocketWhenReady, 50);
+                return;
+            }
+            let myName = localStorage.getItem("username");
+            let reconnectToken = getReconnectToken();
+            let hasJoined = false;
+            let joinEmittedCount = 0;
+            console.log("DEBUG: startSocketWhenReady, myName:", myName, "reconnectToken:", reconnectToken);
+            const socket = window.io();
+
+            function emitJoin() {
+                // Tarkista reconnect_tokenin arvo ja tyyppi ennen emitointia
+                console.log("DEBUG: emitJoin, username:", myName, ", reconnect_token:", reconnectToken, ", typeof reconnect_token:", typeof reconnectToken);
+                if (reconnectToken === undefined || reconnectToken === null || reconnectToken === "") {
+                    alert("Reconnect_token puuttuu tai on tyhjä! Sivua ladataan uudelleen.");
+                    location.reload();
+                    return;
+                }
+                const joinPayload = { username: myName, reconnect_token: reconnectToken };
+                console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
+                socket.emit("join", joinPayload);
+            }
+
+            function askName() {
+                let name = prompt("Anna nimesi:", myName || "");
+                if (name && name.trim().length > 0) {
+                    name = name.trim();
+                    localStorage.setItem("username", name);
+                    myName = name;
+                    if (!hasJoined) {
+                        emitJoin();
+                        hasJoined = true;
+                    }
+                } else {
+                    askName();
+                }
+            }
+
+            if (!myName || myName.trim().length === 0) {
+                askName();
+            } else {
+                emitJoin();
+                hasJoined = true;
+            }
+
+            document.getElementById("changeNameBtn").onclick = function() {
+                localStorage.removeItem("username");
+                hasJoined = false;
+                askName();
+            };
+
+            console.log("[DEBUG] Socket yhteys OK (waiting_room.html)");
+
+            socket.on("player_joined", ({ players }) => {
+                console.log("[DEBUG] Pelaajat:", players);
+                const playersDiv = document.getElementById("players");
+                playersDiv.textContent = players.join(" & ");
+                if (players.length === 2) {
+                    document.getElementById("startBtn").style.display = "inline-block";
+                } else {
+                    document.getElementById("startBtn").style.display = "none";
+                }
+            });
+
+            document.getElementById("startBtn").addEventListener("click", () => {
+                if (!myName || myName.trim().length === 0) {
+                    askName();
+                    return;
+                }
+                console.log("[DEBUG] Aloita peli painettu (custom)");
+                // Käynnistä custom-sanojen keruu – älä vielä vaihda sivua,
+                // jotta ensimmäinen ask_for_word ei huku sivunvaihdossa.
+                socket.emit("start_custom_game");
+            });
+
+            socket.on("start_game", () => {
+                console.log("[DEBUG] Vastaanotettiin 'start_game', siirrytään peliin");
+                window.location.href = "/game";
+            });
+
+            // Custom-peli: kun sanat tai ruudukko alkaa, siirry peliin
+            socket.on("ask_for_word", (data) => {
+                console.log("[DEBUG] Vastaanotettiin 'ask_for_word' odotushuoneessa – talletetaan ja siirrytään peliin");
+                try { sessionStorage.setItem("pending_ask", JSON.stringify(data)); } catch (e) {}
+                window.location.href = "/game";
+            });
+            socket.on("init_grid", () => {
+                console.log("[DEBUG] Vastaanotettiin 'init_grid' odotushuoneessa – siirrytään peliin");
+                window.location.href = "/game";
+            });
+
+            // Yhteyden katkeamisen ja uudelleenliittymisen käsittely
+            socket.on("disconnect", (reason) => {
+                console.warn("[DEBUG] Socket.IO yhteys katkesi:", reason);
+                alert("Yhteys katkesi palvelimeen. Yritetään uudelleen...");
+            });
+
+            socket.io.on("reconnect", (attempt) => {
+                console.log("[DEBUG] Socket.IO yhteys palautui, reconnect attempt:", attempt);
+                myName = localStorage.getItem("username");
+                reconnectToken = getReconnectToken();
+                if (myName && myName.trim().length > 0) {
+                    emitJoin();
+                    hasJoined = true;
+                }
+            });
+
+            socket.io.on("reconnect_error", (err) => {
+                console.error("[DEBUG] Socket.IO reconnect error:", err);
+            });
+        }
     </script>
 </body>
 </html>
