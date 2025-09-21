@@ -115,6 +115,8 @@
         }
 
         const socket = io();
+        // Varmista että uusi erä voi kysyä sanoja tällä sivulla
+        try { sessionStorage.removeItem("words_given"); } catch (e) {}
         let myName = localStorage.getItem("username");
         if (!myName) {
             console.error("[ERROR] Käyttäjänimeä ei löydy localStoragesta.");
@@ -245,11 +247,18 @@
                 console.log("[DEBUG] Ei näytetä promptia, sanat jo annettu tässä selaimessa.");
                 return;
             }
+            // Estä duplikaattipromptit samalle parille
+            const lastPair = parseInt(sessionStorage.getItem("last_asked_pair") || "0", 10);
+            if (Number(data.pair) <= lastPair) {
+                console.log("[DEBUG] Ohitetaan duplikaatti ask_for_word. lastPair=", lastPair, "incoming=", data.pair);
+                return;
+            }
             if (myName === data.player) {
                 let sana = prompt(`Anna ${data.pair}/8 parin sana (Describe the pair with a common word):`);
                 console.log("[DEBUG] Annettiin sana:", sana);
                 if (sana) {
                     socket.emit("word_given", {word: sana});
+                    try { sessionStorage.setItem("last_asked_pair", String(data.pair)); } catch (e) {}
                     console.log("[DEBUG] Lähetettiin word_given palvelimelle:", sana);
                 }
             }
@@ -259,8 +268,19 @@
             console.log("[DEBUG] word_failed vastaanotettu:", data);
             if (myName === data.player) {
                 alert("Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.");
-                socket.emit("ask_for_word", {player: myName, pair: data.pair});
-                console.log("[DEBUG] Lähetettiin ask_for_word uudestaan:", data.pair);
+                let sana = prompt(`Anna ${data.pair}/8 parin sana uudelleen:`);
+                if (sana && sana.trim().length > 0) {
+                    socket.emit("word_given", { word: sana.trim() });
+                    try { sessionStorage.setItem("last_asked_pair", String(data.pair)); } catch (e) {}
+                    console.log("[DEBUG] Lähetettiin word_given uudestaan:", sana);
+                } else {
+                    // Käyttäjä perui – salli saman parin asken tulla uudelleen (pieni viive 300 ms)
+                    try { sessionStorage.setItem("last_asked_pair", String(data.pair - 1)); } catch (e) {}
+                    setTimeout(() => {
+                        socket.emit("ask_for_word", { player: myName, pair: data.pair });
+                        console.log("[DEBUG] Käyttäjä perui, pyydettiin ask_for_word uudestaan parille (300ms viive):", data.pair);
+                    }, 300);
+                }
             }
         });
 
@@ -281,6 +301,7 @@
                 console.log("[DEBUG] (pending) Annettiin sana:", sana);
                 if (sana) {
                     socket.emit("word_given", {word: sana});
+                    try { sessionStorage.setItem("last_asked_pair", String(data.pair)); } catch (e) {}
                     console.log("[DEBUG] (pending) Lähetettiin word_given palvelimelle:", sana);
                 }
             }
@@ -288,8 +309,9 @@
 
         function restartGame() {
             console.log("[DEBUG] Lähetetään uusi erä -pyyntö (custom game)");
-            // Tyhjennä flag, jotta sana-promptit näytetään uudessa erässä
+            // Tyhjennä flagit, jotta sana-promptit näytetään uudessa erässä
             try { sessionStorage.removeItem("words_given"); } catch (e) {}
+            try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
             socket.emit("start_custom_game");
         }
 
@@ -297,6 +319,7 @@
         function endGame() {
             sessionStorage.removeItem("game_started");
             sessionStorage.removeItem("words_given");
+            sessionStorage.removeItem("last_asked_pair");
             console.log("[DEBUG] Peli lopetetaan.");
             window.location.href = "/";
         }
@@ -342,7 +365,7 @@
             clearTimeout(window._toastTimer);
             window._toastTimer = setTimeout(() => {
                 toast.style.display = "none";
-            }, 1800);
+            }, 5000);
         }
     </script>
 </body>

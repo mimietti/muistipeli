@@ -56,7 +56,18 @@ def on_join(data):
     if len(players) < max_players:
         players[sid] = {"username": username, "reconnect_token": reconnect_token}
         print(f"[DEBUG] {username} liittyi peliin. SID: {sid}, reconnect_token: {reconnect_token}")
-    socketio.emit("player_joined", {"username": username, "players": [v["username"] for v in players.values()]})
+    # Lähetä pelaajalista säilyttäen liittymisjärjestys ja yksilöivä reconnect_token
+    players_ordered = list(players.values())  # insertion order säilyy
+    usernames = [v["username"] for v in players_ordered]
+    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token")}
+             for v in players_ordered]
+    last_token = infos[-1]["reconnect_token"] if infos else None
+    socketio.emit("player_joined", {
+        "username": username,
+        "players": usernames,
+        "players_info": infos,
+        "last_joined_token": last_token
+    })
 
 @socketio.on("start_game_clicked")
 def handle_start_game():
@@ -154,7 +165,7 @@ def generate_grid():
 
 @socketio.on("card_clicked")
 def handle_card_click(data):
-    global revealed_cards, turn, matched_indices, player_order
+    global revealed_cards, turn, matched_indices, player_order, player_points
 
     index = data["index"]
     if index in matched_indices or index in revealed_cards:
@@ -186,18 +197,40 @@ def handle_card_click(data):
             # Jos kaikki parit löytyneet, päätä peli kerran
             if len(matched_indices) == len(grid_data):
                 print("[DEBUG] Kaikki parit löytyneet – peli ohi!")
-                # Määritä voittaja pisteiden perusteella (tasatilanne: ensimmäinen max)
+                # Määritä voittaja tai tasapeli pisteiden perusteella
                 if player_points:
-                    winner = max(player_points, key=player_points.get)
-                    round_win[winner] += 1
-                    print(f"[DEBUG] Voittaja: {winner}. Erävoitot: {dict(round_win)}")
+                    max_pts = max(player_points.values()) if player_points else 0
+                    winners = [n for n, p in player_points.items() if p == max_pts]
+                    if len(winners) == 1:
+                        winner = winners[0]
+                        round_win[winner] += 1
+                        winner_label = winner
+                        print(f"[DEBUG] Voittaja: {winner}. Erävoitot: {dict(round_win)}")
+                    else:
+                        winner_label = "Tasapeli"
+                        print(f"[DEBUG] Tasapeli. Pisteet: {player_points}")
+
                     socketio.emit("game_over", {
-                        "winner": winner,
+                        "winner": winner_label,
                         "points": player_points,
                         "round_win": dict(round_win)
                     })
                 else:
                     print("[ERROR] Ei voittajaa, player_points on tyhjää.")
+
+                # Pyyhi pelitila, jotta uusi erä voi alkaa heti
+                try:
+                    grid_data.clear()
+                    revealed_cards.clear()
+                    matched_indices.clear()
+                except Exception:
+                    pass
+                turn = 0
+                player_points = {}
+                # Poista mahdolliset kesken jääneet custom-sanakyselyn tilat
+                globals().pop('pending_pair', None)
+                globals().pop('pending_words', None)
+                globals().pop('pending_player', None)
 
         else:
             print(f"[DEBUG] Ei paria: {word1} vs {word2}")
@@ -335,6 +368,19 @@ def handle_word_given(data):
             "player": first_player,
             "pair": pending_pair + 1
         }, broadcast=True)
+
+@socketio.on("ask_for_word")
+def handle_client_request_ask_for_word(data):
+    # Client pyytää toistamaan saman parin kyselyn (esim. word_failed perässä)
+    target_player = data.get("player")
+    pair = int(data.get("pair", 0))
+    print(f"[DEBUG] Client pyysi ask_for_word uudestaan: player={target_player}, pair={pair}")
+    # Pieni viive, jotta mahdollinen alert/prompt ei törmää seuraavaan prompttiin
+    socketio.sleep(0.3)
+    try:
+        emit("ask_for_word", {"player": target_player, "pair": pair}, broadcast=True)
+    except Exception as e:
+        print(f"[DEBUG] ask_for_word uudelleenlähetys epäonnistui: {e}")
 
 def fetch_and_save_pixabay_images(word, pair_index):
     print(f"[DEBUG] Haetaan Pixabaysta kuvia sanalla: {word}")

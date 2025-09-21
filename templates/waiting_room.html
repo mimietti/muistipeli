@@ -40,8 +40,11 @@
     </style>
 </head>
 <body>
-    <h1>Odotushuone <span style="color:yellow;">[DEBUG 2025-09-20]</span></h1>
+    <h1>Odotushuone</h1>
     <div id="players"></div>
+    <div id="hint" style="margin:10px 0; color:#ccc; font-size:14px;">
+        Vinkki: vain toisena liittynyt voi aloittaa pelin.
+    </div>
     <button id="startBtn">Aloita peli</button>
     <button id="changeNameBtn" style="margin-top: 20px;">Vaihda nimi</button>
 
@@ -188,12 +191,18 @@
 
             console.log("[DEBUG] Socket yhteys OK (waiting_room.html)");
 
-            socket.on("player_joined", ({ players }) => {
-                console.log("[DEBUG] Pelaajat:", players);
+            socket.on("player_joined", (payload) => {
+                const { players, players_info, last_joined_token } = payload;
+                console.log("[DEBUG] Pelaajat (ordered):", players);
                 const playersDiv = document.getElementById("players");
-                playersDiv.textContent = players.join(" & ");
-                if (players.length === 2) {
-                    document.getElementById("startBtn").style.display = "inline-block";
+                playersDiv.textContent = (players || []).join(" & ");
+
+                // Näytä Aloita-nappi vain toisena liittyneelle
+                if ((players || []).length === 2) {
+                    const myToken = getReconnectToken();
+                    const canStart = myToken && last_joined_token && myToken === last_joined_token;
+                    document.getElementById("startBtn").style.display = canStart ? "inline-block" : "none";
+                    console.log("[DEBUG] canStart=", canStart, ", myToken=", myToken, ", lastJoined=", last_joined_token);
                 } else {
                     document.getElementById("startBtn").style.display = "none";
                 }
@@ -207,6 +216,8 @@
                 console.log("[DEBUG] Aloita peli painettu (custom)");
                 // Käynnistä custom-sanojen keruu – älä vielä vaihda sivua,
                 // jotta ensimmäinen ask_for_word ei huku sivunvaihdossa.
+                try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
+                try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 socket.emit("start_custom_game");
             });
 
@@ -219,6 +230,7 @@
             socket.on("ask_for_word", (data) => {
                 console.log("[DEBUG] Vastaanotettiin 'ask_for_word' odotushuoneessa – talletetaan ja siirrytään peliin");
                 try { sessionStorage.setItem("pending_ask", JSON.stringify(data)); } catch (e) {}
+                try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 window.location.href = "/game";
             });
             socket.on("init_grid", () => {
