@@ -115,6 +115,7 @@
         }
 
         const socket = io();
+        let gameOverShown = false;
         // Varmista että uusi erä voi kysyä sanoja tällä sivulla
         try { sessionStorage.removeItem("words_given"); } catch (e) {}
         let myName = localStorage.getItem("username");
@@ -143,6 +144,7 @@
 
         // Kun peli käynnistyy, aseta front-flag
         socket.on("init_grid", (data) => {
+            gameOverShown = false;
             sessionStorage.setItem("game_started", "1");
             sessionStorage.setItem("words_given", "1"); // Merkitse että kaikki sanat on jo annettu
             document.getElementById("grid").style.display = "";
@@ -199,6 +201,11 @@
         });
 
         socket.on("game_over", (data) => {
+            if (gameOverShown) {
+                console.log("[DEBUG] game_over ohitettu, tulosnakyma on jo auki.");
+                return;
+            }
+            gameOverShown = true;
             console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
             document.getElementById("grid").style.display = "none";
             document.getElementById("players").style.display = "none";
@@ -225,19 +232,18 @@
                     ${Object.entries(wins).map(([name, w]) => `${name}: ${w} voittoa`).join("<br>")}
                 </div>
                 <br>
-                <button onclick="restartGame()">Uusi erä</button>
-                <button onclick="endGame()">Lopeta peli</button>
+                <div style="color:white; font-size:20px; margin-bottom:16px;">
+                    Pelataanko uusi erä?
+                </div>
+                <button id="restart-game-btn">Uusi erä</button>
+                <button id="end-game-btn">Lopeta peli</button>
             `;
             document.body.appendChild(results);
+            document.getElementById("restart-game-btn")?.addEventListener("click", restartGame);
+            document.getElementById("end-game-btn")?.addEventListener("click", endGame);
 
             const winnerMessage = document.getElementById("winner-message");
             if (winnerMessage) winnerMessage.style.display = "none";
-
-            // Kysy heti pelataanko uusi erä
-            setTimeout(() => {
-                const uudenEra = confirm(`Voittaja: ${data.winner}.\nPelataanko uusi erä?`);
-                if (uudenEra) restartGame();
-            }, 50);
         });
 
         // Sanojen kysely Pixabayn käyttöön
