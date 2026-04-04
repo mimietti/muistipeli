@@ -26,6 +26,39 @@
             justify-content: center;
             padding: 40px;
         }
+        #remaining-words {
+            max-width: 760px;
+            margin: 0 auto 24px;
+            padding: 0 20px;
+            color: #bbb;
+            font-size: 12px;
+            line-height: 1.7;
+        }
+        #remaining-words strong {
+            color: #ddd;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+        #remaining-words-list {
+            display: inline;
+        }
+        #theme-progress {
+            display: none;
+            max-width: 760px;
+            margin: 12px auto 20px;
+            padding: 0 20px;
+            color: #bfc7cf;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+        #theme-progress strong {
+            color: #fff;
+            font-size: 13px;
+            margin-right: 8px;
+        }
+        #theme-progress-list {
+            display: inline;
+        }
         .card {
             width: 150px;
             height: 150px;
@@ -62,7 +95,16 @@
 <body>
     <h1>Muistipeli</h1>
     <div id="players"></div>
+    <div id="setup-status" style="display:none; margin-top: 24px; color: #ccc; font-size: 18px;"></div>
+    <div id="theme-progress">
+        <strong>Valmiina:</strong>
+        <span id="theme-progress-list"></span>
+    </div>
     <div id="grid"></div>
+    <div id="remaining-words" style="display:none;">
+        <strong>Löytämättä:</strong>
+        <span id="remaining-words-list"></span>
+    </div>
     <div id="winner-message" style="display: none; margin-top: 20px; color: gold; font-size: 24px;"></div>
     <div id="toast"></div>
 
@@ -116,6 +158,11 @@
 
         const socket = io();
         let gameOverShown = false;
+        const setupStatus = document.getElementById("setup-status");
+        const themeProgress = document.getElementById("theme-progress");
+        const themeProgressList = document.getElementById("theme-progress-list");
+        const remainingWordsContainer = document.getElementById("remaining-words");
+        const remainingWordsList = document.getElementById("remaining-words-list");
         // Varmista että uusi erä voi kysyä sanoja tällä sivulla
         try { sessionStorage.removeItem("words_given"); } catch (e) {}
         let myName = localStorage.getItem("username");
@@ -133,6 +180,104 @@
         console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
         socket.emit("join", joinPayload);
 
+        function showSetupStatus(message) {
+            setupStatus.textContent = message;
+            setupStatus.style.display = "block";
+        }
+
+        function hideSetupStatus() {
+            setupStatus.style.display = "none";
+            setupStatus.textContent = "";
+        }
+
+        function getAcceptedThemeWords() {
+            try {
+                return JSON.parse(sessionStorage.getItem("accepted_theme_words") || "[]");
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function setAcceptedThemeWords(words) {
+            try { sessionStorage.setItem("accepted_theme_words", JSON.stringify(words)); } catch (e) {}
+        }
+
+        function clearThemeProgress() {
+            setAcceptedThemeWords([]);
+            themeProgress.style.display = "none";
+            themeProgressList.textContent = "";
+        }
+
+        function renderThemeProgress() {
+            const acceptedWords = getAcceptedThemeWords();
+            if (!acceptedWords.length) {
+                themeProgress.style.display = "none";
+                themeProgressList.textContent = "";
+                return;
+            }
+            themeProgressList.textContent = acceptedWords.join(", ");
+            themeProgress.style.display = "block";
+        }
+
+        function addAcceptedThemeWord(word) {
+            if (!word) return;
+            const acceptedWords = getAcceptedThemeWords();
+            if (acceptedWords.includes(word)) {
+                renderThemeProgress();
+                return;
+            }
+            acceptedWords.push(word);
+            setAcceptedThemeWords(acceptedWords);
+            renderThemeProgress();
+        }
+
+        function hideRestartChoices() {
+            const oldResults = document.getElementById("results");
+            if (oldResults) oldResults.remove();
+        }
+
+        function getLastRoundMode() {
+            return sessionStorage.getItem("last_round_mode") || "manual";
+        }
+
+        function getLastRoundTheme() {
+            return sessionStorage.getItem("last_round_theme") || "";
+        }
+
+        function updateRemainingWords() {
+            if (!Array.isArray(cards) || cards.length === 0) {
+                remainingWordsContainer.style.display = "none";
+                remainingWordsList.textContent = "";
+                return;
+            }
+
+            const words = [];
+            const seen = new Set();
+            cards.forEach((card, index) => {
+                if (!card || !card.word) return;
+                if (matched.has(index)) return;
+                if (seen.has(card.word)) return;
+                seen.add(card.word);
+                words.push(card.word);
+            });
+
+            if (words.length === 0) {
+                remainingWordsContainer.style.display = "none";
+                remainingWordsList.textContent = "";
+                return;
+            }
+
+            remainingWordsList.textContent = words.join(", ");
+            remainingWordsContainer.style.display = "block";
+        }
+
+        const storedSetupMode = sessionStorage.getItem("game_setup_mode");
+        const storedTheme = sessionStorage.getItem("game_setup_theme");
+        if (storedSetupMode === "theme") {
+            showSetupStatus(`Building a themed game for "${storedTheme || "theme"}"...`);
+            renderThemeProgress();
+        }
+
         // Pyydä aina nykyinen ruudukko yhteyden muodostuessa
         socket.emit("request_grid");
 
@@ -147,10 +292,24 @@
             gameOverShown = false;
             sessionStorage.setItem("game_started", "1");
             sessionStorage.setItem("words_given", "1"); // Merkitse että kaikki sanat on jo annettu
+            try {
+                const activeMode = sessionStorage.getItem("game_setup_mode") || getLastRoundMode();
+                sessionStorage.setItem("last_round_mode", activeMode);
+                if (activeMode === "theme") {
+                    const activeTheme = sessionStorage.getItem("game_setup_theme") || getLastRoundTheme();
+                    if (activeTheme) sessionStorage.setItem("last_round_theme", activeTheme);
+                } else {
+                    sessionStorage.removeItem("last_round_theme");
+                }
+            } catch (e) {}
+            try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
+            try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
             document.getElementById("grid").style.display = "";
             document.getElementById("players").style.display = "";
-            const oldResults = document.getElementById("results");
-            if (oldResults) oldResults.remove();
+            remainingWordsContainer.style.display = "none";
+            hideRestartChoices();
+            hideSetupStatus();
+            clearThemeProgress();
 
             console.log("[DEBUG] init_grid saapui! Kortteja:", data.cards.length);
             cards = data.cards;
@@ -160,12 +319,47 @@
             matched = new Set();
             drawGrid();
             updatePlayers();
+            updateRemainingWords();
         });
 
         // Jos palvelimella ei ole ruudukkoa (esim. peliä ei ole vielä aloitettu), ei tehdä mitään.
         // Aloitus tapahtuu odotushuoneessa, tai käyttäjä voi palata sinne.
         socket.on("no_grid", (data) => {
             console.log("[DEBUG] no_grid vastaanotettu:", data && data.reason);
+            if (sessionStorage.getItem("game_setup_mode") === "theme") {
+                const theme = sessionStorage.getItem("game_setup_theme") || "theme";
+                showSetupStatus(`Building a themed game for "${theme}"...`);
+                renderThemeProgress();
+            }
+        });
+
+        socket.on("theme_generation_started", (data) => {
+            console.log("[DEBUG] theme_generation_started:", data);
+            if (data && data.theme) {
+                try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
+            }
+            try { sessionStorage.setItem("game_setup_mode", "theme"); } catch (e) {}
+            const theme = (data && data.theme) || sessionStorage.getItem("game_setup_theme") || "theme";
+            showSetupStatus(`Building a themed game for "${theme}"...`);
+            renderThemeProgress();
+        });
+
+        socket.on("theme_word_accepted", (data) => {
+            console.log("[DEBUG] theme_word_accepted:", data);
+            if (data && data.word) {
+                addAcceptedThemeWord(data.word);
+            }
+        });
+
+        socket.on("game_setup_error", (data) => {
+            const reason = (data && data.reason) || "Game setup failed.";
+            console.error("[DEBUG] game_setup_error:", reason);
+            try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
+            try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
+            hideSetupStatus();
+            clearThemeProgress();
+            alert(reason);
+            window.location.href = "/waiting";
         });
 
         socket.on("update_turn", (data) => {
@@ -198,6 +392,7 @@
             console.log("[DEBUG] Pari löytyi:", data.word);
             data.indices.forEach(i => matched.add(i));
             showWordMessage(data.word);
+            updateRemainingWords();
         });
 
         socket.on("game_over", (data) => {
@@ -209,6 +404,8 @@
             console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
             document.getElementById("grid").style.display = "none";
             document.getElementById("players").style.display = "none";
+            remainingWordsContainer.style.display = "none";
+            themeProgress.style.display = "none";
             const oldResults = document.getElementById("results");
             if (oldResults) oldResults.remove();
 
@@ -316,9 +513,37 @@
         function restartGame() {
             console.log("[DEBUG] Lähetetään uusi erä -pyyntö (custom game)");
             // Tyhjennä flagit, jotta sana-promptit näytetään uudessa erässä
+            hideRestartChoices();
             try { sessionStorage.removeItem("words_given"); } catch (e) {}
             try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
-            socket.emit("start_custom_game");
+            const lastMode = getLastRoundMode();
+            if (lastMode === "theme") {
+                const lastTheme = getLastRoundTheme();
+                let theme = prompt("Enter theme:", lastTheme || "");
+                while (theme !== null && theme.trim().length === 0) {
+                    theme = prompt("Enter theme:", lastTheme || "");
+                }
+                if (theme === null) {
+                    return;
+                }
+                theme = theme.trim();
+                try { sessionStorage.setItem("game_setup_mode", "theme"); } catch (e) {}
+                try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
+                try { sessionStorage.setItem("last_round_mode", "theme"); } catch (e) {}
+                try { sessionStorage.setItem("last_round_theme", theme); } catch (e) {}
+                clearThemeProgress();
+                showSetupStatus(`Building a themed game for "${theme}"...`);
+                socket.emit("start_custom_game", { mode: "theme", theme });
+                return;
+            }
+
+            try { sessionStorage.setItem("game_setup_mode", "manual"); } catch (e) {}
+            try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
+            try { sessionStorage.setItem("last_round_mode", "manual"); } catch (e) {}
+            try { sessionStorage.removeItem("last_round_theme"); } catch (e) {}
+            clearThemeProgress();
+            hideSetupStatus();
+            socket.emit("start_custom_game", { mode: "manual" });
         }
 
         // Tyhjennä front-flag kun peli päättyy tai käyttäjä palaa etusivulle
@@ -326,6 +551,11 @@
             sessionStorage.removeItem("game_started");
             sessionStorage.removeItem("words_given");
             sessionStorage.removeItem("last_asked_pair");
+            sessionStorage.removeItem("game_setup_mode");
+            sessionStorage.removeItem("game_setup_theme");
+            sessionStorage.removeItem("last_round_mode");
+            sessionStorage.removeItem("last_round_theme");
+            sessionStorage.removeItem("accepted_theme_words");
             console.log("[DEBUG] Peli lopetetaan.");
             window.location.href = "/";
         }

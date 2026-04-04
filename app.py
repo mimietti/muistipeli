@@ -1,6 +1,7 @@
-# Aseta monkey_patch ennen muita importteja
-import os
-print("DEBUG PIXABAY KEY:", os.getenv("PIXABAY_API_KEY"))
+import warnings
+
+warnings.filterwarnings("ignore", message=".*Eventlet is deprecated.*")
+
 import eventlet
 eventlet.monkey_patch()
 
@@ -8,17 +9,30 @@ from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 import random
 import os
+import re
 import requests
 from PIL import Image
 from io import BytesIO
 from dotenv import load_dotenv   # <-- TÄMÄ
 from collections import defaultdict
 load_dotenv()                   # <--
-import uuid
 
 app = Flask(__name__)
 # Salli yhteydet myös muista koneista/osoitteista (kehitystä varten)
-socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
+socketio = SocketIO(
+    app,
+    async_mode='eventlet',
+    cors_allowed_origins="*",
+    logger=False,
+    engineio_logger=False,
+)
+
+VERBOSE_DEBUG = False
+
+
+def debug(message):
+    if VERBOSE_DEBUG:
+        print(message)
 
 players = {}  # { sid: {"username": ..., "reconnect_token": ...} }
 max_players = 2
@@ -29,6 +43,121 @@ turn = 0
 player_points = {}
 round_win = defaultdict(int)
 player_order = []  # Pelaajien järjestys
+current_game_mode = "manual"
+pending_theme = None
+theme_candidates = []
+theme_rejected_words = set()
+used_pixabay_image_ids = set()
+
+
+def reset_pending_state():
+    global current_game_mode, pending_theme, theme_candidates, theme_rejected_words, used_pixabay_image_ids
+    globals().pop('pending_pair', None)
+    globals().pop('pending_words', None)
+    globals().pop('pending_player', None)
+    current_game_mode = "manual"
+    pending_theme = None
+    theme_candidates = []
+    theme_rejected_words = set()
+    used_pixabay_image_ids = set()
+
+
+def normalize_candidate_word(word):
+    cleaned = str(word or "").strip().lower()
+    if not re.fullmatch(r"[a-z]{3,15}", cleaned):
+        return None
+    return cleaned
+
+
+def fetch_theme_words(theme, max_results=80):
+    theme = str(theme or "").strip()
+    if not theme:
+        return []
+
+    print(f"[INFO] Haetaan Datamusesta teemasanat teemalle '{theme}'")
+    all_words = []
+    seen = set()
+    query_variants = [
+        {"ml": theme, "max": max_results},
+        {"topics": theme, "max": max_results},
+        {"rel_trg": theme, "max": max_results},
+    ]
+
+    for params in query_variants:
+        try:
+            response = requests.get("https://api.datamuse.com/words", params=params, timeout=10)
+            response.raise_for_status()
+            payload = response.json()
+        except requests.RequestException as e:
+            debug(f"[DEBUG] Datamuse-pyyntö epäonnistui ({params}): {e}")
+            continue
+        except ValueError as e:
+            debug(f"[DEBUG] Datamuse palautti virheellistä JSONia ({params}): {e}")
+            continue
+
+        for item in payload:
+            word = normalize_candidate_word(item.get("word"))
+            if not word or word in seen:
+                continue
+            seen.add(word)
+            all_words.append(word)
+
+    random.shuffle(all_words)
+    preview = ", ".join(all_words[:12]) if all_words else "(ei sanoja)"
+    print(f"[INFO] Datamuse ehdotti teemalle '{theme}' {len(all_words)} sanaa: {preview}")
+    return all_words
+
+
+def append_word_images_to_grid(word, pair_index):
+    global grid_data
+    result = fetch_and_save_pixabay_images(word, pair_index)
+    if not result:
+        print(f"[INFO] Pixabay-haku epaonnistui sanalle '{word}'")
+        return False
+    print(f"[INFO] Pixabaysta loytyi kuvat sanalle '{word}': {result}")
+    for path in result:
+        grid_data.append({"image": "/" + path, "word": word})
+    return True
+
+
+def generate_theme_pair():
+    global pending_pair, pending_theme, theme_candidates, theme_rejected_words
+    pair_index = pending_pair
+    existing_words = {item["word"] for item in grid_data}
+    attempts = 0
+
+    while attempts < 40:
+        if not theme_candidates:
+            theme_candidates = fetch_theme_words(pending_theme, max_results=100)
+            if not theme_candidates:
+                break
+
+        word = theme_candidates.pop(0)
+        if word in existing_words or word in theme_rejected_words:
+            attempts += 1
+            continue
+
+        print(f"[INFO] Kokeillaan teemasanaksi '{word}' parille {pair_index+1}")
+        if append_word_images_to_grid(word, pair_index):
+            socketio.emit("theme_word_accepted", {
+                "theme": pending_theme,
+                "word": word,
+                "pair": pair_index + 1,
+                "total_pairs": 8
+            })
+            pending_pair += 1
+            ask_next_word()
+            return
+
+        print(f"[INFO] Pixabay ei loytanyt teemasanalle '{word}' sopivia kuvia, haetaan korvaaja")
+        theme_rejected_words.add(word)
+        attempts += 1
+
+    message = f"Teemasta '{pending_theme}' ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa."
+    print(f"[WARNING] {message}")
+    grid_data.clear()
+    reset_pending_state()
+    socketio.emit("game_setup_error", {"reason": message})
 
 
 @app.route("/")
@@ -50,7 +179,7 @@ def on_join(data):
     sid = request.sid
     reconnect_token = data.get("reconnect_token")
     if not reconnect_token:
-        print(f"[DEBUG] HYLÄTTY join ilman reconnect_tokenia: {username}, SID: {sid}")
+        print(f"[WARNING] HYLÄTTY join ilman reconnect_tokenia: {username}, SID: {sid}")
         return
     # Poista vanha sid, jos reconnect_token täsmää
     for k, v in list(players.items()):
@@ -58,7 +187,7 @@ def on_join(data):
             del players[k]
     if len(players) < max_players:
         players[sid] = {"username": username, "reconnect_token": reconnect_token}
-        print(f"[DEBUG] {username} liittyi peliin. SID: {sid}, reconnect_token: {reconnect_token}")
+        print(f"[INFO] {username} liittyi peliin.")
     # Lähetä pelaajalista säilyttäen liittymisjärjestys ja yksilöivä reconnect_token
     players_ordered = list(players.values())  # insertion order säilyy
     usernames = [v["username"] for v in players_ordered]
@@ -75,20 +204,20 @@ def on_join(data):
 @socketio.on("start_game_clicked")
 def handle_start_game():
     if len(players) == max_players:
-        print("[DEBUG] Molemmat pelaajat liittyneet, aloitetaan peli")
+        print("[INFO] Molemmat pelaajat liittyneet, aloitetaan peli")
         # Luo pelidata jo tässä
         generate_grid()
         emit("start_game", broadcast=True)
     else:
-        print("[DEBUG] Pelaajia ei ole tarpeeksi pelin aloittamiseen")
+        print("[WARNING] Pelaajia ei ole tarpeeksi pelin aloittamiseen")
 
 
 @socketio.on("request_grid")
 def handle_grid_request():
     global player_order, turn
-    print("[DEBUG] request_grid vastaanotettu – tarkistetaan pelitila")
-    print(f"[DEBUG] Pelaajat: {players}")
-    print(f"[DEBUG] Grid sisältää {len(grid_data)} korttia")
+    debug("[DEBUG] request_grid vastaanotettu – tarkistetaan pelitila")
+    debug(f"[DEBUG] Pelaajat: {players}")
+    debug(f"[DEBUG] Grid sisältää {len(grid_data)} korttia")
 
     if len(players) < 2:
         print("[WARNING] Ei tarpeeksi pelaajia ruudukon palauttamiseen.")
@@ -97,20 +226,23 @@ def handle_grid_request():
 
     # Jos ruudukko ei ole valmis, ilmoita siitä ja tarvittaessa toista käynnissä oleva sanapyyntö
     if not grid_data or len(grid_data) < 16:
-        print("[DEBUG] Ruudukko ei ole valmis – ei lähetetä init_grid")
+        debug("[DEBUG] Ruudukko ei ole valmis – ei lähetetä init_grid")
         emit("no_grid", {"reason": "Grid ei valmis"})
         # Jos custom-pelin sanojen kysely on käynnissä, toista viimeisin pyyntö
         if 'pending_pair' in globals():
             try:
+                if current_game_mode == "theme":
+                    emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1}, broadcast=True)
+                    return
                 if len(player_order) < 1:
                     # Fallback järjestys
                     player_order[:] = [v["username"] for v in players.values()]
                 first_player = player_order[0] if player_order else None
                 if first_player is not None and pending_pair < 8:
-                    print(f"[DEBUG] request_grid: toistetaan ask_for_word pelaajalle {first_player}, pari {pending_pair+1}")
+                    debug(f"[DEBUG] request_grid: toistetaan ask_for_word pelaajalle {first_player}, pari {pending_pair+1}")
                     emit("ask_for_word", {"player": first_player, "pair": pending_pair + 1}, broadcast=True)
             except Exception as e:
-                print(f"[DEBUG] request_grid: ask_for_word toisto epäonnistui: {e}")
+                debug(f"[DEBUG] request_grid: ask_for_word toisto epäonnistui: {e}")
         return
 
     # Muodosta samassa muodossa kuin custom-pelissä
@@ -126,12 +258,12 @@ def handle_grid_request():
 
 @socketio.on("ready_for_game")
 def handle_ready_for_game():
-    print("[DEBUG] Client ilmoitti olevansa valmis peliin")
+    debug("[DEBUG] Client ilmoitti olevansa valmis peliin")
     emit("start_game", broadcast=True)
 
 def generate_grid():
     global grid_data, revealed_cards, matched_indices, turn, player_points, player_order
-    print("[DEBUG] Peli käynnistyy – luodaan ruudukko")
+    print("[INFO] Peli käynnistyy – luodaan ruudukko")
     images = []
     for filename in sorted(os.listdir("static/images")):
         if filename.endswith(".jpg") or filename.endswith(".png"):
@@ -160,7 +292,7 @@ def generate_grid():
     player_order = [v["username"] for v in players.values()]
     turn = 0
     player_points = {name: 0 for name in player_order}
-    print(f"[DEBUG] Kortteja yhteensä: {len(grid_data)}")
+    debug(f"[DEBUG] Kortteja yhteensä: {len(grid_data)}")
 
 
            
@@ -174,7 +306,7 @@ def handle_card_click(data):
     if index in matched_indices or index in revealed_cards:
         return
 
-    print(f"[DEBUG] Kortti klikattu: index {index}, sana: {grid_data[index]['word']}")
+    debug(f"[DEBUG] Kortti klikattu: index {index}, sana: {grid_data[index]['word']}")
     revealed_cards.append(index)
     socketio.emit("reveal_card", {
         "index": index,
@@ -188,18 +320,18 @@ def handle_card_click(data):
 
         if word1 == word2:
             matched_indices.update(revealed_cards)
-            print(f"[DEBUG] Pari löytyi: {word1}")
+            debug(f"[DEBUG] Pari löytyi: {word1}")
             socketio.emit("pair_found", {"indices": revealed_cards, "word": word1})
             revealed_cards = []
             # Piste tälle vuorossa olevalle pelaajalle
             current_player_name = player_order[turn] if 0 <= turn < len(player_order) else None
             if current_player_name is not None:
                 player_points[current_player_name] = player_points.get(current_player_name, 0) + 1
-                print(f"[DEBUG] Piste {current_player_name} (+1). Pisteet nyt: {player_points}")
+                debug(f"[DEBUG] Piste {current_player_name} (+1). Pisteet nyt: {player_points}")
 
             # Jos kaikki parit löytyneet, päätä peli kerran
             if len(matched_indices) == len(grid_data):
-                print("[DEBUG] Kaikki parit löytyneet – peli ohi!")
+                print("[INFO] Kaikki parit löytyneet – peli ohi!")
                 # Määritä voittaja tai tasapeli pisteiden perusteella
                 if player_points:
                     max_pts = max(player_points.values()) if player_points else 0
@@ -208,10 +340,10 @@ def handle_card_click(data):
                         winner = winners[0]
                         round_win[winner] += 1
                         winner_label = winner
-                        print(f"[DEBUG] Voittaja: {winner}. Erävoitot: {dict(round_win)}")
+                        print(f"[INFO] Voittaja: {winner}. Erävoitot: {dict(round_win)}")
                     else:
                         winner_label = "Tasapeli"
-                        print(f"[DEBUG] Tasapeli. Pisteet: {player_points}")
+                        print(f"[INFO] Tasapeli. Pisteet: {player_points}")
 
                     socketio.emit("game_over", {
                         "winner": winner_label,
@@ -230,13 +362,10 @@ def handle_card_click(data):
                     pass
                 turn = 0
                 player_points = {}
-                # Poista mahdolliset kesken jääneet custom-sanakyselyn tilat
-                globals().pop('pending_pair', None)
-                globals().pop('pending_words', None)
-                globals().pop('pending_player', None)
+                reset_pending_state()
 
         else:
-            print(f"[DEBUG] Ei paria: {word1} vs {word2}")
+            debug(f"[DEBUG] Ei paria: {word1} vs {word2}")
             indices_to_hide = list(revealed_cards)  # Tee kopio!
             revealed_cards = []
 
@@ -251,7 +380,7 @@ def handle_card_click(data):
         
         # Käytä player_order vuoron näyttämiseen
         next_turn_name = player_order[turn] if player_order else None
-        print(f"[DEBUG] Vuoro nyt: {next_turn_name}")
+        debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")
         socketio.emit("update_turn", {"turn": next_turn_name})
 
 @socketio.on("disconnect")
@@ -260,111 +389,133 @@ def on_disconnect():
     sid = request.sid
     if sid in players:
         username = players[sid]["username"]
-        print(f"[DEBUG] {username} (SID: {sid}) disconnect havaittu, odotetaan mahdollista reconnectia...")
+        print(f"[INFO] {username} poistui, odotetaan mahdollista reconnectia...")
         def remove_later(sid_to_remove, username):
             eventlet.sleep(8)  # Odota 8 sekuntia reconnectia
             if sid_to_remove in players:
-                print(f"[DEBUG] {username} (SID: {sid_to_remove}) poistetaan pelaajalistasta (ei reconnectia)")
+                print(f"[INFO] {username} poistetaan pelaajalistasta (ei reconnectia)")
                 del players[sid_to_remove]
                 socketio.emit("player_joined", {"username": username, "players": [v["username"] for v in players.values()]})
                 # Jos kaikki pelaajat poistuneet, nollaa pelitila
                 if len(players) == 0:
-                    print("[DEBUG] Kaikki pelaajat poistuneet – nollataan pelitila")
+                    print("[INFO] Kaikki pelaajat poistuneet – nollataan pelitila")
                     grid_data.clear()
                     revealed_cards.clear()
                     matched_indices.clear()
                     global turn, player_points
                     turn = 0
                     player_points.clear()
-                    globals().pop('pending_pair', None)
-                    globals().pop('pending_words', None)
-                    globals().pop('pending_player', None)
+                    reset_pending_state()
         socketio.start_background_task(remove_later, sid, username)
     else:
-        print(f"[DEBUG] Tuntematon SID {sid} poistui pelistä")
+        debug(f"[DEBUG] Tuntematon SID {sid} poistui pelistä")
 
 @socketio.on("start_custom_game")
-def handle_start_custom_game():
-    global pending_words, pending_player, pending_pair, grid_data, player_order
-    print(f"[DEBUG] start_custom_game kutsuttu! grid_data: {len(grid_data)}, pending_pair: {globals().get('pending_pair', 'ei asetettu')}, players: {players}")
+def handle_start_custom_game(data=None):
+    global pending_words, pending_player, pending_pair, grid_data, player_order, current_game_mode, pending_theme, theme_candidates, theme_rejected_words
+    data = data or {}
+    print(f"[INFO] Uusi erä käynnistetään. Tila: mode={data.get('mode', 'manual')}, players={len(players)}")
     # Jos peli on jo käynnissä, mutta pelaajien reconnect_tokenit ovat vaihtuneet, nollaa peli
     current_tokens = set(v['reconnect_token'] for v in players.values())
     grid_tokens = getattr(handle_start_custom_game, 'last_tokens', set())
     if grid_data and current_tokens != grid_tokens:
-        print("[DEBUG] Pelaajien reconnect_tokenit vaihtuneet – nollataan pelitila!")
+        print("[INFO] Pelaajien reconnect-tokenit vaihtuneet – nollataan pelitila")
         grid_data.clear()
         revealed_cards.clear()
         matched_indices.clear()
         global turn, player_points
         turn = 0
         player_points.clear()
-        globals().pop('pending_pair', None)
-        globals().pop('pending_words', None)
-        globals().pop('pending_player', None)
+        reset_pending_state()
     # Tallenna nykyiset reconnect_tokenit seuraavaa vertailua varten
     handle_start_custom_game.last_tokens = set(v['reconnect_token'] for v in players.values())
     # Tallenna pelaajien järjestys kun peli alkaa
     player_order = [v["username"] for v in players.values()]
     if grid_data:  # Jos peli on jo käynnissä, älä aloita uutta
-        print("[DEBUG] start_custom_game hylätty: peli on jo käynnissä")
+        print("[WARNING] Uuden erän pyyntö hylätty: peli on jo käynnissä")
         return
-    print("[DEBUG] start_custom_game vastaanotettu, aloitetaan sanojen kysely")
+
+    mode = str(data.get("mode", "manual")).strip().lower()
+    theme = str(data.get("theme", "")).strip()
+    if mode not in {"manual", "theme"}:
+        mode = "manual"
+    if mode == "theme" and not theme:
+        emit("game_setup_error", {"reason": "Teema puuttuu."}, broadcast=True)
+        return
+
+    print("[INFO] Aloitetaan sanojen keruu")
     pending_words = []
     pending_player = 0
     pending_pair = 0
     grid_data.clear()
+    current_game_mode = mode
+    pending_theme = theme if mode == "theme" else None
+    theme_candidates = []
+    theme_rejected_words = set()
+    if current_game_mode == "theme":
+        socketio.emit("theme_generation_started", {"theme": pending_theme})
     ask_next_word()
 
 def ask_next_word():
-    global pending_pair, player_order, player_points, matched_indices, revealed_cards, turn
-    print(f"[DEBUG] ask_next_word kutsuttu! pending_pair: {pending_pair}, grid_data: {len(grid_data)}")
+    global pending_pair, player_order, player_points, matched_indices, revealed_cards, turn, current_game_mode
+    debug(f"[DEBUG] ask_next_word kutsuttu! pending_pair: {pending_pair}, grid_data: {len(grid_data)}, mode: {current_game_mode}")
     # Jos kaikki 8 paria on annettu, lähetä ruudukko näkyviin
     if pending_pair >= 8:
-        print("[DEBUG] Kaikki sanat annettu, lähetetään init_grid")
+        print("[INFO] Kaikki sanat annettu, peli voidaan aloittaa")
         # Alusta pelitila ennen ruudukon lähetystä
         matched_indices = set()
         revealed_cards = []
         turn = 0
         player_points = {name: 0 for name in player_order}
         random.shuffle(grid_data)
-        emit("init_grid", {
+        socketio.emit("init_grid", {
             "cards": grid_data,
             "turn": player_order[0] if player_order else None,
             "players": player_order
-        }, broadcast=True)
+        })
         return
 
     if len(player_order) < 2:
-        print("[DEBUG] Pelaajia liian vähän, peli keskeytetään")
-        emit("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."}, broadcast=True)
+        print("[WARNING] Pelaajia liian vähän, peli keskeytetään")
+        socketio.emit("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."})
         return
     # Kysy aina ekalta pelaajalta (player_order[0])
     first_player = player_order[0]
-    print(f"[DEBUG] ask_next_word: pair={pending_pair}, player={first_player}")
-    print(f"[DEBUG] Lähetetään ask_for_word pelaajalle {first_player}, pari {pending_pair+1}")
-    emit("ask_for_word", {
+    if current_game_mode == "theme":
+        print(f"[INFO] Generoidaan teemasanat teemalle '{pending_theme}'")
+        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1})
+        socketio.start_background_task(generate_theme_pair)
+        return
+
+    print(f"[INFO] Pyydetään sana pelaajalta {first_player}, pari {pending_pair+1}")
+    socketio.emit("ask_for_word", {
         "player": first_player,
         "pair": pending_pair + 1
-    }, broadcast=True)
+    })
 
 @socketio.on("word_given")
 def handle_word_given(data):
     global pending_pair, grid_data
     if pending_pair >= 8:
-        print(f"[DEBUG] word_given hylätty, kaikki parit jo annettu (pending_pair={pending_pair})")
+        debug(f"[DEBUG] word_given hylätty, kaikki parit jo annettu (pending_pair={pending_pair})")
         return
-    word = data["word"]
+    word = normalize_candidate_word(data["word"])
+    if not word:
+        print("[WARNING] Käyttäjän sana ei kelpaa, pyydetään uusi sana")
+        player_names = [v["username"] for v in players.values()]
+        first_player = player_names[0] if player_names else None
+        emit("word_failed", {
+            "player": first_player,
+            "pair": pending_pair + 1
+        }, broadcast=True)
+        return
     pair_index = pending_pair
-    print(f"[DEBUG] word_given vastaanotettu: {word} (pari {pair_index+1})")
-    result = fetch_and_save_pixabay_images(word, pair_index)
-    if result:
-        print(f"[DEBUG] Pixabaysta löytyi kuvat sanalle '{word}': {result}")
-        for i, path in enumerate(result):
-            grid_data.append({"image": "/" + path, "word": word})
+    print(f"[INFO] Vastaanotettu sana '{word}' parille {pair_index+1}")
+    if append_word_images_to_grid(word, pair_index):
         pending_pair += 1
         ask_next_word()
     else:
-        print(f"[DEBUG] Pixabay EI löytänyt kuvia sanalle '{word}', pyydetään uusi sana")
+        print(f"[WARNING] Pixabay ei löytänyt kuvia sanalle '{word}', pyydetään uusi sana")
         player_names = [v["username"] for v in players.values()]
         first_player = player_names[0]
         emit("word_failed", {
@@ -377,17 +528,21 @@ def handle_client_request_ask_for_word(data):
     # Client pyytää toistamaan saman parin kyselyn (esim. word_failed perässä)
     target_player = data.get("player")
     pair = int(data.get("pair", 0))
-    print(f"[DEBUG] Client pyysi ask_for_word uudestaan: player={target_player}, pair={pair}")
+    debug(f"[DEBUG] Client pyysi ask_for_word uudestaan: player={target_player}, pair={pair}")
     # Pieni viive, jotta mahdollinen alert/prompt ei törmää seuraavaan prompttiin
     socketio.sleep(0.3)
     try:
         emit("ask_for_word", {"player": target_player, "pair": pair}, broadcast=True)
     except Exception as e:
-        print(f"[DEBUG] ask_for_word uudelleenlähetys epäonnistui: {e}")
+        print(f"[ERROR] ask_for_word uudelleenlähetys epäonnistui: {e}")
 
 def fetch_and_save_pixabay_images(word, pair_index):
-    print(f"[DEBUG] Haetaan Pixabaysta kuvia sanalla: {word}")
-    pixabay_api_key = os.getenv("PIXABAY_API_KEY")
+    global used_pixabay_image_ids
+    debug(f"[DEBUG] Haetaan Pixabaysta kuvia sanalla: {word}")
+    pixabay_api_key = (os.getenv("PIXABAY_API_KEY") or "").strip()
+    if not pixabay_api_key:
+        print("[ERROR] PIXABAY_API_KEY puuttuu. Lisää avain .env-tiedostoon.")
+        return None
     url = "https://pixabay.com/api/"
     params = {
         "key": pixabay_api_key,
@@ -397,9 +552,13 @@ def fetch_and_save_pixabay_images(word, pair_index):
         "per_page": 10,
         "safesearch": "true"
     }
-    response = requests.get(url, params=params)
-    print(f"[DEBUG] Pixabay HTTP status: {response.status_code}")
-    print(f"[DEBUG] Pixabay response text: {response.text[:300]}")  # Näytä max 300 merkkiä
+    try:
+        response = requests.get(url, params=params, timeout=15)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        print(f"[ERROR] Pixabay-pyyntö epäonnistui: {e}")
+        return None
+    debug(f"[DEBUG] Pixabay HTTP status: {response.status_code}")
 
     try:
         data = response.json()
@@ -407,23 +566,52 @@ def fetch_and_save_pixabay_images(word, pair_index):
         print(f"[ERROR] Pixabay JSON decode error: {e}")
         return None
 
-    if "hits" in data and len(data["hits"]) >= 2:
+    hits = data.get("hits") or []
+    selected_hits = []
+    skipped_duplicates = 0
+    local_ids = set()
+
+    for hit in hits:
+        image_id = hit.get("id")
+        if image_id is None:
+            continue
+        if image_id in used_pixabay_image_ids or image_id in local_ids:
+            skipped_duplicates += 1
+            continue
+        selected_hits.append(hit)
+        local_ids.add(image_id)
+        if len(selected_hits) == 2:
+            break
+
+    if skipped_duplicates:
+        print(f"[INFO] Ohitettiin {skipped_duplicates} jo kaytettya Pixabay-kuvaa sanalle '{word}'")
+
+    if len(selected_hits) >= 2:
+        os.makedirs("static/images", exist_ok=True)
         paths = []
-        for i in range(2):
-            img_url = data["hits"][i]["webformatURL"]
-            img_data = requests.get(img_url).content
+        for i, hit in enumerate(selected_hits[:2]):
+            img_url = hit["webformatURL"]
+            try:
+                img_response = requests.get(img_url, timeout=15)
+                img_response.raise_for_status()
+            except requests.RequestException as e:
+                print(f"[ERROR] Kuvan lataus epäonnistui ({img_url}): {e}")
+                return None
+            img_data = img_response.content
             img = Image.open(BytesIO(img_data)).convert("RGB")
             img = img.resize((512, 512))
             filename = f"{word}{i+1}_{pair_index}.png"
             save_path = os.path.join("static/images", filename)
             img.save(save_path)
-            print(f"[DEBUG] Tallennettu kuva: {save_path}")
+            debug(f"[DEBUG] Tallennettu kuva: {save_path}")
             paths.append(save_path)
+            used_pixabay_image_ids.add(hit["id"])
         return paths
     else:
-        print(f"[DEBUG] Ei tarpeeksi kuvia sanalle: {word}")
+        print(f"[INFO] Sanalle '{word}' ei loytynyt kahta uutta Pixabay-kuvaa taman eran sisalla")
+        debug(f"[DEBUG] Ei tarpeeksi kuvia sanalle: {word}")
         return None
 if __name__ == "__main__":
     players.clear()
-    print("[DEBUG] Sovellus käynnissä osoitteessa http://0.0.0.0:5000 (LAN) – käytä palvelimen IP:tä toiselta koneelta.")
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+    print("[INFO] Muistipeli kaynnissa osoitteessa http://127.0.0.1:5000")
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False, use_reloader=False)

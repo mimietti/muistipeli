@@ -23,7 +23,7 @@
             font-size: 24px;
         }
 
-        #startBtn, #changeNameBtn {
+        #changeNameBtn, .modeBtn {
             background-color: limegreen;
             color: black;
             font-size: 20px;
@@ -31,11 +31,25 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
+        }
+
+        #changeNameBtn {
             display: none;
         }
 
-        #startBtn:hover, #changeNameBtn:hover {
+        .modeBtn:hover, #changeNameBtn:hover {
             background-color: green;
+        }
+
+        #startOptions {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #startOptions p {
+            color: #ccc;
+            font-size: 16px;
+            margin-bottom: 12px;
         }
     </style>
 </head>
@@ -45,7 +59,11 @@
     <div id="hint" style="margin:10px 0; color:#ccc; font-size:14px;">
         Vinkki: vain toisena liittynyt voi aloittaa pelin.
     </div>
-    <button id="startBtn">Aloita peli</button>
+    <div id="startOptions">
+        <p>Valitse miten sanat annetaan tähän erään.</p>
+        <button id="manualStartBtn" class="modeBtn">Enter your own words</button>
+        <button id="themeStartBtn" class="modeBtn">Enter theme</button>
+    </div>
     <button id="changeNameBtn" style="margin-top: 20px;">Vaihda nimi</button>
 
     <script>
@@ -201,24 +219,45 @@
                 if ((players || []).length === 2) {
                     const myToken = getReconnectToken();
                     const canStart = myToken && last_joined_token && myToken === last_joined_token;
-                    document.getElementById("startBtn").style.display = canStart ? "inline-block" : "none";
+                    document.getElementById("startOptions").style.display = canStart ? "block" : "none";
                     console.log("[DEBUG] canStart=", canStart, ", myToken=", myToken, ", lastJoined=", last_joined_token);
                 } else {
-                    document.getElementById("startBtn").style.display = "none";
+                    document.getElementById("startOptions").style.display = "none";
                 }
             });
 
-            document.getElementById("startBtn").addEventListener("click", () => {
+            document.getElementById("manualStartBtn").addEventListener("click", () => {
                 if (!myName || myName.trim().length === 0) {
                     askName();
                     return;
                 }
-                console.log("[DEBUG] Aloita peli painettu (custom)");
-                // Käynnistä custom-sanojen keruu – älä vielä vaihda sivua,
-                // jotta ensimmäinen ask_for_word ei huku sivunvaihdossa.
+                console.log("[DEBUG] Aloitetaan peli omilla sanoilla");
+                try { sessionStorage.setItem("game_setup_mode", "manual"); } catch (e) {}
+                try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
-                socket.emit("start_custom_game");
+                socket.emit("start_custom_game", { mode: "manual" });
+            });
+
+            document.getElementById("themeStartBtn").addEventListener("click", () => {
+                if (!myName || myName.trim().length === 0) {
+                    askName();
+                    return;
+                }
+                let theme = prompt("Enter theme:", "");
+                while (theme !== null && theme.trim().length === 0) {
+                    theme = prompt("Enter theme:", "");
+                }
+                if (theme === null) {
+                    return;
+                }
+                theme = theme.trim();
+                console.log("[DEBUG] Aloitetaan peli teemalla:", theme);
+                try { sessionStorage.setItem("game_setup_mode", "theme"); } catch (e) {}
+                try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
+                try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
+                try { sessionStorage.removeItem("words_given"); } catch (e) {}
+                socket.emit("start_custom_game", { mode: "theme", theme });
             });
 
             socket.on("start_game", () => {
@@ -229,13 +268,30 @@
             // Custom-peli: kun sanat tai ruudukko alkaa, siirry peliin
             socket.on("ask_for_word", (data) => {
                 console.log("[DEBUG] Vastaanotettiin 'ask_for_word' odotushuoneessa – talletetaan ja siirrytään peliin");
+                try { sessionStorage.setItem("game_setup_mode", "manual"); } catch (e) {}
+                try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 try { sessionStorage.setItem("pending_ask", JSON.stringify(data)); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
+                window.location.href = "/game";
+            });
+            socket.on("theme_generation_started", (data) => {
+                console.log("[DEBUG] Teemapelin generointi aloitettu:", data);
+                try { sessionStorage.setItem("game_setup_mode", "theme"); } catch (e) {}
+                if (data && data.theme) {
+                    try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
+                }
                 window.location.href = "/game";
             });
             socket.on("init_grid", () => {
                 console.log("[DEBUG] Vastaanotettiin 'init_grid' odotushuoneessa – siirrytään peliin");
                 window.location.href = "/game";
+            });
+            socket.on("game_setup_error", (data) => {
+                const reason = (data && data.reason) || "Pelin alustus epäonnistui.";
+                console.error("[DEBUG] game_setup_error:", reason);
+                try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
+                try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
+                alert(reason);
             });
 
             // Yhteyden katkeamisen ja uudelleenliittymisen käsittely
