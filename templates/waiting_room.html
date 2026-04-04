@@ -63,6 +63,7 @@
         <p id="startOptionsText">Choose how words are provided for this round.</p>
         <button id="manualStartBtn" class="modeBtn">Enter your own words</button>
         <button id="themeStartBtn" class="modeBtn">Enter theme</button>
+        <button id="spanishStartBtn" class="modeBtn">Study Spanish</button>
     </div>
     <button id="changeNameBtn" style="margin-top: 20px;">Change name</button>
 
@@ -74,11 +75,13 @@
                 start_options: "Choose how words are provided for this round.",
                 enter_words: "Enter your own words",
                 enter_theme: "Enter theme",
+                study_spanish: "Study Spanish",
                 change_name: "Change name",
                 reconnect_missing_alert: "Reconnect token missing! The page cannot be loaded, please try again.",
                 prompt_name: "Enter your name:",
                 reconnect_empty_alert: "Reconnect token is missing or empty! Reloading the page.",
                 enter_theme_prompt: "Enter theme:",
+                enter_spanish_theme_prompt: "Enter theme in English:",
                 setup_failed: "Game setup failed.",
                 disconnect_alert: "Connection to the server was lost. Trying again...",
                 theme_missing: "Theme is missing.",
@@ -90,11 +93,13 @@
                 start_options: "Valitse miten sanat annetaan tähän erään.",
                 enter_words: "Syötä omat sanat",
                 enter_theme: "Syötä teema",
+                study_spanish: "Opiskele espanjaa",
                 change_name: "Vaihda nimi",
                 reconnect_missing_alert: "Reconnect_token puuttuu! Sivua ei voi ladata, yritä uudelleen.",
                 prompt_name: "Anna nimesi:",
                 reconnect_empty_alert: "Reconnect_token puuttuu tai on tyhjä! Sivua ladataan uudelleen.",
                 enter_theme_prompt: "Anna teema:",
+                enter_spanish_theme_prompt: "Anna teema englanniksi:",
                 setup_failed: "Pelin alustus epäonnistui.",
                 disconnect_alert: "Yhteys katkesi palvelimeen. Yritetään uudelleen...",
                 theme_missing: "Teema puuttuu.",
@@ -129,6 +134,7 @@
             document.getElementById("startOptionsText").textContent = t("start_options");
             document.getElementById("manualStartBtn").textContent = t("enter_words");
             document.getElementById("themeStartBtn").textContent = t("enter_theme");
+            document.getElementById("spanishStartBtn").textContent = t("study_spanish");
             document.getElementById("changeNameBtn").textContent = t("change_name");
         }
 
@@ -327,6 +333,27 @@
                 socket.emit("start_custom_game", { mode: "theme", theme });
             });
 
+            document.getElementById("spanishStartBtn").addEventListener("click", () => {
+                if (!myName || myName.trim().length === 0) {
+                    askName();
+                    return;
+                }
+                let theme = prompt(t("enter_spanish_theme_prompt"), "");
+                while (theme !== null && theme.trim().length === 0) {
+                    theme = prompt(t("enter_spanish_theme_prompt"), "");
+                }
+                if (theme === null) {
+                    return;
+                }
+                theme = theme.trim();
+                console.log("[DEBUG] Aloitetaan espanjan opiskelupeli teemalla:", theme);
+                try { sessionStorage.setItem("game_setup_mode", "spanish"); } catch (e) {}
+                try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
+                try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
+                try { sessionStorage.removeItem("words_given"); } catch (e) {}
+                socket.emit("start_custom_game", { mode: "spanish", theme });
+            });
+
             socket.on("start_game", () => {
                 console.log("[DEBUG] Vastaanotettiin 'start_game', siirrytään peliin");
                 window.location.href = "/game";
@@ -343,7 +370,7 @@
             });
             socket.on("theme_generation_started", (data) => {
                 console.log("[DEBUG] Teemapelin generointi aloitettu:", data);
-                try { sessionStorage.setItem("game_setup_mode", "theme"); } catch (e) {}
+                try { sessionStorage.setItem("game_setup_mode", (data && data.mode) || "theme"); } catch (e) {}
                 if (data && data.theme) {
                     try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
                 }

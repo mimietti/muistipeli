@@ -49,6 +49,14 @@ theme_candidates = []
 theme_rejected_words = set()
 used_pixabay_image_ids = set()
 
+SPANISH_TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
+ABSTRACT_THEME_WORDS = {
+    "ability", "advice", "anger", "belief", "concept", "courage", "emotion", "faith",
+    "freedom", "friendship", "future", "happiness", "hope", "idea", "justice",
+    "knowledge", "logic", "love", "peace", "power", "quality", "spirit", "strategy",
+    "strength", "success", "theory", "thought", "truth", "value", "vision", "wisdom"
+}
+
 
 def reset_pending_state():
     global current_game_mode, pending_theme, theme_candidates, theme_rejected_words, used_pixabay_image_ids
@@ -69,7 +77,20 @@ def normalize_candidate_word(word):
     return cleaned
 
 
-def fetch_theme_words(theme, max_results=80):
+def normalize_spanish_word(word):
+    cleaned = str(word or "").strip().lower()
+    cleaned = re.sub(r"^[^a-záéíóúüñ]+|[^a-záéíóúüñ]+$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(el|la|los|las|un|una|unos|unas)\s+", "", cleaned, flags=re.IGNORECASE)
+    if not re.fullmatch(r"[a-záéíóúüñ]{2,18}", cleaned, flags=re.IGNORECASE):
+        return None
+    return cleaned
+
+
+def is_concrete_theme_word(word):
+    return word not in ABSTRACT_THEME_WORDS
+
+
+def fetch_theme_words(theme, max_results=80, require_noun=False):
     theme = str(theme or "").strip()
     if not theme:
         return []
@@ -78,9 +99,9 @@ def fetch_theme_words(theme, max_results=80):
     all_words = []
     seen = set()
     query_variants = [
-        {"ml": theme, "max": max_results},
-        {"topics": theme, "max": max_results},
-        {"rel_trg": theme, "max": max_results},
+        {"ml": theme, "max": max_results, "md": "p"},
+        {"topics": theme, "max": max_results, "md": "p"},
+        {"rel_trg": theme, "max": max_results, "md": "p"},
     ]
 
     for params in query_variants:
@@ -99,6 +120,9 @@ def fetch_theme_words(theme, max_results=80):
             word = normalize_candidate_word(item.get("word"))
             if not word or word in seen:
                 continue
+            tags = item.get("tags") or []
+            if require_noun and "n" not in tags:
+                continue
             seen.add(word)
             all_words.append(word)
 
@@ -106,6 +130,39 @@ def fetch_theme_words(theme, max_results=80):
     preview = ", ".join(all_words[:12]) if all_words else "(ei sanoja)"
     print(f"[INFO] Datamuse ehdotti teemalle '{theme}' {len(all_words)} sanaa: {preview}")
     return all_words
+
+
+def translate_word_to_spanish(word):
+    normalized_word = normalize_candidate_word(word)
+    if not normalized_word:
+        return None
+
+    try:
+        response = requests.get(
+            SPANISH_TRANSLATION_API_URL,
+            params={"q": normalized_word, "langpair": "en|es"},
+            timeout=10
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError) as e:
+        print(f"[WARNING] Espanjan kaannos epäonnistui sanalle '{normalized_word}': {e}")
+        return None
+
+    translated_text = (
+        (payload.get("responseData") or {}).get("translatedText")
+        or ""
+    )
+    translated_text = re.sub(r"\s*\(.*?\)\s*", " ", translated_text).strip()
+    if any(separator in translated_text for separator in [",", ";", "/", "|"]):
+        return None
+
+    normalized_translation = normalize_spanish_word(translated_text)
+    if not normalized_translation:
+        return None
+    if normalize_candidate_word(normalized_translation) == normalized_word:
+        return None
+    return normalized_translation
 
 
 def append_word_images_to_grid(word, pair_index):
@@ -118,6 +175,22 @@ def append_word_images_to_grid(word, pair_index):
     for path in result:
         grid_data.append({"image": "/" + path, "word": word})
     return True
+
+
+def append_spanish_learning_pair_to_grid(pair):
+    global grid_data
+    grid_data.append({
+        "pair_id": pair["pair_id"],
+        "card_type": "word",
+        "text": pair["spanish_word"],
+        "word": pair["english_word"]
+    })
+    grid_data.append({
+        "pair_id": pair["pair_id"],
+        "card_type": "image",
+        "image": pair["image_url"],
+        "word": pair["english_word"]
+    })
 
 
 def generate_theme_pair():
@@ -152,6 +225,72 @@ def generate_theme_pair():
         print(f"[INFO] Pixabay ei loytanyt teemasanalle '{word}' sopivia kuvia, haetaan korvaaja")
         theme_rejected_words.add(word)
         attempts += 1
+
+    message = f"Teemasta '{pending_theme}' ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa."
+    print(f"[WARNING] {message}")
+    grid_data.clear()
+    reset_pending_state()
+    socketio.emit("game_setup_error", {"reason": message})
+
+
+def generate_spanish_learning_pairs(theme, target_pairs=8):
+    global pending_pair, pending_theme, theme_candidates, theme_rejected_words
+    existing_words = {item.get("word") for item in grid_data if item.get("word")}
+    attempts = 0
+    max_attempts = 160
+
+    while pending_pair < target_pairs and attempts < max_attempts:
+        if not theme_candidates:
+            theme_candidates = fetch_theme_words(theme, max_results=160, require_noun=True)
+            theme_candidates = [
+                candidate for candidate in theme_candidates
+                if candidate not in existing_words and candidate not in theme_rejected_words
+            ]
+            if not theme_candidates:
+                break
+
+        english_word = theme_candidates.pop(0)
+        attempts += 1
+
+        if english_word in existing_words or english_word in theme_rejected_words:
+            continue
+        if not is_concrete_theme_word(english_word):
+            theme_rejected_words.add(english_word)
+            continue
+
+        spanish_word = translate_word_to_spanish(english_word)
+        if not spanish_word:
+            print(f"[INFO] Espanjan kaannos ei kelpaa sanalle '{english_word}', haetaan korvaaja")
+            theme_rejected_words.add(english_word)
+            continue
+
+        print(f"[INFO] Kokeillaan espanjapariksi '{english_word}' -> '{spanish_word}' parille {pending_pair + 1}")
+        image_paths = fetch_and_save_pixabay_images(english_word, pending_pair, required_count=1)
+        if not image_paths:
+            print(f"[INFO] Pixabay ei loytanyt espanjaparille '{english_word}' sopivaa kuvaa, haetaan korvaaja")
+            theme_rejected_words.add(english_word)
+            continue
+
+        pair = {
+            "pair_id": pending_pair + 1,
+            "english_word": english_word,
+            "spanish_word": spanish_word,
+            "image_url": "/" + image_paths[0]
+        }
+        append_spanish_learning_pair_to_grid(pair)
+        existing_words.add(english_word)
+        socketio.emit("theme_word_accepted", {
+            "theme": pending_theme,
+            "word": english_word,
+            "pair": pending_pair + 1,
+            "total_pairs": target_pairs,
+            "mode": "spanish"
+        })
+        pending_pair += 1
+
+    if pending_pair >= target_pairs:
+        ask_next_word()
+        return
 
     message = f"Teemasta '{pending_theme}' ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa."
     print(f"[WARNING] {message}")
@@ -231,8 +370,12 @@ def handle_grid_request():
         # Jos custom-pelin sanojen kysely on käynnissä, toista viimeisin pyyntö
         if 'pending_pair' in globals():
             try:
-                if current_game_mode == "theme":
-                    emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1}, broadcast=True)
+                if current_game_mode in {"theme", "spanish"}:
+                    emit(
+                        "theme_generation_started",
+                        {"theme": pending_theme, "pair": pending_pair + 1, "mode": current_game_mode},
+                        broadcast=True
+                    )
                     return
                 if len(player_order) < 1:
                     # Fallback järjestys
@@ -310,15 +453,17 @@ def handle_card_click(data):
     revealed_cards.append(index)
     socketio.emit("reveal_card", {
         "index": index,
-        "image": grid_data[index]["image"]
+        "card": grid_data[index]
     })
 
     if len(revealed_cards) == 2:
         idx1, idx2 = revealed_cards
         word1 = grid_data[idx1]["word"]
         word2 = grid_data[idx2]["word"]
+        match_key1 = grid_data[idx1].get("pair_id", word1)
+        match_key2 = grid_data[idx2].get("pair_id", word2)
 
-        if word1 == word2:
+        if match_key1 == match_key2:
             matched_indices.update(revealed_cards)
             debug(f"[DEBUG] Pari löytyi: {word1}")
             socketio.emit("pair_found", {"indices": revealed_cards, "word": word1})
@@ -437,9 +582,9 @@ def handle_start_custom_game(data=None):
 
     mode = str(data.get("mode", "manual")).strip().lower()
     theme = str(data.get("theme", "")).strip()
-    if mode not in {"manual", "theme"}:
+    if mode not in {"manual", "theme", "spanish"}:
         mode = "manual"
-    if mode == "theme" and not theme:
+    if mode in {"theme", "spanish"} and not theme:
         emit("game_setup_error", {"reason": "Teema puuttuu."}, broadcast=True)
         return
 
@@ -449,11 +594,11 @@ def handle_start_custom_game(data=None):
     pending_pair = 0
     grid_data.clear()
     current_game_mode = mode
-    pending_theme = theme if mode == "theme" else None
+    pending_theme = theme if mode in {"theme", "spanish"} else None
     theme_candidates = []
     theme_rejected_words = set()
-    if current_game_mode == "theme":
-        socketio.emit("theme_generation_started", {"theme": pending_theme})
+    if current_game_mode in {"theme", "spanish"}:
+        socketio.emit("theme_generation_started", {"theme": pending_theme, "mode": current_game_mode})
     ask_next_word()
 
 def ask_next_word():
@@ -483,8 +628,13 @@ def ask_next_word():
     first_player = player_order[0]
     if current_game_mode == "theme":
         print(f"[INFO] Generoidaan teemasanat teemalle '{pending_theme}'")
-        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1})
+        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "theme"})
         socketio.start_background_task(generate_theme_pair)
+        return
+    if current_game_mode == "spanish":
+        print(f"[INFO] Generoidaan espanjan opiskelupeli teemalle '{pending_theme}'")
+        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "spanish"})
+        socketio.start_background_task(generate_spanish_learning_pairs, pending_theme)
         return
 
     print(f"[INFO] Pyydetään sana pelaajalta {first_player}, pari {pending_pair+1}")
@@ -536,7 +686,7 @@ def handle_client_request_ask_for_word(data):
     except Exception as e:
         print(f"[ERROR] ask_for_word uudelleenlähetys epäonnistui: {e}")
 
-def fetch_and_save_pixabay_images(word, pair_index):
+def fetch_and_save_pixabay_images(word, pair_index, required_count=2):
     global used_pixabay_image_ids
     debug(f"[DEBUG] Haetaan Pixabaysta kuvia sanalla: {word}")
     pixabay_api_key = (os.getenv("PIXABAY_API_KEY") or "").strip()
@@ -580,16 +730,16 @@ def fetch_and_save_pixabay_images(word, pair_index):
             continue
         selected_hits.append(hit)
         local_ids.add(image_id)
-        if len(selected_hits) == 2:
+        if len(selected_hits) == required_count:
             break
 
     if skipped_duplicates:
         print(f"[INFO] Ohitettiin {skipped_duplicates} jo kaytettya Pixabay-kuvaa sanalle '{word}'")
 
-    if len(selected_hits) >= 2:
+    if len(selected_hits) >= required_count:
         os.makedirs("static/images", exist_ok=True)
         paths = []
-        for i, hit in enumerate(selected_hits[:2]):
+        for i, hit in enumerate(selected_hits[:required_count]):
             img_url = hit["webformatURL"]
             try:
                 img_response = requests.get(img_url, timeout=15)
@@ -608,7 +758,7 @@ def fetch_and_save_pixabay_images(word, pair_index):
             used_pixabay_image_ids.add(hit["id"])
         return paths
     else:
-        print(f"[INFO] Sanalle '{word}' ei loytynyt kahta uutta Pixabay-kuvaa taman eran sisalla")
+        print(f"[INFO] Sanalle '{word}' ei loytynyt tarpeeksi uusia Pixabay-kuvia taman eran sisalla")
         debug(f"[DEBUG] Ei tarpeeksi kuvia sanalle: {word}")
         return None
 if __name__ == "__main__":

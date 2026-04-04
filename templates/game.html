@@ -65,9 +65,28 @@
             background-color: #444;
             border-radius: 8px;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
             background-size: cover;
             background-position: center;
             transition: transform 0.2s;
+        }
+        .card.word-card {
+            background: linear-gradient(160deg, #1f3528, #122018);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .card-word-text {
+            width: 100%;
+            padding: 14px;
+            box-sizing: border-box;
+            color: #fff;
+            font-weight: 700;
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
         }
         .card:hover {
             transform: scale(1.05);
@@ -128,8 +147,10 @@
                 prompt_word: "Enter a word for pair {pair}/8 (describe the pair with a common word):",
                 prompt_word_retry: "Enter a new word for pair {pair}/8:",
                 prompt_theme: "Enter theme:",
+                prompt_spanish_theme: "Enter theme in English:",
                 pixabay_retry: "Pixabay could not find an image for that word. Try another word.",
                 found_word: "You found the word: {word}",
+                study_spanish: "Study Spanish",
                 theme_missing: "Theme is missing.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.'
             },
@@ -151,8 +172,10 @@
                 prompt_word: "Anna {pair}/8 parin sana (kuvaile paria yhdellä yleisellä sanalla):",
                 prompt_word_retry: "Anna {pair}/8 parin sana uudelleen:",
                 prompt_theme: "Anna teema:",
+                prompt_spanish_theme: "Anna teema englanniksi:",
                 pixabay_retry: "Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.",
                 found_word: "Löysit sanan: {word}",
+                study_spanish: "Opiskele espanjaa",
                 theme_missing: "Teema puuttuu.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.'
             }
@@ -245,6 +268,9 @@
         const themeProgressList = document.getElementById("theme-progress-list");
         const remainingWordsContainer = document.getElementById("remaining-words");
         const remainingWordsList = document.getElementById("remaining-words-list");
+        let cards = [];
+        let matched = new Set();
+        let currentTurn = null;
         // Varmista että uusi erä voi kysyä sanoja tällä sivulla
         try { sessionStorage.removeItem("words_given"); } catch (e) {}
         let myName = localStorage.getItem("username");
@@ -270,6 +296,46 @@
         function hideSetupStatus() {
             setupStatus.style.display = "none";
             setupStatus.textContent = "";
+        }
+
+        function fitWordText(textElement, cardElement) {
+            if (!textElement || !cardElement) return;
+            let fontSize = 34;
+            const minFontSize = 14;
+            const maxWidth = Math.max(cardElement.clientWidth - 28, 40);
+            const maxHeight = Math.max(cardElement.clientHeight - 28, 24);
+            textElement.style.fontSize = `${fontSize}px`;
+            while (
+                fontSize > minFontSize &&
+                (textElement.scrollWidth > maxWidth || textElement.scrollHeight > maxHeight)
+            ) {
+                fontSize -= 1;
+                textElement.style.fontSize = `${fontSize}px`;
+            }
+        }
+
+        function hideCardElement(cardElement) {
+            cardElement.classList.add("hidden");
+            cardElement.classList.remove("word-card");
+            cardElement.style.backgroundImage = "none";
+            cardElement.replaceChildren();
+        }
+
+        function revealCardElement(cardElement, cardData) {
+            if (!cardElement || !cardData) return;
+            cardElement.classList.remove("hidden");
+            cardElement.replaceChildren();
+            cardElement.style.backgroundImage = "none";
+            cardElement.classList.toggle("word-card", cardData.card_type === "word");
+            if (cardData.card_type === "word") {
+                const text = document.createElement("div");
+                text.className = "card-word-text";
+                text.textContent = cardData.text || cardData.word || "";
+                cardElement.appendChild(text);
+                fitWordText(text, cardElement);
+                return;
+            }
+            cardElement.style.backgroundImage = `url('${cardData.image}')`;
         }
 
         function getAcceptedThemeWords() {
@@ -326,6 +392,14 @@
             return sessionStorage.getItem("last_round_theme") || "";
         }
 
+        function modeUsesTheme(mode) {
+            return mode === "theme" || mode === "spanish";
+        }
+
+        function getThemePromptForMode(mode) {
+            return mode === "spanish" ? t("prompt_spanish_theme") : t("prompt_theme");
+        }
+
         function updateRemainingWords() {
             if (!Array.isArray(cards) || cards.length === 0) {
                 remainingWordsContainer.style.display = "none";
@@ -355,7 +429,7 @@
 
         const storedSetupMode = sessionStorage.getItem("game_setup_mode");
         const storedTheme = sessionStorage.getItem("game_setup_theme");
-        if (storedSetupMode === "theme") {
+        if (modeUsesTheme(storedSetupMode)) {
             showSetupStatus(t("setup_building", { theme: storedTheme || "theme" }));
             renderThemeProgress();
         }
@@ -377,7 +451,7 @@
             try {
                 const activeMode = sessionStorage.getItem("game_setup_mode") || getLastRoundMode();
                 sessionStorage.setItem("last_round_mode", activeMode);
-                if (activeMode === "theme") {
+                if (modeUsesTheme(activeMode)) {
                     const activeTheme = sessionStorage.getItem("game_setup_theme") || getLastRoundTheme();
                     if (activeTheme) sessionStorage.setItem("last_round_theme", activeTheme);
                 } else {
@@ -408,7 +482,7 @@
         // Aloitus tapahtuu odotushuoneessa, tai käyttäjä voi palata sinne.
         socket.on("no_grid", (data) => {
             console.log("[DEBUG] no_grid vastaanotettu:", data && data.reason);
-            if (sessionStorage.getItem("game_setup_mode") === "theme") {
+            if (modeUsesTheme(sessionStorage.getItem("game_setup_mode"))) {
                 const theme = sessionStorage.getItem("game_setup_theme") || "theme";
                 showSetupStatus(t("setup_building", { theme }));
                 renderThemeProgress();
@@ -420,7 +494,7 @@
             if (data && data.theme) {
                 try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
             }
-            try { sessionStorage.setItem("game_setup_mode", "theme"); } catch (e) {}
+            try { sessionStorage.setItem("game_setup_mode", (data && data.mode) || "theme"); } catch (e) {}
             const theme = (data && data.theme) || sessionStorage.getItem("game_setup_theme") || "theme";
             showSetupStatus(t("setup_building", { theme }));
             renderThemeProgress();
@@ -454,8 +528,7 @@
             console.log("[DEBUG] Paljastetaan kortti:", data);
             const card = document.getElementById(`card-${data.index}`);
             if (card) {
-                card.classList.remove("hidden");
-                card.style.backgroundImage = `url('${data.image}')`;
+                revealCardElement(card, data.card || cards[data.index]);
             }
         });
 
@@ -464,8 +537,7 @@
             data.indices.forEach(i => {
                 const card = document.getElementById(`card-${i}`);
                 if (card && !matched.has(i)) {
-                    card.classList.add("hidden");
-                    card.style.backgroundImage = "none";
+                    hideCardElement(card);
                 }
             });
         });
@@ -599,23 +671,24 @@
             try { sessionStorage.removeItem("words_given"); } catch (e) {}
             try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
             const lastMode = getLastRoundMode();
-            if (lastMode === "theme") {
+            if (modeUsesTheme(lastMode)) {
                 const lastTheme = getLastRoundTheme();
-                let theme = prompt(t("prompt_theme"), lastTheme || "");
+                const themePrompt = getThemePromptForMode(lastMode);
+                let theme = prompt(themePrompt, lastTheme || "");
                 while (theme !== null && theme.trim().length === 0) {
-                    theme = prompt(t("prompt_theme"), lastTheme || "");
+                    theme = prompt(themePrompt, lastTheme || "");
                 }
                 if (theme === null) {
                     return;
                 }
                 theme = theme.trim();
-                try { sessionStorage.setItem("game_setup_mode", "theme"); } catch (e) {}
+                try { sessionStorage.setItem("game_setup_mode", lastMode); } catch (e) {}
                 try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
-                try { sessionStorage.setItem("last_round_mode", "theme"); } catch (e) {}
+                try { sessionStorage.setItem("last_round_mode", lastMode); } catch (e) {}
                 try { sessionStorage.setItem("last_round_theme", theme); } catch (e) {}
                 clearThemeProgress();
                 showSetupStatus(t("setup_building", { theme }));
-                socket.emit("start_custom_game", { mode: "theme", theme });
+                socket.emit("start_custom_game", { mode: lastMode, theme });
                 return;
             }
 
@@ -657,6 +730,7 @@
                         socket.emit("card_clicked", { index });
                     }
                 });
+                hideCardElement(div);
                 grid.appendChild(div);
             });
         }
@@ -685,6 +759,12 @@
                 toast.style.display = "none";
             }, 5000);
         }
+
+        window.addEventListener("resize", () => {
+            document.querySelectorAll(".card-word-text").forEach((textElement) => {
+                fitWordText(textElement, textElement.parentElement);
+            });
+        });
     </script>
 </body>
 </html>
