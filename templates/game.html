@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="fi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Muistipeli – Peli</title>
+    <title>Memory Game - Game</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
         body {
@@ -93,22 +93,104 @@
     </style>
 </head>
 <body>
-    <h1>Muistipeli</h1>
+    <h1 id="pageTitle">Memory Game</h1>
     <div id="players"></div>
     <div id="setup-status" style="display:none; margin-top: 24px; color: #ccc; font-size: 18px;"></div>
     <div id="theme-progress">
-        <strong>Valmiina:</strong>
+        <strong id="themeProgressLabel">Ready:</strong>
         <span id="theme-progress-list"></span>
     </div>
     <div id="grid"></div>
     <div id="remaining-words" style="display:none;">
-        <strong>Löytämättä:</strong>
+        <strong id="remainingWordsLabel">Remaining:</strong>
         <span id="remaining-words-list"></span>
     </div>
     <div id="winner-message" style="display: none; margin-top: 20px; color: gold; font-size: 24px;"></div>
     <div id="toast"></div>
 
     <script>
+        const translations = {
+            en: {
+                page_title: "Memory Game",
+                page_title_browser: "Memory Game - Game",
+                setup_building: 'Building a themed game for "{theme}"...',
+                ready_label: "Ready:",
+                remaining_label: "Remaining:",
+                game_setup_failed: "Game setup failed.",
+                game_over: "Game over! Winner: {winner}",
+                points: "Points:",
+                round_wins: "Round wins",
+                pairs_suffix: "pairs",
+                wins_suffix: "wins",
+                play_new_round: "Play a new round?",
+                new_round: "New round",
+                end_game: "End game",
+                prompt_word: "Enter a word for pair {pair}/8 (describe the pair with a common word):",
+                prompt_word_retry: "Enter a new word for pair {pair}/8:",
+                prompt_theme: "Enter theme:",
+                pixabay_retry: "Pixabay could not find an image for that word. Try another word.",
+                found_word: "You found the word: {word}",
+                theme_missing: "Theme is missing.",
+                theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.'
+            },
+            fi: {
+                page_title: "Muistipeli",
+                page_title_browser: "Muistipeli – Peli",
+                setup_building: 'Rakennetaan teemapelia teemalle "{theme}"...',
+                ready_label: "Valmiina:",
+                remaining_label: "Löytämättä:",
+                game_setup_failed: "Pelin alustus epäonnistui.",
+                game_over: "Peli päättyi! Voittaja: {winner}",
+                points: "Pisteet:",
+                round_wins: "Erävoitot",
+                pairs_suffix: "paria",
+                wins_suffix: "voittoa",
+                play_new_round: "Pelataanko uusi erä?",
+                new_round: "Uusi erä",
+                end_game: "Lopeta peli",
+                prompt_word: "Anna {pair}/8 parin sana (kuvaile paria yhdellä yleisellä sanalla):",
+                prompt_word_retry: "Anna {pair}/8 parin sana uudelleen:",
+                prompt_theme: "Anna teema:",
+                pixabay_retry: "Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.",
+                found_word: "Löysit sanan: {word}",
+                theme_missing: "Teema puuttuu.",
+                theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.'
+            }
+        };
+
+        function getLanguage() {
+            const stored = localStorage.getItem("ui_language");
+            return stored === "fi" ? "fi" : "en";
+        }
+
+        function t(key, vars = {}) {
+            const lang = getLanguage();
+            let value = (translations[lang] && translations[lang][key]) || translations.en[key] || key;
+            Object.entries(vars).forEach(([name, replacement]) => {
+                value = value.replaceAll(`{${name}}`, String(replacement));
+            });
+            return value;
+        }
+
+        function localizeServerMessage(message) {
+            if (!message) return t("game_setup_failed");
+            if (message === "Teema puuttuu." || message === "Theme is missing.") return t("theme_missing");
+            const themed = message.match(/Teemasta '(.+)' ei löytynyt tarpeeksi käyttökelpoisia sanoja\. Kokeile toista teemaa\./)
+                || message.match(/Not enough usable words were found for theme "(.+)". Try another theme\./);
+            if (themed) return t("theme_not_enough", { theme: themed[1] });
+            return message;
+        }
+
+        function applyTranslations() {
+            document.documentElement.lang = getLanguage();
+            document.title = t("page_title_browser");
+            document.getElementById("pageTitle").textContent = t("page_title");
+            document.getElementById("themeProgressLabel").textContent = t("ready_label");
+            document.getElementById("remainingWordsLabel").textContent = t("remaining_label");
+        }
+
+        applyTranslations();
+
         function safeUUID() {
             if (self.crypto && typeof self.crypto.randomUUID === "function") {
                 try { return self.crypto.randomUUID(); } catch (_) {}
@@ -274,7 +356,7 @@
         const storedSetupMode = sessionStorage.getItem("game_setup_mode");
         const storedTheme = sessionStorage.getItem("game_setup_theme");
         if (storedSetupMode === "theme") {
-            showSetupStatus(`Building a themed game for "${storedTheme || "theme"}"...`);
+            showSetupStatus(t("setup_building", { theme: storedTheme || "theme" }));
             renderThemeProgress();
         }
 
@@ -328,7 +410,7 @@
             console.log("[DEBUG] no_grid vastaanotettu:", data && data.reason);
             if (sessionStorage.getItem("game_setup_mode") === "theme") {
                 const theme = sessionStorage.getItem("game_setup_theme") || "theme";
-                showSetupStatus(`Building a themed game for "${theme}"...`);
+                showSetupStatus(t("setup_building", { theme }));
                 renderThemeProgress();
             }
         });
@@ -340,7 +422,7 @@
             }
             try { sessionStorage.setItem("game_setup_mode", "theme"); } catch (e) {}
             const theme = (data && data.theme) || sessionStorage.getItem("game_setup_theme") || "theme";
-            showSetupStatus(`Building a themed game for "${theme}"...`);
+            showSetupStatus(t("setup_building", { theme }));
             renderThemeProgress();
         });
 
@@ -352,7 +434,7 @@
         });
 
         socket.on("game_setup_error", (data) => {
-            const reason = (data && data.reason) || "Game setup failed.";
+            const reason = localizeServerMessage((data && data.reason) || t("game_setup_failed"));
             console.error("[DEBUG] game_setup_error:", reason);
             try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
             try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
@@ -420,20 +502,20 @@
 
             results.innerHTML = `
                 <div style="margin-bottom:20px;">
-                    <strong>Peli päättyi! Voittaja: ${data.winner}</strong><br><br>
-                    <span style="font-size:20px;">Pisteet:</span><br>
-                    ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} paria`).join("<br>")}
+                    <strong>${t("game_over", { winner: data.winner })}</strong><br><br>
+                    <span style="font-size:20px;">${t("points")}</span><br>
+                    ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} ${t("pairs_suffix")}`).join("<br>")}
                 </div>
                 <div style="color:white; font-size:22px;">
-                    <strong>Erävoitot</strong><br>
-                    ${Object.entries(wins).map(([name, w]) => `${name}: ${w} voittoa`).join("<br>")}
+                    <strong>${t("round_wins")}</strong><br>
+                    ${Object.entries(wins).map(([name, w]) => `${name}: ${w} ${t("wins_suffix")}`).join("<br>")}
                 </div>
                 <br>
                 <div style="color:white; font-size:20px; margin-bottom:16px;">
-                    Pelataanko uusi erä?
+                    ${t("play_new_round")}
                 </div>
-                <button id="restart-game-btn">Uusi erä</button>
-                <button id="end-game-btn">Lopeta peli</button>
+                <button id="restart-game-btn">${t("new_round")}</button>
+                <button id="end-game-btn">${t("end_game")}</button>
             `;
             document.body.appendChild(results);
             document.getElementById("restart-game-btn")?.addEventListener("click", restartGame);
@@ -457,7 +539,7 @@
                 return;
             }
             if (myName === data.player) {
-                let sana = prompt(`Anna ${data.pair}/8 parin sana (Describe the pair with a common word):`);
+                let sana = prompt(t("prompt_word", { pair: data.pair }));
                 console.log("[DEBUG] Annettiin sana:", sana);
                 if (sana) {
                     socket.emit("word_given", {word: sana});
@@ -470,8 +552,8 @@
         socket.on("word_failed", (data) => {
             console.log("[DEBUG] word_failed vastaanotettu:", data);
             if (myName === data.player) {
-                alert("Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.");
-                let sana = prompt(`Anna ${data.pair}/8 parin sana uudelleen:`);
+                alert(t("pixabay_retry"));
+                let sana = prompt(t("prompt_word_retry", { pair: data.pair }));
                 if (sana && sana.trim().length > 0) {
                     socket.emit("word_given", { word: sana.trim() });
                     try { sessionStorage.setItem("last_asked_pair", String(data.pair)); } catch (e) {}
@@ -500,7 +582,7 @@
             console.log("[DEBUG] Käsitellään pending_ask pelisivulla:", data);
             if (sessionStorage.getItem("words_given")) return; // jos jo merkitty valmiiksi
             if (myName === data.player) {
-                let sana = prompt(`Anna ${data.pair}/8 parin sana (Describe the pair with a common word):`);
+                let sana = prompt(t("prompt_word", { pair: data.pair }));
                 console.log("[DEBUG] (pending) Annettiin sana:", sana);
                 if (sana) {
                     socket.emit("word_given", {word: sana});
@@ -519,9 +601,9 @@
             const lastMode = getLastRoundMode();
             if (lastMode === "theme") {
                 const lastTheme = getLastRoundTheme();
-                let theme = prompt("Enter theme:", lastTheme || "");
+                let theme = prompt(t("prompt_theme"), lastTheme || "");
                 while (theme !== null && theme.trim().length === 0) {
-                    theme = prompt("Enter theme:", lastTheme || "");
+                    theme = prompt(t("prompt_theme"), lastTheme || "");
                 }
                 if (theme === null) {
                     return;
@@ -532,7 +614,7 @@
                 try { sessionStorage.setItem("last_round_mode", "theme"); } catch (e) {}
                 try { sessionStorage.setItem("last_round_theme", theme); } catch (e) {}
                 clearThemeProgress();
-                showSetupStatus(`Building a themed game for "${theme}"...`);
+                showSetupStatus(t("setup_building", { theme }));
                 socket.emit("start_custom_game", { mode: "theme", theme });
                 return;
             }
@@ -596,7 +678,7 @@
 
         function showWordMessage(word) {
             const toast = document.getElementById("toast");
-            toast.textContent = `Löysit sanan: ${word}`;
+            toast.textContent = t("found_word", { word });
             toast.style.display = "block";
             clearTimeout(window._toastTimer);
             window._toastTimer = setTimeout(() => {

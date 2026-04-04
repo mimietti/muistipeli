@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="fi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tervetuloa muistipeliin</title>
+    <title>Memory Game</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
         body {
@@ -40,19 +40,98 @@
             color: red;
             margin-top: 20px;
         }
+        #languagePicker {
+            margin-bottom: 28px;
+            color: #ddd;
+            font-size: 16px;
+        }
+        #languagePicker select {
+            margin-left: 8px;
+            font-size: 15px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: none;
+        }
     </style>
 </head>
 <body>
-    <h1>Tervetuloa muistipeliin!!!</h1>
-    <input type="text" id="nameInput" placeholder="Nimesi" />
+    <div id="languagePicker">
+        <label for="languageSelect" id="languageLabel">Language</label>
+        <select id="languageSelect">
+            <option value="en">English</option>
+            <option value="fi">Suomi</option>
+        </select>
+    </div>
+    <h1 id="pageTitle">Welcome to Memory Game!!!</h1>
+    <input type="text" id="nameInput" placeholder="Your name" />
     <br>
-    <button onclick="joinGame()">Liity peliin</button>
+    <button id="joinBtn" onclick="joinGame()">Join game</button>
     <br>
-    <button id="showTokenBtn" style="background-color:#2d7dd2; margin-left: 8px;">Näytä reconnect_token</button>
+    <button id="showTokenBtn" style="background-color:#2d7dd2; margin-left: 8px;">Show reconnect token</button>
     <div id="tokenInfo" style="margin-top:16px; font-size:14px; color:#ccc;"></div>
     <div id="error"></div>
 
     <script>
+        const translations = {
+            en: {
+                page_title: "Welcome to Memory Game!!!",
+                join: "Join game",
+                show_token: "Show reconnect token",
+                name_placeholder: "Your name",
+                language: "Language",
+                enter_name_first: "Enter your name first.",
+                reconnect_missing: "Reconnect token missing! Reload the page.",
+                copied_clipboard: "(Copied to clipboard)",
+                username_label: "username",
+                channel_label: "channel",
+                reconnect_label: "reconnect_token",
+                unknown_channel: "unknown",
+                connect_error: "Could not connect to the server."
+            },
+            fi: {
+                page_title: "Tervetuloa muistipeliin!!!",
+                join: "Liity peliin",
+                show_token: "Näytä reconnect_token",
+                name_placeholder: "Nimesi",
+                language: "Kieli",
+                enter_name_first: "Syötä nimi ensin.",
+                reconnect_missing: "Reconnect_token puuttuu! Lataa sivu uudelleen.",
+                copied_clipboard: "(Kopioitu leikepöydälle)",
+                username_label: "username",
+                channel_label: "kanava",
+                reconnect_label: "reconnect_token",
+                unknown_channel: "tuntematon",
+                connect_error: "Yhteyttä ei saatu palvelimeen."
+            }
+        };
+
+        function getLanguage() {
+            const stored = localStorage.getItem("ui_language");
+            return stored === "fi" ? "fi" : "en";
+        }
+
+        function setLanguage(lang) {
+            const next = lang === "fi" ? "fi" : "en";
+            localStorage.setItem("ui_language", next);
+            document.documentElement.lang = next;
+            return next;
+        }
+
+        function t(key) {
+            const lang = getLanguage();
+            return (translations[lang] && translations[lang][key]) || translations.en[key] || key;
+        }
+
+        function applyTranslations() {
+            document.title = t("page_title");
+            document.getElementById("languageLabel").textContent = t("language");
+            document.getElementById("pageTitle").textContent = t("page_title");
+            document.getElementById("joinBtn").textContent = t("join");
+            document.getElementById("showTokenBtn").textContent = t("show_token");
+            document.getElementById("nameInput").placeholder = t("name_placeholder");
+            document.getElementById("languageSelect").value = getLanguage();
+        }
+
         // Turvallinen UUID myös laitteille, joissa crypto.randomUUID puuttuu
         function safeUUID() {
             if (self.crypto && typeof self.crypto.randomUUID === "function") {
@@ -110,16 +189,23 @@
         }
 
         const socket = io();
+        setLanguage(getLanguage());
+        applyTranslations();
+
+        document.getElementById("languageSelect").addEventListener("change", (event) => {
+            setLanguage(event.target.value);
+            applyTranslations();
+        });
 
         function joinGame() {
             const username = document.getElementById("nameInput").value.trim();
             if (!username) {
-                document.getElementById("error").textContent = "Syötä nimi ensin.";
+                document.getElementById("error").textContent = t("enter_name_first");
                 return;
             }
             const reconnectToken = getReconnectToken();
             if (!reconnectToken) {
-                alert("Reconnect_token puuttuu! Lataa sivu uudelleen.");
+                alert(t("reconnect_missing"));
                 location.reload();
                 return;
             }
@@ -138,20 +224,20 @@
                 if (m && m[1] === token) return "window.name";
             } catch(_) {}
             if (window._reconnect_token === token) return "window._reconnect_token";
-            return "tuntematon";
+            return t("unknown_channel");
         }
 
         document.getElementById('showTokenBtn').addEventListener('click', () => {
             const token = getReconnectToken();
             const channel = detectTokenChannel(token);
             const user = (function(){ try { return localStorage.getItem('username')||''; } catch(_) { return ''; }})();
-            const info = `reconnect_token: ${token}\nkanava: ${channel}${user?`\nusername: ${user}`:''}`;
+            const info = `${t("reconnect_label")}: ${token}\n${t("channel_label")}: ${channel}${user?`\n${t("username_label")}: ${user}`:''}`;
             console.log("DEBUG:", info.replace(/\n/g, " | "));
             const div = document.getElementById('tokenInfo');
             div.textContent = info;
             try {
                 navigator.clipboard.writeText(info);
-                div.textContent += "\n(Kopioitu leikepöydälle)";
+                div.textContent += `\n${t("copied_clipboard")}`;
             } catch(_) {}
         });
 
@@ -164,7 +250,7 @@
 
         socket.on("connect_error", (err) => {
             console.error("[Yhteysvirhe]", err);
-            document.getElementById("error").textContent = "Yhteyttä ei saatu palvelimeen.";
+            document.getElementById("error").textContent = t("connect_error");
         });
     </script>
 </body>
