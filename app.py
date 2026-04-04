@@ -1,3 +1,9 @@
+# Aseta monkey_patch ennen muita importteja
+import os
+print("DEBUG PIXABAY KEY:", os.getenv("PIXABAY_API_KEY"))
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 import random
@@ -12,7 +18,7 @@ import uuid
 
 app = Flask(__name__)
 # Salli yhteydet myös muista koneista/osoitteista (kehitystä varten)
-socketio = SocketIO(app, async_mode='threading', cors_allowed_origins="*")
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 
 players = {}  # { sid: {"username": ..., "reconnect_token": ...} }
 max_players = 2
@@ -23,6 +29,7 @@ turn = 0
 player_points = {}
 round_win = defaultdict(int)
 player_order = []  # Pelaajien järjestys
+
 
 @app.route("/")
 def index():
@@ -255,7 +262,7 @@ def on_disconnect():
         username = players[sid]["username"]
         print(f"[DEBUG] {username} (SID: {sid}) disconnect havaittu, odotetaan mahdollista reconnectia...")
         def remove_later(sid_to_remove, username):
-            socketio.sleep(8)  # Odota 8 sekuntia reconnectia
+            eventlet.sleep(8)  # Odota 8 sekuntia reconnectia
             if sid_to_remove in players:
                 print(f"[DEBUG] {username} (SID: {sid_to_remove}) poistetaan pelaajalistasta (ei reconnectia)")
                 del players[sid_to_remove]
@@ -380,11 +387,7 @@ def handle_client_request_ask_for_word(data):
 
 def fetch_and_save_pixabay_images(word, pair_index):
     print(f"[DEBUG] Haetaan Pixabaysta kuvia sanalla: {word}")
-    pixabay_api_key = (os.getenv("PIXABAY_API_KEY") or "").strip()
-    if not pixabay_api_key:
-        print("[ERROR] PIXABAY_API_KEY puuttuu. Lisää avain .env-tiedostoon.")
-        return None
-
+    pixabay_api_key = os.getenv("PIXABAY_API_KEY")
     url = "https://pixabay.com/api/"
     params = {
         "key": pixabay_api_key,
@@ -394,17 +397,9 @@ def fetch_and_save_pixabay_images(word, pair_index):
         "per_page": 10,
         "safesearch": "true"
     }
-    try:
-        response = requests.get(url, params=params, timeout=15)
-    except requests.RequestException as e:
-        print(f"[ERROR] Pixabay-pyyntö epäonnistui: {e}")
-        return None
-
+    response = requests.get(url, params=params)
     print(f"[DEBUG] Pixabay HTTP status: {response.status_code}")
     print(f"[DEBUG] Pixabay response text: {response.text[:300]}")  # Näytä max 300 merkkiä
-    if response.status_code != 200:
-        print("[ERROR] Pixabay palautti virheellisen HTTP-statuksen.")
-        return None
 
     try:
         data = response.json()
@@ -412,23 +407,11 @@ def fetch_and_save_pixabay_images(word, pair_index):
         print(f"[ERROR] Pixabay JSON decode error: {e}")
         return None
 
-    if data.get("error"):
-        print(f"[ERROR] Pixabay API error: {data.get('error')} | message: {data.get('message')}")
-        return None
-
     if "hits" in data and len(data["hits"]) >= 2:
-        os.makedirs("static/images", exist_ok=True)
         paths = []
         for i in range(2):
             img_url = data["hits"][i]["webformatURL"]
-            try:
-                img_response = requests.get(img_url, timeout=15)
-                img_response.raise_for_status()
-            except requests.RequestException as e:
-                print(f"[ERROR] Kuvan lataus epäonnistui ({img_url}): {e}")
-                return None
-
-            img_data = img_response.content
+            img_data = requests.get(img_url).content
             img = Image.open(BytesIO(img_data)).convert("RGB")
             img = img.resize((512, 512))
             filename = f"{word}{i+1}_{pair_index}.png"
@@ -443,4 +426,4 @@ def fetch_and_save_pixabay_images(word, pair_index):
 if __name__ == "__main__":
     players.clear()
     print("[DEBUG] Sovellus käynnissä osoitteessa http://0.0.0.0:5000 (LAN) – käytä palvelimen IP:tä toiselta koneelta.")
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
