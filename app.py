@@ -132,7 +132,7 @@ def fetch_theme_words(theme, max_results=80, require_noun=False):
     return all_words
 
 
-def translate_word_to_spanish(word):
+def translate_word(word, source_lang, target_lang):
     normalized_word = normalize_candidate_word(word)
     if not normalized_word:
         return None
@@ -140,13 +140,13 @@ def translate_word_to_spanish(word):
     try:
         response = requests.get(
             SPANISH_TRANSLATION_API_URL,
-            params={"q": normalized_word, "langpair": "en|es"},
+            params={"q": normalized_word, "langpair": f"{source_lang}|{target_lang}"},
             timeout=10
         )
         response.raise_for_status()
         payload = response.json()
     except (requests.RequestException, ValueError) as e:
-        print(f"[WARNING] Espanjan kaannos epäonnistui sanalle '{normalized_word}': {e}")
+        print(f"[WARNING] Kaannos epäonnistui sanalle '{normalized_word}' ({source_lang}->{target_lang}): {e}")
         return None
 
     translated_text = (
@@ -163,6 +163,14 @@ def translate_word_to_spanish(word):
     if normalize_candidate_word(normalized_translation) == normalized_word:
         return None
     return normalized_translation
+
+
+def translate_word_to_spanish(word):
+    return translate_word(word, "en", "es")
+
+
+def translate_word_to_finnish(word):
+    return translate_word(word, "en", "fi")
 
 
 def append_word_images_to_grid(word, pair_index):
@@ -183,13 +191,17 @@ def append_spanish_learning_pair_to_grid(pair):
         "pair_id": pair["pair_id"],
         "card_type": "word",
         "text": pair["spanish_word"],
-        "word": pair["english_word"]
+        "word": pair["english_word"],
+        "spanish_word": pair["spanish_word"],
+        "finnish_word": pair.get("finnish_word")
     })
     grid_data.append({
         "pair_id": pair["pair_id"],
         "card_type": "image",
         "image": pair["image_url"],
-        "word": pair["english_word"]
+        "word": pair["english_word"],
+        "spanish_word": pair["spanish_word"],
+        "finnish_word": pair.get("finnish_word")
     })
 
 
@@ -264,6 +276,8 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
             theme_rejected_words.add(english_word)
             continue
 
+        finnish_word = translate_word_to_finnish(english_word) or english_word
+
         print(f"[INFO] Kokeillaan espanjapariksi '{english_word}' -> '{spanish_word}' parille {pending_pair + 1}")
         image_paths = fetch_and_save_pixabay_images(english_word, pending_pair, required_count=1)
         if not image_paths:
@@ -275,6 +289,7 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
             "pair_id": pending_pair + 1,
             "english_word": english_word,
             "spanish_word": spanish_word,
+            "finnish_word": finnish_word,
             "image_url": "/" + image_paths[0]
         }
         append_spanish_learning_pair_to_grid(pair)

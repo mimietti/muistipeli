@@ -27,20 +27,29 @@
             padding: 40px;
         }
         #remaining-words {
-            max-width: 760px;
+            max-width: 980px;
             margin: 0 auto 24px;
             padding: 0 20px;
             color: #bbb;
-            font-size: 12px;
-            line-height: 1.7;
+            font-size: 20px;
+            line-height: 1.6;
         }
         #remaining-words strong {
             color: #ddd;
-            font-size: 12px;
+            font-size: 20px;
             margin-right: 8px;
         }
         #remaining-words-list {
             display: inline;
+            white-space: normal;
+        }
+        .dictionary-entry {
+            display: inline;
+        }
+        .dictionary-entry.highlighted {
+            color: #71f0a1;
+            font-weight: 700;
+            text-shadow: 0 0 14px rgba(113, 240, 161, 0.35);
         }
         #theme-progress {
             display: none;
@@ -72,7 +81,7 @@
             position: relative;
             background-size: cover;
             background-position: center;
-            transition: transform 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
         }
         .card.word-card {
             background: linear-gradient(160deg, #1f3528, #122018);
@@ -90,6 +99,17 @@
         }
         .card:hover {
             transform: scale(1.05);
+        }
+        .card.matched-highlight {
+            box-shadow: 0 0 0 4px rgba(113, 240, 161, 0.95), 0 0 24px rgba(113, 240, 161, 0.55);
+            transform: scale(1.03);
+        }
+        .card.removed {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transform: none;
+            box-shadow: none;
         }
         .hidden {
             background-image: none !important;
@@ -134,7 +154,7 @@
                 page_title_browser: "Memory Game - Game",
                 setup_building: 'Building a themed game for "{theme}"...',
                 ready_label: "Ready:",
-                remaining_label: "Remaining:",
+                remaining_label: "Dictionary:",
                 game_setup_failed: "Game setup failed.",
                 game_over: "Game over! Winner: {winner}",
                 points: "Points:",
@@ -159,7 +179,7 @@
                 page_title_browser: "Muistipeli – Peli",
                 setup_building: 'Rakennetaan teemapelia teemalle "{theme}"...',
                 ready_label: "Valmiina:",
-                remaining_label: "Löytämättä:",
+                remaining_label: "Sanakirja:",
                 game_setup_failed: "Pelin alustus epäonnistui.",
                 game_over: "Peli päättyi! Voittaja: {winner}",
                 points: "Pisteet:",
@@ -270,6 +290,8 @@
         const remainingWordsList = document.getElementById("remaining-words-list");
         let cards = [];
         let matched = new Set();
+        const recentlyFoundPairs = new Map();
+        let lastPairRemovalDeadline = 0;
         let currentTurn = null;
         // Varmista että uusi erä voi kysyä sanoja tällä sivulla
         try { sessionStorage.removeItem("words_given"); } catch (e) {}
@@ -316,6 +338,7 @@
 
         function hideCardElement(cardElement) {
             cardElement.classList.add("hidden");
+            cardElement.classList.remove("matched-highlight", "removed");
             cardElement.classList.remove("word-card");
             cardElement.style.backgroundImage = "none";
             cardElement.replaceChildren();
@@ -323,7 +346,7 @@
 
         function revealCardElement(cardElement, cardData) {
             if (!cardElement || !cardData) return;
-            cardElement.classList.remove("hidden");
+            cardElement.classList.remove("hidden", "removed", "matched-highlight");
             cardElement.replaceChildren();
             cardElement.style.backgroundImage = "none";
             cardElement.classList.toggle("word-card", cardData.card_type === "word");
@@ -400,31 +423,84 @@
             return mode === "spanish" ? t("prompt_spanish_theme") : t("prompt_theme");
         }
 
+        function clearRecentlyFoundPairs() {
+            recentlyFoundPairs.forEach((timeoutId) => clearTimeout(timeoutId));
+            recentlyFoundPairs.clear();
+            lastPairRemovalDeadline = 0;
+        }
+
+        function getDictionaryPairKey(card) {
+            return String(card && (card.pair_id || card.word || ""));
+        }
+
+        function getDictionaryEntryLabel(card) {
+            if (!card) return "";
+            const lang = getLanguage();
+            const sourceWord = card.spanish_word || card.text;
+            const targetWord = lang === "fi"
+                ? (card.finnish_word || card.word)
+                : card.word;
+
+            if (sourceWord && targetWord && sourceWord !== targetWord) {
+                return `${sourceWord}-${targetWord}`;
+            }
+            return card.word || sourceWord || "";
+        }
+
         function updateRemainingWords() {
             if (!Array.isArray(cards) || cards.length === 0) {
                 remainingWordsContainer.style.display = "none";
-                remainingWordsList.textContent = "";
+                remainingWordsList.replaceChildren();
                 return;
             }
 
-            const words = [];
+            const dictionaryEntries = [];
             const seen = new Set();
             cards.forEach((card, index) => {
                 if (!card || !card.word) return;
-                if (matched.has(index)) return;
-                if (seen.has(card.word)) return;
-                seen.add(card.word);
-                words.push(card.word);
+                const key = getDictionaryPairKey(card);
+                if (seen.has(key)) return;
+                seen.add(key);
+                const isMatched = matched.has(index);
+                const isHighlighted = recentlyFoundPairs.has(key);
+                if (isMatched && !isHighlighted) return;
+                dictionaryEntries.push({
+                    key,
+                    label: getDictionaryEntryLabel(card),
+                    highlighted: isHighlighted
+                });
             });
 
-            if (words.length === 0) {
+            if (dictionaryEntries.length === 0) {
                 remainingWordsContainer.style.display = "none";
-                remainingWordsList.textContent = "";
+                remainingWordsList.replaceChildren();
                 return;
             }
 
-            remainingWordsList.textContent = words.join(", ");
+            const fragments = [];
+            dictionaryEntries.forEach((entry, index) => {
+                const span = document.createElement("span");
+                span.className = `dictionary-entry${entry.highlighted ? " highlighted" : ""}`;
+                span.textContent = entry.label;
+                fragments.push(span);
+                if (index < dictionaryEntries.length - 1) {
+                    fragments.push(document.createTextNode(", "));
+                }
+            });
+            remainingWordsList.replaceChildren(...fragments);
             remainingWordsContainer.style.display = "block";
+        }
+
+        function removeMatchedCardElement(cardElement) {
+            if (!cardElement) return;
+            cardElement.classList.remove("matched-highlight", "word-card", "hidden");
+            cardElement.style.backgroundImage = "none";
+            cardElement.replaceChildren();
+            cardElement.classList.add("removed");
+        }
+
+        function getRemainingPairHighlightTime() {
+            return Math.max(0, lastPairRemovalDeadline - Date.now());
         }
 
         const storedSetupMode = sessionStorage.getItem("game_setup_mode");
@@ -473,6 +549,7 @@
             currentTurn = data.turn;
             sessionStorage.setItem("players", JSON.stringify(data.players));
             matched = new Set();
+            clearRecentlyFoundPairs();
             drawGrid();
             updatePlayers();
             updateRemainingWords();
@@ -545,56 +622,90 @@
         socket.on("pair_found", (data) => {
             console.log("[DEBUG] Pari löytyi:", data.word);
             data.indices.forEach(i => matched.add(i));
+            const pairCard = cards[data.indices[0]];
+            const pairKey = getDictionaryPairKey(pairCard);
+            const removalDeadline = Date.now() + 3000;
+            lastPairRemovalDeadline = Math.max(lastPairRemovalDeadline, removalDeadline);
+            if (pairKey) {
+                const existingTimeout = recentlyFoundPairs.get(pairKey);
+                if (existingTimeout) clearTimeout(existingTimeout);
+                const timeoutId = setTimeout(() => {
+                    recentlyFoundPairs.delete(pairKey);
+                    if (recentlyFoundPairs.size === 0) {
+                        lastPairRemovalDeadline = 0;
+                    }
+                    updateRemainingWords();
+                }, 3000);
+                recentlyFoundPairs.set(pairKey, timeoutId);
+            }
+            data.indices.forEach((i) => {
+                const card = document.getElementById(`card-${i}`);
+                if (card) {
+                    card.classList.add("matched-highlight");
+                    setTimeout(() => {
+                        removeMatchedCardElement(card);
+                    }, 3000);
+                }
+            });
             showWordMessage(data.word);
             updateRemainingWords();
         });
 
         socket.on("game_over", (data) => {
-            if (gameOverShown) {
-                console.log("[DEBUG] game_over ohitettu, tulosnakyma on jo auki.");
+            const delayMs = getRemainingPairHighlightTime();
+            const renderResults = () => {
+                if (gameOverShown) {
+                    console.log("[DEBUG] game_over ohitettu, tulosnakyma on jo auki.");
+                    return;
+                }
+                gameOverShown = true;
+                console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
+                document.getElementById("grid").style.display = "none";
+                document.getElementById("players").style.display = "none";
+                remainingWordsContainer.style.display = "none";
+                themeProgress.style.display = "none";
+                const oldResults = document.getElementById("results");
+                if (oldResults) oldResults.remove();
+
+                const results = document.createElement("div");
+                results.id = "results";
+                results.style.marginTop = "40px";
+                results.style.color = "gold";
+                results.style.fontSize = "24px";
+
+                const points = data.points || {};
+                const wins = data.round_win || {};
+
+                results.innerHTML = `
+                    <div style="margin-bottom:20px;">
+                        <strong>${t("game_over", { winner: data.winner })}</strong><br><br>
+                        <span style="font-size:20px;">${t("points")}</span><br>
+                        ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} ${t("pairs_suffix")}`).join("<br>")}
+                    </div>
+                    <div style="color:white; font-size:22px;">
+                        <strong>${t("round_wins")}</strong><br>
+                        ${Object.entries(wins).map(([name, w]) => `${name}: ${w} ${t("wins_suffix")}`).join("<br>")}
+                    </div>
+                    <br>
+                    <div style="color:white; font-size:20px; margin-bottom:16px;">
+                        ${t("play_new_round")}
+                    </div>
+                    <button id="restart-game-btn">${t("new_round")}</button>
+                    <button id="end-game-btn">${t("end_game")}</button>
+                `;
+                document.body.appendChild(results);
+                document.getElementById("restart-game-btn")?.addEventListener("click", restartGame);
+                document.getElementById("end-game-btn")?.addEventListener("click", endGame);
+
+                const winnerMessage = document.getElementById("winner-message");
+                if (winnerMessage) winnerMessage.style.display = "none";
+            };
+
+            if (delayMs > 0) {
+                setTimeout(renderResults, delayMs);
                 return;
             }
-            gameOverShown = true;
-            console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
-            document.getElementById("grid").style.display = "none";
-            document.getElementById("players").style.display = "none";
-            remainingWordsContainer.style.display = "none";
-            themeProgress.style.display = "none";
-            const oldResults = document.getElementById("results");
-            if (oldResults) oldResults.remove();
-
-            const results = document.createElement("div");
-            results.id = "results";
-            results.style.marginTop = "40px";
-            results.style.color = "gold";
-            results.style.fontSize = "24px";
-
-            const points = data.points || {};
-            const wins = data.round_win || {};
-
-            results.innerHTML = `
-                <div style="margin-bottom:20px;">
-                    <strong>${t("game_over", { winner: data.winner })}</strong><br><br>
-                    <span style="font-size:20px;">${t("points")}</span><br>
-                    ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} ${t("pairs_suffix")}`).join("<br>")}
-                </div>
-                <div style="color:white; font-size:22px;">
-                    <strong>${t("round_wins")}</strong><br>
-                    ${Object.entries(wins).map(([name, w]) => `${name}: ${w} ${t("wins_suffix")}`).join("<br>")}
-                </div>
-                <br>
-                <div style="color:white; font-size:20px; margin-bottom:16px;">
-                    ${t("play_new_round")}
-                </div>
-                <button id="restart-game-btn">${t("new_round")}</button>
-                <button id="end-game-btn">${t("end_game")}</button>
-            `;
-            document.body.appendChild(results);
-            document.getElementById("restart-game-btn")?.addEventListener("click", restartGame);
-            document.getElementById("end-game-btn")?.addEventListener("click", endGame);
-
-            const winnerMessage = document.getElementById("winner-message");
-            if (winnerMessage) winnerMessage.style.display = "none";
+            renderResults();
         });
 
         // Sanojen kysely Pixabayn käyttöön
