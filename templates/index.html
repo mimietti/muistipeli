@@ -257,9 +257,7 @@
                 return;
             }
             localStorage.setItem("username", username);
-            const joinPayload = { username: username, reconnect_token: reconnectToken };
-            console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
-            socket.emit("join", joinPayload);
+            navigateTo("/waiting");
         }
 
         function browserIsInLobby(payload) {

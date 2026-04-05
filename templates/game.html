@@ -129,6 +129,66 @@
             box-shadow: 0 4px 18px rgba(0,0,0,0.4);
             display: none;
         }
+        #results {
+            width: min(760px, calc(100% - 32px));
+            margin: 40px auto 0;
+            padding: 28px 24px 30px;
+            color: #f3f1c7;
+            font-size: 24px;
+            border-radius: 24px;
+            background:
+                radial-gradient(circle at top, rgba(120, 214, 146, 0.12), transparent 45%),
+                linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+        }
+        .results-section {
+            margin-bottom: 20px;
+        }
+        .results-heading {
+            color: #fff4a8;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .results-subheading {
+            color: white;
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .results-cta {
+            color: white;
+            font-size: 20px;
+            margin-bottom: 16px;
+        }
+        .results-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .results-btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.18s ease, filter 0.18s ease, background-color 0.18s ease;
+        }
+        .results-btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+        }
+        .results-btn.mode {
+            background-color: limegreen;
+            color: #0c150e;
+        }
+        .results-btn.end {
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
     </style>
 </head>
 <body>
@@ -163,6 +223,10 @@
                 wins_suffix: "wins",
                 play_new_round: "Play a new round?",
                 new_round: "New round",
+                new_round_with: "Start the next round with:",
+                new_round_waiting: "Waiting for player 2 to choose the next round.",
+                enter_words: "Enter your own words",
+                enter_theme: "Enter theme",
                 end_game: "End game",
                 prompt_word: "Enter a word for pair {pair}/8 (describe the pair with a common word):",
                 prompt_word_retry: "Enter a new word for pair {pair}/8:",
@@ -188,6 +252,10 @@
                 wins_suffix: "voittoa",
                 play_new_round: "Pelataanko uusi erä?",
                 new_round: "Uusi erä",
+                new_round_with: "Aloita seuraava erä pelimuodolla:",
+                new_round_waiting: "Odotetaan, että pelaaja 2 valitsee seuraavan erän.",
+                enter_words: "Syötä omat sanat",
+                enter_theme: "Syötä teema",
                 end_game: "Lopeta peli",
                 prompt_word: "Anna {pair}/8 parin sana (kuvaile paria yhdellä yleisellä sanalla):",
                 prompt_word_retry: "Anna {pair}/8 parin sana uudelleen:",
@@ -283,6 +351,7 @@
 
         const socket = io();
         let gameOverShown = false;
+        let gridRetryTimer = null;
         const setupStatus = document.getElementById("setup-status");
         const themeProgress = document.getElementById("theme-progress");
         const themeProgressList = document.getElementById("theme-progress-list");
@@ -304,6 +373,10 @@
         if (!reconnectToken) {
             alert("Reconnect_token puuttuu! Lataa sivu uudelleen.");
             location.reload();
+        }
+        function navigateTo(path) {
+            try { socket.disconnect(); } catch (_) {}
+            window.location.href = path;
         }
         // Liity peliin reconnect_tokenin kanssa
         const joinPayload = { username: myName, reconnect_token: reconnectToken };
@@ -423,6 +496,33 @@
             return mode === "spanish" ? t("prompt_spanish_theme") : t("prompt_theme");
         }
 
+        function queueNextRound(mode) {
+            if (!canQueueNextRound()) {
+                return;
+            }
+            const payload = { mode };
+            if (modeUsesTheme(mode)) {
+                payload.theme = getLastRoundTheme();
+            }
+            try { sessionStorage.setItem("queued_next_round", JSON.stringify(payload)); } catch (e) {}
+            try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
+            try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
+            navigateTo("/waiting");
+        }
+
+        function getStoredPlayers() {
+            try {
+                return JSON.parse(sessionStorage.getItem("players") || "[]");
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function canQueueNextRound() {
+            const players = getStoredPlayers();
+            return players.length >= 2 && players[1] === myName;
+        }
+
         function clearRecentlyFoundPairs() {
             recentlyFoundPairs.forEach((timeoutId) => clearTimeout(timeoutId));
             recentlyFoundPairs.clear();
@@ -522,6 +622,11 @@
         // Kun peli käynnistyy, aseta front-flag
         socket.on("init_grid", (data) => {
             gameOverShown = false;
+            if (gridRetryTimer) {
+                clearTimeout(gridRetryTimer);
+                gridRetryTimer = null;
+            }
+            try { sessionStorage.removeItem("pending_game_navigation"); } catch (e) {}
             sessionStorage.setItem("game_started", "1");
             sessionStorage.setItem("words_given", "1"); // Merkitse että kaikki sanat on jo annettu
             try {
@@ -559,6 +664,27 @@
         // Aloitus tapahtuu odotushuoneessa, tai käyttäjä voi palata sinne.
         socket.on("no_grid", (data) => {
             console.log("[DEBUG] no_grid vastaanotettu:", data && data.reason);
+            const reason = (data && data.reason) || "";
+            const setupMode = sessionStorage.getItem("game_setup_mode");
+            const hasPendingAsk = Boolean(sessionStorage.getItem("pending_ask"));
+            const gameAlreadyStarted = sessionStorage.getItem("game_started") === "1";
+            const pendingGameNavigationTs = parseInt(sessionStorage.getItem("pending_game_navigation") || "0", 10);
+            const navigationIsFresh = pendingGameNavigationTs && (Date.now() - pendingGameNavigationTs) < 12000;
+            if (reason === "Pelaajia liian vähän") {
+                if (navigationIsFresh || setupMode || hasPendingAsk) {
+                    if (gridRetryTimer) clearTimeout(gridRetryTimer);
+                    gridRetryTimer = setTimeout(() => {
+                        socket.emit("request_grid");
+                    }, 800);
+                    return;
+                }
+                navigateTo("/waiting");
+                return;
+            }
+            if (!gameAlreadyStarted && !setupMode && !hasPendingAsk && !navigationIsFresh) {
+                navigateTo("/waiting");
+                return;
+            }
             if (modeUsesTheme(sessionStorage.getItem("game_setup_mode"))) {
                 const theme = sessionStorage.getItem("game_setup_theme") || "theme";
                 showSetupStatus(t("setup_building", { theme }));
@@ -592,7 +718,7 @@
             hideSetupStatus();
             clearThemeProgress();
             alert(reason);
-            window.location.href = "/waiting";
+            navigateTo("/waiting");
         });
 
         socket.on("update_turn", (data) => {
@@ -669,32 +795,39 @@
 
                 const results = document.createElement("div");
                 results.id = "results";
-                results.style.marginTop = "40px";
-                results.style.color = "gold";
-                results.style.fontSize = "24px";
 
                 const points = data.points || {};
                 const wins = data.round_win || {};
 
+                const canChooseNextRound = canQueueNextRound();
                 results.innerHTML = `
-                    <div style="margin-bottom:20px;">
-                        <strong>${t("game_over", { winner: data.winner })}</strong><br><br>
+                    <div class="results-section">
+                        <div class="results-heading">${t("game_over", { winner: data.winner })}</div>
+                        <br>
                         <span style="font-size:20px;">${t("points")}</span><br>
                         ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} ${t("pairs_suffix")}`).join("<br>")}
                     </div>
-                    <div style="color:white; font-size:22px;">
-                        <strong>${t("round_wins")}</strong><br>
+                    <div class="results-section results-subheading">
+                        ${t("round_wins")}<br>
                         ${Object.entries(wins).map(([name, w]) => `${name}: ${w} ${t("wins_suffix")}`).join("<br>")}
                     </div>
                     <br>
-                    <div style="color:white; font-size:20px; margin-bottom:16px;">
-                        ${t("play_new_round")}
+                    <div class="results-cta">
+                        ${canChooseNextRound ? t("new_round_with") : t("new_round_waiting")}
                     </div>
-                    <button id="restart-game-btn">${t("new_round")}</button>
-                    <button id="end-game-btn">${t("end_game")}</button>
+                    <div class="results-actions" style="${canChooseNextRound ? "" : "display:none;"}">
+                        <button id="restart-manual-btn" class="results-btn mode">${t("enter_words")}</button>
+                        <button id="restart-theme-btn" class="results-btn mode">${t("enter_theme")}</button>
+                        <button id="restart-spanish-btn" class="results-btn mode">${t("study_spanish")}</button>
+                    </div>
+                    <div class="results-actions">
+                        <button id="end-game-btn" class="results-btn end">${t("end_game")}</button>
+                    </div>
                 `;
                 document.body.appendChild(results);
-                document.getElementById("restart-game-btn")?.addEventListener("click", restartGame);
+                document.getElementById("restart-manual-btn")?.addEventListener("click", () => queueNextRound("manual"));
+                document.getElementById("restart-theme-btn")?.addEventListener("click", () => queueNextRound("theme"));
+                document.getElementById("restart-spanish-btn")?.addEventListener("click", () => queueNextRound("spanish"));
                 document.getElementById("end-game-btn")?.addEventListener("click", endGame);
 
                 const winnerMessage = document.getElementById("winner-message");
@@ -776,44 +909,15 @@
         })();
 
         function restartGame() {
-            console.log("[DEBUG] Lähetetään uusi erä -pyyntö (custom game)");
-            // Tyhjennä flagit, jotta sana-promptit näytetään uudessa erässä
-            hideRestartChoices();
-            try { sessionStorage.removeItem("words_given"); } catch (e) {}
-            try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
-            const lastMode = getLastRoundMode();
-            if (modeUsesTheme(lastMode)) {
-                const lastTheme = getLastRoundTheme();
-                const themePrompt = getThemePromptForMode(lastMode);
-                let theme = prompt(themePrompt, lastTheme || "");
-                while (theme !== null && theme.trim().length === 0) {
-                    theme = prompt(themePrompt, lastTheme || "");
-                }
-                if (theme === null) {
-                    return;
-                }
-                theme = theme.trim();
-                try { sessionStorage.setItem("game_setup_mode", lastMode); } catch (e) {}
-                try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
-                try { sessionStorage.setItem("last_round_mode", lastMode); } catch (e) {}
-                try { sessionStorage.setItem("last_round_theme", theme); } catch (e) {}
-                clearThemeProgress();
-                showSetupStatus(t("setup_building", { theme }));
-                socket.emit("start_custom_game", { mode: lastMode, theme, ui_language: getLanguage() });
-                return;
-            }
-
-            try { sessionStorage.setItem("game_setup_mode", "manual"); } catch (e) {}
-            try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
-            try { sessionStorage.setItem("last_round_mode", "manual"); } catch (e) {}
-            try { sessionStorage.removeItem("last_round_theme"); } catch (e) {}
-            clearThemeProgress();
-            hideSetupStatus();
-            socket.emit("start_custom_game", { mode: "manual" });
+            queueNextRound(getLastRoundMode());
         }
 
         // Tyhjennä front-flag kun peli päättyy tai käyttäjä palaa etusivulle
         function endGame() {
+            if (gridRetryTimer) {
+                clearTimeout(gridRetryTimer);
+                gridRetryTimer = null;
+            }
             sessionStorage.removeItem("game_started");
             sessionStorage.removeItem("words_given");
             sessionStorage.removeItem("last_asked_pair");
@@ -822,9 +926,20 @@
             sessionStorage.removeItem("last_round_mode");
             sessionStorage.removeItem("last_round_theme");
             sessionStorage.removeItem("accepted_theme_words");
+            sessionStorage.removeItem("queued_next_round");
             console.log("[DEBUG] Peli lopetetaan.");
             window.location.href = "/";
         }
+
+        socket.on("game_aborted", (data) => {
+            if (gridRetryTimer) {
+                clearTimeout(gridRetryTimer);
+                gridRetryTimer = null;
+            }
+            const reason = (data && data.reason) || "Peli keskeytettiin.";
+            alert(reason);
+            navigateTo("/waiting");
+        });
 
         function drawGrid() {
             console.log("[DEBUG] Piirretään ruudukko...");
