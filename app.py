@@ -45,6 +45,7 @@ round_win = defaultdict(int)
 player_order = []  # Pelaajien järjestys
 current_game_mode = "manual"
 pending_theme = None
+pending_search_theme = None
 theme_candidates = []
 theme_rejected_words = set()
 used_pixabay_image_ids = set()
@@ -59,12 +60,13 @@ ABSTRACT_THEME_WORDS = {
 
 
 def reset_pending_state():
-    global current_game_mode, pending_theme, theme_candidates, theme_rejected_words, used_pixabay_image_ids
+    global current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, used_pixabay_image_ids
     globals().pop('pending_pair', None)
     globals().pop('pending_words', None)
     globals().pop('pending_player', None)
     current_game_mode = "manual"
     pending_theme = None
+    pending_search_theme = None
     theme_candidates = []
     theme_rejected_words = set()
     used_pixabay_image_ids = set()
@@ -186,6 +188,35 @@ def translate_word_to_finnish(word):
     return translate_word(word, "en", "fi")
 
 
+def translate_theme_to_english(theme, ui_language):
+    theme_text = str(theme or "").strip()
+    if not theme_text:
+        return None
+    if ui_language != "fi":
+        return theme_text
+
+    try:
+        response = requests.get(
+            SPANISH_TRANSLATION_API_URL,
+            params={"q": theme_text, "langpair": "fi|en"},
+            timeout=10
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError) as e:
+        print(f"[WARNING] Teeman kaanto suomesta englanniksi epäonnistui ('{theme_text}'): {e}")
+        return theme_text
+
+    translated_text = ((payload.get("responseData") or {}).get("translatedText") or "").strip()
+    translated_text = re.sub(r"\s*\(.*?\)\s*", " ", translated_text).strip()
+    translated_text = re.sub(r"\s+", " ", translated_text)
+    if not translated_text or any(separator in translated_text for separator in [";", "/", "|"]):
+        return theme_text
+
+    print(f"[INFO] Teema kaannettiin suomesta englanniksi: '{theme_text}' -> '{translated_text}'")
+    return translated_text
+
+
 def append_word_images_to_grid(word, pair_index):
     global grid_data
     result = fetch_and_save_pixabay_images(word, pair_index)
@@ -219,14 +250,15 @@ def append_spanish_learning_pair_to_grid(pair):
 
 
 def generate_theme_pair():
-    global pending_pair, pending_theme, theme_candidates, theme_rejected_words
+    global pending_pair, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words
     pair_index = pending_pair
     existing_words = {item["word"] for item in grid_data}
     attempts = 0
 
     while attempts < 40:
         if not theme_candidates:
-            theme_candidates = fetch_theme_words(pending_theme, max_results=100)
+            search_theme = pending_search_theme or pending_theme
+            theme_candidates = fetch_theme_words(search_theme, max_results=100)
             if not theme_candidates:
                 break
 
@@ -259,14 +291,15 @@ def generate_theme_pair():
 
 
 def generate_spanish_learning_pairs(theme, target_pairs=8):
-    global pending_pair, pending_theme, theme_candidates, theme_rejected_words
+    global pending_pair, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words
     existing_words = {item.get("word") for item in grid_data if item.get("word")}
     attempts = 0
     max_attempts = 160
+    search_theme = pending_search_theme or theme
 
     while spanish_setup_still_active(theme) and pending_pair < target_pairs and attempts < max_attempts:
         if not theme_candidates:
-            theme_candidates = fetch_theme_words(theme, max_results=160, require_noun=True)
+            theme_candidates = fetch_theme_words(search_theme, max_results=160, require_noun=True)
             theme_candidates = [
                 candidate for candidate in theme_candidates
                 if candidate not in existing_words and candidate not in theme_rejected_words
@@ -613,7 +646,7 @@ def on_disconnect():
 
 @socketio.on("start_custom_game")
 def handle_start_custom_game(data=None):
-    global pending_words, pending_player, pending_pair, grid_data, player_order, current_game_mode, pending_theme, theme_candidates, theme_rejected_words
+    global pending_words, pending_player, pending_pair, grid_data, player_order, current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words
     data = data or {}
     print(f"[INFO] Uusi erä käynnistetään. Tila: mode={data.get('mode', 'manual')}, players={len(players)}")
     # Jos peli on jo käynnissä, mutta pelaajien reconnect_tokenit ovat vaihtuneet, nollaa peli
@@ -638,6 +671,7 @@ def handle_start_custom_game(data=None):
 
     mode = str(data.get("mode", "manual")).strip().lower()
     theme = str(data.get("theme", "")).strip()
+    ui_language = str(data.get("ui_language", "")).strip().lower()
     if mode not in {"manual", "theme", "spanish"}:
         mode = "manual"
     if mode in {"theme", "spanish"} and not theme:
@@ -651,6 +685,7 @@ def handle_start_custom_game(data=None):
     grid_data.clear()
     current_game_mode = mode
     pending_theme = theme if mode in {"theme", "spanish"} else None
+    pending_search_theme = translate_theme_to_english(theme, ui_language) if mode in {"theme", "spanish"} else None
     theme_candidates = []
     theme_rejected_words = set()
     if current_game_mode in {"theme", "spanish"}:

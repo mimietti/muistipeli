@@ -799,7 +799,7 @@
                 try { sessionStorage.setItem("last_round_theme", theme); } catch (e) {}
                 clearThemeProgress();
                 showSetupStatus(t("setup_building", { theme }));
-                socket.emit("start_custom_game", { mode: lastMode, theme });
+                socket.emit("start_custom_game", { mode: lastMode, theme, ui_language: getLanguage() });
                 return;
             }
 
