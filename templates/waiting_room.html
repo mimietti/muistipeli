@@ -22,6 +22,12 @@
             margin: 20px 0;
             font-size: 24px;
         }
+        #playerRole {
+            margin: 6px 0 14px;
+            color: #9fe5a8;
+            font-size: 18px;
+            font-weight: 700;
+        }
 
         #changeNameBtn, .modeBtn {
             background-color: limegreen;
@@ -56,6 +62,7 @@
 <body>
     <h1 id="pageTitle">Waiting Room</h1>
     <div id="players"></div>
+    <div id="playerRole"></div>
     <div id="hint" style="margin:10px 0; color:#ccc; font-size:14px;">
         Tip: only the second player to join can start the game.
     </div>
@@ -71,6 +78,9 @@
         const translations = {
             en: {
                 page_title: "Waiting Room",
+                first_player: "You are player 1.",
+                second_player: "You are player 2.",
+                spectator_player: "You are waiting for an open player slot.",
                 hint: "Tip: only the second player to join can start the game.",
                 start_options: "Choose how words are provided for this round.",
                 enter_words: "Enter your own words",
@@ -89,6 +99,9 @@
             },
             fi: {
                 page_title: "Odotushuone",
+                first_player: "Olet pelaaja 1.",
+                second_player: "Olet pelaaja 2.",
+                spectator_player: "Odotat vapaata pelaajapaikkaa.",
                 hint: "Vinkki: vain toisena liittynyt voi aloittaa pelin.",
                 start_options: "Valitse miten sanat annetaan tähän erään.",
                 enter_words: "Syötä omat sanat",
@@ -126,6 +139,25 @@
             return message;
         }
 
+        function renderPlayerRole(playersInfo) {
+            window.latestPlayersInfo = Array.isArray(playersInfo) ? playersInfo : [];
+            const roleDiv = document.getElementById("playerRole");
+            if (!roleDiv) return;
+            const myToken = getReconnectToken();
+            const myIndex = window.latestPlayersInfo.findIndex((player) => (
+                player && player.reconnect_token === myToken
+            ));
+            if (myIndex === 0) {
+                roleDiv.textContent = t("first_player");
+                return;
+            }
+            if (myIndex === 1) {
+                roleDiv.textContent = t("second_player");
+                return;
+            }
+            roleDiv.textContent = window.latestPlayersInfo.length >= 2 ? t("spectator_player") : "";
+        }
+
         function applyTranslations() {
             document.documentElement.lang = getLanguage();
             document.title = t("page_title");
@@ -136,6 +168,7 @@
             document.getElementById("themeStartBtn").textContent = t("enter_theme");
             document.getElementById("spanishStartBtn").textContent = t("study_spanish");
             document.getElementById("changeNameBtn").textContent = t("change_name");
+            renderPlayerRole(window.latestPlayersInfo || []);
         }
 
         applyTranslations();
@@ -239,6 +272,11 @@
             console.log("DEBUG: startSocketWhenReady, myName:", myName, "reconnectToken:", reconnectToken);
             const socket = window.io();
 
+            function navigateTo(path) {
+                try { socket.disconnect(); } catch (_) {}
+                window.location.href = path;
+            }
+
             function emitJoin() {
                 // Tarkista reconnect_tokenin arvo ja tyyppi ennen emitointia
                 console.log("DEBUG: emitJoin, username:", myName, ", reconnect_token:", reconnectToken, ", typeof reconnect_token:", typeof reconnectToken);
@@ -287,6 +325,7 @@
                 console.log("[DEBUG] Pelaajat (ordered):", players);
                 const playersDiv = document.getElementById("players");
                 playersDiv.textContent = (players || []).join(" & ");
+                renderPlayerRole(players_info || []);
 
                 // Näytä Aloita-nappi vain toisena liittyneelle
                 if ((players || []).length === 2) {
@@ -356,7 +395,7 @@
 
             socket.on("start_game", () => {
                 console.log("[DEBUG] Vastaanotettiin 'start_game', siirrytään peliin");
-                window.location.href = "/game";
+                navigateTo("/game");
             });
 
             // Custom-peli: kun sanat tai ruudukko alkaa, siirry peliin
@@ -366,7 +405,7 @@
                 try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 try { sessionStorage.setItem("pending_ask", JSON.stringify(data)); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
-                window.location.href = "/game";
+                navigateTo("/game");
             });
             socket.on("theme_generation_started", (data) => {
                 console.log("[DEBUG] Teemapelin generointi aloitettu:", data);
@@ -374,11 +413,11 @@
                 if (data && data.theme) {
                     try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
                 }
-                window.location.href = "/game";
+                navigateTo("/game");
             });
             socket.on("init_grid", () => {
                 console.log("[DEBUG] Vastaanotettiin 'init_grid' odotushuoneessa – siirrytään peliin");
-                window.location.href = "/game";
+                navigateTo("/game");
             });
             socket.on("game_setup_error", (data) => {
                 const reason = localizeServerMessage((data && data.reason) || t("setup_failed"));
@@ -391,6 +430,9 @@
             // Yhteyden katkeamisen ja uudelleenliittymisen käsittely
             socket.on("disconnect", (reason) => {
                 console.warn("[DEBUG] Socket.IO yhteys katkesi:", reason);
+                if (reason === "io client disconnect") {
+                    return;
+                }
                 alert(t("disconnect_alert"));
             });
 

@@ -70,6 +70,19 @@ def reset_pending_state():
     used_pixabay_image_ids = set()
 
 
+def spanish_setup_still_active(theme):
+    active_pair = globals().get('pending_pair')
+    if active_pair is None:
+        return False
+    if current_game_mode != "spanish":
+        return False
+    if pending_theme != theme:
+        return False
+    if len(players) < 2:
+        return False
+    return True
+
+
 def normalize_candidate_word(word):
     cleaned = str(word or "").strip().lower()
     if not re.fullmatch(r"[a-z]{3,15}", cleaned):
@@ -251,7 +264,7 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
     attempts = 0
     max_attempts = 160
 
-    while pending_pair < target_pairs and attempts < max_attempts:
+    while spanish_setup_still_active(theme) and pending_pair < target_pairs and attempts < max_attempts:
         if not theme_candidates:
             theme_candidates = fetch_theme_words(theme, max_results=160, require_noun=True)
             theme_candidates = [
@@ -278,12 +291,20 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
 
         finnish_word = translate_word_to_finnish(english_word) or english_word
 
+        if not spanish_setup_still_active(theme):
+            print("[INFO] Espanjapelin generointi keskeytettiin, koska pelitila muuttui")
+            return
+
         print(f"[INFO] Kokeillaan espanjapariksi '{english_word}' -> '{spanish_word}' parille {pending_pair + 1}")
         image_paths = fetch_and_save_pixabay_images(english_word, pending_pair, required_count=1)
         if not image_paths:
             print(f"[INFO] Pixabay ei loytanyt espanjaparille '{english_word}' sopivaa kuvaa, haetaan korvaaja")
             theme_rejected_words.add(english_word)
             continue
+
+        if not spanish_setup_still_active(theme):
+            print("[INFO] Espanjapelin generointi keskeytettiin kuvanhaun aikana, koska pelitila muuttui")
+            return
 
         pair = {
             "pair_id": pending_pair + 1,
@@ -302,6 +323,10 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
             "mode": "spanish"
         })
         pending_pair += 1
+
+    if not spanish_setup_still_active(theme):
+        print("[INFO] Espanjapelin generointi lopetettiin siististi keskeytyneen pelin vuoksi")
+        return
 
     if pending_pair >= target_pairs:
         ask_next_word()
@@ -326,6 +351,19 @@ def waiting():
 def game():
     return render_template("game.html")
 
+
+def build_lobby_payload():
+    players_ordered = list(players.values())
+    usernames = [v["username"] for v in players_ordered]
+    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token")}
+             for v in players_ordered]
+    last_token = infos[-1]["reconnect_token"] if infos else None
+    return {
+        "players": usernames,
+        "players_info": infos,
+        "last_joined_token": last_token
+    }
+
 @socketio.on("join")
 def on_join(data):
     global players
@@ -335,25 +373,21 @@ def on_join(data):
     if not reconnect_token:
         print(f"[WARNING] HYLÄTTY join ilman reconnect_tokenia: {username}, SID: {sid}")
         return
-    # Poista vanha sid, jos reconnect_token täsmää
+    # Sama selain voi vaihtaa sivua tai nimeä; reconnect_token yksilöi istunnon.
     for k, v in list(players.items()):
-        if v["username"] == username and v.get("reconnect_token") == reconnect_token:
+        if v.get("reconnect_token") == reconnect_token:
             del players[k]
     if len(players) < max_players:
         players[sid] = {"username": username, "reconnect_token": reconnect_token}
         print(f"[INFO] {username} liittyi peliin.")
-    # Lähetä pelaajalista säilyttäen liittymisjärjestys ja yksilöivä reconnect_token
-    players_ordered = list(players.values())  # insertion order säilyy
-    usernames = [v["username"] for v in players_ordered]
-    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token")}
-             for v in players_ordered]
-    last_token = infos[-1]["reconnect_token"] if infos else None
-    socketio.emit("player_joined", {
-        "username": username,
-        "players": usernames,
-        "players_info": infos,
-        "last_joined_token": last_token
-    })
+    payload = build_lobby_payload()
+    payload["username"] = username
+    socketio.emit("player_joined", payload)
+
+
+@socketio.on("request_lobby_state")
+def handle_request_lobby_state():
+    emit("lobby_state", build_lobby_payload())
 
 @socketio.on("start_game_clicked")
 def handle_start_game():
@@ -549,13 +583,20 @@ def on_disconnect():
     sid = request.sid
     if sid in players:
         username = players[sid]["username"]
+        reconnect_token = players[sid].get("reconnect_token")
         print(f"[INFO] {username} poistui, odotetaan mahdollista reconnectia...")
-        def remove_later(sid_to_remove, username):
+        def remove_later(sid_to_remove, username, expected_token):
             eventlet.sleep(8)  # Odota 8 sekuntia reconnectia
             if sid_to_remove in players:
+                current_token = players[sid_to_remove].get("reconnect_token")
+                if current_token != expected_token:
+                    print(f"[INFO] {username} reconnectasi uudella SID:llä, vanhaa istuntoa ei poisteta")
+                    return
                 print(f"[INFO] {username} poistetaan pelaajalistasta (ei reconnectia)")
                 del players[sid_to_remove]
-                socketio.emit("player_joined", {"username": username, "players": [v["username"] for v in players.values()]})
+                payload = build_lobby_payload()
+                payload["username"] = username
+                socketio.emit("player_joined", payload)
                 # Jos kaikki pelaajat poistuneet, nollaa pelitila
                 if len(players) == 0:
                     print("[INFO] Kaikki pelaajat poistuneet – nollataan pelitila")
@@ -566,7 +607,7 @@ def on_disconnect():
                     turn = 0
                     player_points.clear()
                     reset_pending_state()
-        socketio.start_background_task(remove_later, sid, username)
+        socketio.start_background_task(remove_later, sid, username, reconnect_token)
     else:
         debug(f"[DEBUG] Tuntematon SID {sid} poistui pelistä")
 
