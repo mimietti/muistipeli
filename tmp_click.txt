@@ -1,0 +1,120 @@
+# Ensure two-card selections come from the same player/turn
+current_click_sid = None
+
+SPANISH_TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
+ABSTRACT_THEME_WORDS = {
+    "ability", "advice", "anger", "belief", "concept", "courage", "emotion", "faith",
+    "freedom", "friendship", "future", "happiness", "hope", "idea", "justice",
+    "knowledge", "logic", "love", "peace", "power", "quality", "spirit", "strategy",
+    "strength", "success", "theory", "thought", "truth", "value", "vision", "wisdom"
+}
+
+
+def reset_pending_state():
+    global current_game_mode, pending_theme, theme_candidates, theme_rejected_words, used_pixabay_image_ids, spanish_generation_in_progress, current_click_sid
+    globals().pop('pending_pair', None)
+    globals().pop('pending_words', None)
+    globals().pop('pending_player', None)
+    current_game_mode = "manual"
+    pending_theme = None
+    theme_candidates = []
+    theme_rejected_words = set()
+    used_pixabay_image_ids = set()
+    spanish_generation_in_progress = False
+    current_click_sid = None
+
+
+def normalize_candidate_word(word):
+    cleaned = str(word or "").strip().lower()
+    if not re.fullmatch(r"[a-z]{3,15}", cleaned):
+        return None
+    return cleaned
+
+
+def normalize_spanish_word(word):
+    cleaned = str(word or "").strip().lower()
+    cleaned = re.sub(r"^[^a-záéíóúüñ]+|[^a-záéíóúüñ]+$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(el|la|los|las|un|una|unos|unas)\s+", "", cleaned, flags=re.IGNORECASE)
+    if not re.fullmatch(r"[a-záéíóúüñ]{2,18}", cleaned, flags=re.IGNORECASE):
+        return None
+    return cleaned
+
+
+def is_concrete_theme_word(word):
+    return word not in ABSTRACT_THEME_WORDS
+
+
+def fetch_theme_words(theme, max_results=80, require_noun=False, exclude_proper=False):
+    theme = str(theme or "").strip()
+    if not theme:
+        return []
+
+    print(f"[INFO] Haetaan Datamusesta teemasanat teemalle '{theme}'")
+    all_words = []
+    seen = set()
+    # Request part-of-speech tags (md=p) so we can filter nouns and proper nouns.
+    query_variants = [
+        {"ml": theme, "max": max_results, "md": "p"},
+        {"topics": theme, "max": max_results, "md": "p"},
+        {"rel_trg": theme, "max": max_results, "md": "p"},
+    ]
+
+    for params in query_variants:
+        try:
+            response = requests.get("https://api.datamuse.com/words", params=params, timeout=10)
+            response.raise_for_status()
+            payload = response.json()
+        except requests.RequestException as e:
+            debug(f"[DEBUG] Datamuse-pyyntö epäonnistui ({params}): {e}")
+            continue
+        except ValueError as e:
+            debug(f"[DEBUG] Datamuse palautti virheellistä JSONia ({params}): {e}")
+            continue
+
+        for item in payload:
+            word = normalize_candidate_word(item.get("word"))
+            if not word or word in seen:
+                continue
+            tags = item.get("tags") or []
+
+            # Require a noun when requested.
+            if require_noun and "n" not in tags:
+                debug(f"[DEBUG] Hylattiin ei-substantiivi '{word}' (tags={tags})")
+                continue
+
+            # Optionally exclude proper nouns / places (Datamuse often marks these with 'prop').
+            if exclude_proper and any((t in {"prop", "place", "geog"}) or (isinstance(t, str) and "prop" in t)
+                                      for t in tags):
+                debug(f"[DEBUG] Hylattiin erisnimi '{word}' (tags={tags})")
+                continue
+
+            seen.add(word)
+            all_words.append(word)
+
+    random.shuffle(all_words)
+    preview = ", ".join(all_words[:12]) if all_words else "(ei sanoja)"
+    print(f"[INFO] Datamuse ehdotti teemalle '{theme}' {len(all_words)} sanaa: {preview}")
+    return all_words
+
+
+def translate_word_to_spanish(word):
+    normalized_word = normalize_candidate_word(word)
+    if not normalized_word:
+        return None
+
+    try:
+        response = requests.get(
+            SPANISH_TRANSLATION_API_URL,
+            params={"q": normalized_word, "langpair": "en|es"},
+            timeout=10
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError) as e:
+        print(f"[WARNING] Espanjan kaannos epäonnistui sanalle '{normalized_word}': {e}")
+        return None
+
+    translated_text = (
+        (payload.get("responseData") or {}).get("translatedText")
+        or ""
+    )

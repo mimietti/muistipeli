@@ -1,0 +1,120 @@
+
+
+@socketio.on("card_clicked")
+def handle_card_click(data):
+    global revealed_cards, turn, matched_indices, player_order, player_points
+
+    index = data["index"]
+    if index in matched_indices or index in revealed_cards:
+        return
+
+    debug(f"[DEBUG] Kortti klikattu: index {index}, sana: {grid_data[index]['word']}")
+    revealed_cards.append(index)
+    socketio.emit("reveal_card", {
+        "index": index,
+        "card": grid_data[index]
+    })
+
+    if len(revealed_cards) == 2:
+        idx1, idx2 = revealed_cards
+        word1 = grid_data[idx1]["word"]
+        word2 = grid_data[idx2]["word"]
+        match_key1 = grid_data[idx1].get("pair_id", word1)
+        match_key2 = grid_data[idx2].get("pair_id", word2)
+
+        if match_key1 == match_key2:
+            matched_indices.update(revealed_cards)
+            debug(f"[DEBUG] Pari löytyi: {word1}")
+            socketio.emit("pair_found", {"indices": revealed_cards, "word": word1})
+            revealed_cards = []
+            # Piste tälle vuorossa olevalle pelaajalle
+            current_player_name = player_order[turn] if 0 <= turn < len(player_order) else None
+            if current_player_name is not None:
+                player_points[current_player_name] = player_points.get(current_player_name, 0) + 1
+                debug(f"[DEBUG] Piste {current_player_name} (+1). Pisteet nyt: {player_points}")
+
+            # Jos kaikki parit löytyneet, päätä peli kerran
+            if len(matched_indices) == len(grid_data):
+                print("[INFO] Kaikki parit löytyneet – peli ohi!")
+                # Määritä voittaja tai tasapeli pisteiden perusteella
+                if player_points:
+                    max_pts = max(player_points.values()) if player_points else 0
+                    winners = [n for n, p in player_points.items() if p == max_pts]
+                    if len(winners) == 1:
+                        winner = winners[0]
+                        round_win[winner] += 1
+                        winner_label = winner
+                        print(f"[INFO] Voittaja: {winner}. Erävoitot: {dict(round_win)}")
+                    else:
+                        winner_label = "Tasapeli"
+                        print(f"[INFO] Tasapeli. Pisteet: {player_points}")
+
+                    socketio.emit("game_over", {
+                        "winner": winner_label,
+                        "points": player_points,
+                        "round_win": dict(round_win)
+                    })
+                else:
+                    print("[ERROR] Ei voittajaa, player_points on tyhjää.")
+
+                # Pyyhi pelitila, jotta uusi erä voi alkaa heti
+                try:
+                    grid_data.clear()
+                    revealed_cards.clear()
+                    matched_indices.clear()
+                except Exception:
+                    pass
+                turn = 0
+                player_points = {}
+                reset_pending_state()
+
+        else:
+            debug(f"[DEBUG] Ei paria: {word1} vs {word2}")
+            indices_to_hide = list(revealed_cards)  # Tee kopio!
+            revealed_cards = []
+
+            def hide_later():
+                socketio.sleep(2)  # Odota 2 sekuntia
+                socketio.emit("hide_cards", {"indices": indices_to_hide})
+            
+            socketio.start_background_task(hide_later)
+            # Vuoro vaihtuu vasta epäonnistuneen parin jälkeen
+            if player_order:
+                turn = (turn + 1) % len(player_order)
+        
+        # Käytä player_order vuoron näyttämiseen
+        next_turn_name = player_order[turn] if player_order else None
+        debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")
+        socketio.emit("update_turn", {"turn": next_turn_name})
+
+@socketio.on("disconnect")
+def on_disconnect():
+    global players
+    sid = request.sid
+    if sid in players:
+        username = players[sid]["username"]
+        print(f"[INFO] {username} poistui, odotetaan mahdollista reconnectia...")
+        def remove_later(sid_to_remove, username):
+            eventlet.sleep(8)  # Odota 8 sekuntia reconnectia
+            if sid_to_remove in players:
+                print(f"[INFO] {username} poistetaan pelaajalistasta (ei reconnectia)")
+                del players[sid_to_remove]
+                socketio.emit("player_joined", {"username": username, "players": [v["username"] for v in players.values()]})
+                # Jos kaikki pelaajat poistuneet, nollaa pelitila
+                if len(players) == 0:
+                    print("[INFO] Kaikki pelaajat poistuneet – nollataan pelitila")
+                    grid_data.clear()
+                    revealed_cards.clear()
+                    matched_indices.clear()
+                    global turn, player_points
+                    turn = 0
+                    player_points.clear()
+                    reset_pending_state()
+        socketio.start_background_task(remove_later, sid, username)
+    else:
+        debug(f"[DEBUG] Tuntematon SID {sid} poistui pelistä")
+
+@socketio.on("start_custom_game")
+def handle_start_custom_game(data=None):
+    global pending_words, pending_player, pending_pair, grid_data, player_order, current_game_mode, pending_theme, theme_candidates, theme_rejected_words
+    data = data or {}

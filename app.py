@@ -27,7 +27,7 @@ socketio = SocketIO(
     engineio_logger=False,
 )
 
-VERBOSE_DEBUG = False
+VERBOSE_DEBUG = True
 
 
 def debug(message):
@@ -48,6 +48,12 @@ pending_theme = None
 theme_candidates = []
 theme_rejected_words = set()
 used_pixabay_image_ids = set()
+# Prevent double-starting Spanish generation when multiple clients trigger asks
+spanish_generation_in_progress = False
+# Prevent double-starting Theme generation as well
+theme_generation_in_progress = False
+# Ensure two-card selections come from the same player/turn
+current_click_sid = None
 
 SPANISH_TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
 ABSTRACT_THEME_WORDS = {
@@ -59,7 +65,7 @@ ABSTRACT_THEME_WORDS = {
 
 
 def reset_pending_state():
-    global current_game_mode, pending_theme, theme_candidates, theme_rejected_words, used_pixabay_image_ids
+    global current_game_mode, pending_theme, theme_candidates, theme_rejected_words, used_pixabay_image_ids, spanish_generation_in_progress, theme_generation_in_progress, current_click_sid
     globals().pop('pending_pair', None)
     globals().pop('pending_words', None)
     globals().pop('pending_player', None)
@@ -68,6 +74,9 @@ def reset_pending_state():
     theme_candidates = []
     theme_rejected_words = set()
     used_pixabay_image_ids = set()
+    spanish_generation_in_progress = False
+    theme_generation_in_progress = False
+    current_click_sid = None
 
 
 def normalize_candidate_word(word):
@@ -90,7 +99,7 @@ def is_concrete_theme_word(word):
     return word not in ABSTRACT_THEME_WORDS
 
 
-def fetch_theme_words(theme, max_results=80, require_noun=False):
+def fetch_theme_words(theme, max_results=80, require_noun=False, exclude_proper=False):
     theme = str(theme or "").strip()
     if not theme:
         return []
@@ -98,6 +107,7 @@ def fetch_theme_words(theme, max_results=80, require_noun=False):
     print(f"[INFO] Haetaan Datamusesta teemasanat teemalle '{theme}'")
     all_words = []
     seen = set()
+    # Request part-of-speech tags (md=p) so we can filter nouns and proper nouns.
     query_variants = [
         {"ml": theme, "max": max_results, "md": "p"},
         {"topics": theme, "max": max_results, "md": "p"},
@@ -121,8 +131,18 @@ def fetch_theme_words(theme, max_results=80, require_noun=False):
             if not word or word in seen:
                 continue
             tags = item.get("tags") or []
+
+            # Require a noun when requested.
             if require_noun and "n" not in tags:
+                debug(f"[DEBUG] Hylattiin ei-substantiivi '{word}' (tags={tags})")
                 continue
+
+            # Optionally exclude proper nouns / places (Datamuse often marks these with 'prop').
+            if exclude_proper and any((t in {"prop", "place", "geog"}) or (isinstance(t, str) and "prop" in t)
+                                      for t in tags):
+                debug(f"[DEBUG] Hylattiin erisnimi '{word}' (tags={tags})")
+                continue
+
             seen.add(word)
             all_words.append(word)
 
@@ -194,7 +214,7 @@ def append_spanish_learning_pair_to_grid(pair):
 
 
 def generate_theme_pair():
-    global pending_pair, pending_theme, theme_candidates, theme_rejected_words
+    global pending_pair, pending_theme, theme_candidates, theme_rejected_words, theme_generation_in_progress
     pair_index = pending_pair
     existing_words = {item["word"] for item in grid_data}
     attempts = 0
@@ -219,6 +239,8 @@ def generate_theme_pair():
                 "total_pairs": 8
             })
             pending_pair += 1
+            # Allow next pair generation
+            theme_generation_in_progress = False
             ask_next_word()
             return
 
@@ -241,7 +263,8 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
 
     while pending_pair < target_pairs and attempts < max_attempts:
         if not theme_candidates:
-            theme_candidates = fetch_theme_words(theme, max_results=160, require_noun=True)
+            # For Spanish study mode, prefer common nouns and drop proper nouns.
+            theme_candidates = fetch_theme_words(theme, max_results=160, require_noun=True, exclude_proper=True)
             theme_candidates = [
                 candidate for candidate in theme_candidates
                 if candidate not in existing_words and candidate not in theme_rejected_words
@@ -289,7 +312,16 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
         pending_pair += 1
 
     if pending_pair >= target_pairs:
-        ask_next_word()
+        try:
+            ask_next_word()
+        finally:
+            # Mark Spanish generation as finished so a new round can start cleanly
+            try:
+                spanish_generation_in_progress
+            except NameError:
+                pass
+            else:
+                spanish_generation_in_progress = False
         return
 
     message = f"Teemasta '{pending_theme}' ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa."
@@ -443,13 +475,26 @@ def generate_grid():
 
 @socketio.on("card_clicked")
 def handle_card_click(data):
-    global revealed_cards, turn, matched_indices, player_order, player_points
+    global revealed_cards, turn, matched_indices, player_order, player_points, current_click_sid
 
     index = data["index"]
+    # Enforce server-side turn ownership to prevent cross-client double-clicks
+    clicker = players.get(request.sid) or {}
+    clicker_name = clicker.get("username")
+    current_player_name = player_order[turn] if player_order and 0 <= turn < len(player_order) else None
+    if not clicker_name or clicker_name != current_player_name:
+        debug(f"[DEBUG] Hylattiin klikkaus ei-aktiiviselta pelaajalta: {clicker_name} (vuoro: {current_player_name})")
+        return
     if index in matched_indices or index in revealed_cards:
         return
 
     debug(f"[DEBUG] Kortti klikattu: index {index}, sana: {grid_data[index]['word']}")
+    # Ensure both clicks of a pair come from the same client
+    if len(revealed_cards) == 0:
+        current_click_sid = request.sid
+    elif len(revealed_cards) == 1 and current_click_sid != request.sid:
+        debug("[DEBUG] Hylattiin toisen kortin klikkaus eri asiakkaalta samalle parille")
+        return
     revealed_cards.append(index)
     socketio.emit("reveal_card", {
         "index": index,
@@ -468,6 +513,7 @@ def handle_card_click(data):
             debug(f"[DEBUG] Pari löytyi: {word1}")
             socketio.emit("pair_found", {"indices": revealed_cards, "word": word1})
             revealed_cards = []
+            current_click_sid = None
             # Piste tälle vuorossa olevalle pelaajalle
             current_player_name = player_order[turn] if 0 <= turn < len(player_order) else None
             if current_player_name is not None:
@@ -513,6 +559,7 @@ def handle_card_click(data):
             debug(f"[DEBUG] Ei paria: {word1} vs {word2}")
             indices_to_hide = list(revealed_cards)  # Tee kopio!
             revealed_cards = []
+            current_click_sid = None
 
             def hide_later():
                 socketio.sleep(2)  # Odota 2 sekuntia
@@ -629,11 +676,21 @@ def ask_next_word():
     if current_game_mode == "theme":
         print(f"[INFO] Generoidaan teemasanat teemalle '{pending_theme}'")
         socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "theme"})
+        global theme_generation_in_progress
+        if theme_generation_in_progress:
+            debug("[DEBUG] Teemagenerointi on jo kaynnissa, ei kaynnisteta toista taustatehtavaa")
+            return
+        theme_generation_in_progress = True
         socketio.start_background_task(generate_theme_pair)
         return
     if current_game_mode == "spanish":
         print(f"[INFO] Generoidaan espanjan opiskelupeli teemalle '{pending_theme}'")
         socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "spanish"})
+        global spanish_generation_in_progress
+        if spanish_generation_in_progress:
+            debug("[DEBUG] Espanjan generointi on jo kaynnissa, ei kaynnisteta toista taustatehtavaa")
+            return
+        spanish_generation_in_progress = True
         socketio.start_background_task(generate_spanish_learning_pairs, pending_theme)
         return
 
@@ -754,7 +811,9 @@ def fetch_and_save_pixabay_images(word, pair_index, required_count=2):
             save_path = os.path.join("static/images", filename)
             img.save(save_path)
             debug(f"[DEBUG] Tallennettu kuva: {save_path}")
-            paths.append(save_path)
+            # Use web-friendly forward slashes in URLs regardless of OS
+            web_path = save_path.replace("\\", "/")
+            paths.append(web_path)
             used_pixabay_image_ids.add(hit["id"])
         return paths
     else:

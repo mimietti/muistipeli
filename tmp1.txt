@@ -1,0 +1,60 @@
+        socketio.emit("theme_generation_started", {"theme": pending_theme, "mode": current_game_mode})
+    ask_next_word()
+
+def ask_next_word():
+    global pending_pair, player_order, player_points, matched_indices, revealed_cards, turn, current_game_mode
+    debug(f"[DEBUG] ask_next_word kutsuttu! pending_pair: {pending_pair}, grid_data: {len(grid_data)}, mode: {current_game_mode}")
+    # Jos kaikki 8 paria on annettu, lähetä ruudukko näkyviin
+    if pending_pair >= 8:
+        print("[INFO] Kaikki sanat annettu, peli voidaan aloittaa")
+        # Alusta pelitila ennen ruudukon lähetystä
+        matched_indices = set()
+        revealed_cards = []
+        turn = 0
+        player_points = {name: 0 for name in player_order}
+        random.shuffle(grid_data)
+        socketio.emit("init_grid", {
+            "cards": grid_data,
+            "turn": player_order[0] if player_order else None,
+            "players": player_order
+        })
+        return
+
+    if len(player_order) < 2:
+        print("[WARNING] Pelaajia liian vähän, peli keskeytetään")
+        socketio.emit("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."})
+        return
+    # Kysy aina ekalta pelaajalta (player_order[0])
+    first_player = player_order[0]
+    if current_game_mode == "theme":
+        print(f"[INFO] Generoidaan teemasanat teemalle '{pending_theme}'")
+        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "theme"})
+        socketio.start_background_task(generate_theme_pair)
+        return
+    if current_game_mode == "spanish":
+        print(f"[INFO] Generoidaan espanjan opiskelupeli teemalle '{pending_theme}'")
+        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "spanish"})
+        socketio.start_background_task(generate_spanish_learning_pairs, pending_theme)
+        return
+
+    print(f"[INFO] Pyydetään sana pelaajalta {first_player}, pari {pending_pair+1}")
+    socketio.emit("ask_for_word", {
+        "player": first_player,
+        "pair": pending_pair + 1
+    })
+
+@socketio.on("word_given")
+def handle_word_given(data):
+    global pending_pair, grid_data
+    if pending_pair >= 8:
+        debug(f"[DEBUG] word_given hylätty, kaikki parit jo annettu (pending_pair={pending_pair})")
+        return
+    word = normalize_candidate_word(data["word"])
+    if not word:
+        print("[WARNING] Käyttäjän sana ei kelpaa, pyydetään uusi sana")
+        player_names = [v["username"] for v in players.values()]
+        first_player = player_names[0] if player_names else None
+        emit("word_failed", {
+            "player": first_player,
+            "pair": pending_pair + 1
+        }, broadcast=True)

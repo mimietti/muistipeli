@@ -42,6 +42,17 @@
         #remaining-words-list {
             display: inline;
         }
+        #dictionary {
+            max-width: 760px;
+            margin: 0 auto 24px;
+            padding: 0 20px;
+            color: #bfc7cf;
+            font-size: 12px;
+            line-height: 1.7;
+            display: none;
+        }
+        #dictionary strong { color: #fff; font-size: 12px; margin-right: 8px; }
+        #dictionary-list { display: inline; }
         #theme-progress {
             display: none;
             max-width: 760px;
@@ -124,6 +135,10 @@
         <strong id="remainingWordsLabel">Remaining:</strong>
         <span id="remaining-words-list"></span>
     </div>
+    <div id="dictionary" style="display:none;">
+        <strong id="dictionaryLabel">Dictionary:</strong>
+        <span id="dictionary-list"></span>
+    </div>
     <div id="winner-message" style="display: none; margin-top: 20px; color: gold; font-size: 24px;"></div>
     <div id="toast"></div>
 
@@ -135,6 +150,7 @@
                 setup_building: 'Building a themed game for "{theme}"...',
                 ready_label: "Ready:",
                 remaining_label: "Remaining:",
+                dictionary_label: "Dictionary:",
                 game_setup_failed: "Game setup failed.",
                 game_over: "Game over! Winner: {winner}",
                 points: "Points:",
@@ -160,6 +176,7 @@
                 setup_building: 'Rakennetaan teemapelia teemalle "{theme}"...',
                 ready_label: "Valmiina:",
                 remaining_label: "Löytämättä:",
+                dictionary_label: "Sanakirja:",
                 game_setup_failed: "Pelin alustus epäonnistui.",
                 game_over: "Peli päättyi! Voittaja: {winner}",
                 points: "Pisteet:",
@@ -210,6 +227,7 @@
             document.getElementById("pageTitle").textContent = t("page_title");
             document.getElementById("themeProgressLabel").textContent = t("ready_label");
             document.getElementById("remainingWordsLabel").textContent = t("remaining_label");
+            document.getElementById("dictionaryLabel").textContent = t("dictionary_label");
         }
 
         applyTranslations();
@@ -268,6 +286,8 @@
         const themeProgressList = document.getElementById("theme-progress-list");
         const remainingWordsContainer = document.getElementById("remaining-words");
         const remainingWordsList = document.getElementById("remaining-words-list");
+        const dictionaryContainer = document.getElementById("dictionary");
+        const dictionaryList = document.getElementById("dictionary-list");
         let cards = [];
         let matched = new Set();
         let currentTurn = null;
@@ -427,6 +447,27 @@
             remainingWordsContainer.style.display = "block";
         }
 
+        function updateDictionary() {
+            if (!Array.isArray(cards) || cards.length === 0) {
+                dictionaryContainer.style.display = "none";
+                dictionaryList.textContent = "";
+                return;
+            }
+            const pairs = [];
+            cards.forEach((card) => {
+                if (card && card.card_type === "word" && card.text && card.word) {
+                    pairs.push([card.word, card.text]);
+                }
+            });
+            if (pairs.length === 0) {
+                dictionaryContainer.style.display = "none";
+                dictionaryList.textContent = "";
+                return;
+            }
+            dictionaryList.textContent = pairs.map(([en, es]) => `${en} → ${es}`).join(", ");
+            dictionaryContainer.style.display = "block";
+        }
+
         const storedSetupMode = sessionStorage.getItem("game_setup_mode");
         const storedTheme = sessionStorage.getItem("game_setup_theme");
         if (modeUsesTheme(storedSetupMode)) {
@@ -476,6 +517,7 @@
             drawGrid();
             updatePlayers();
             updateRemainingWords();
+            updateDictionary();
         });
 
         // Jos palvelimella ei ole ruudukkoa (esim. peliä ei ole vielä aloitettu), ei tehdä mitään.
@@ -547,6 +589,7 @@
             data.indices.forEach(i => matched.add(i));
             showWordMessage(data.word);
             updateRemainingWords();
+            updateDictionary();
         });
 
         socket.on("game_over", (data) => {
