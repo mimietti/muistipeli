@@ -1,0 +1,110 @@
+411	        "card_type": "word",
+412	        "text": pair["spanish_word"],
+413	        "word": pair["english_word"],
+414	        "spanish_word": pair["spanish_word"],
+415	        "finnish_word": pair.get("finnish_word")
+416	    })
+417	    grid_data.append({
+418	        "pair_id": pair["pair_id"],
+419	        "card_type": "image",
+420	        "image": pair["image_url"],
+421	        "word": pair["english_word"],
+422	        "spanish_word": pair["spanish_word"],
+423	        "finnish_word": pair.get("finnish_word")
+424	    })
+425	
+426	
+427	def generate_theme_pair():
+428	<<<<<<< HEAD
+429	    global pending_pair, pending_theme, theme_candidates, theme_rejected_words, theme_generation_in_progress
+430	=======
+431	    global pending_pair, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words
+432	>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
+433	    pair_index = pending_pair
+434	    existing_words = {item["word"] for item in grid_data}
+435	    attempts = 0
+436	
+437	    while attempts < 40:
+438	        if not theme_candidates:
+439	            search_theme = pending_search_theme or pending_theme
+440	            theme_candidates = fetch_theme_words(search_theme, max_results=100)
+441	            if not theme_candidates:
+442	                break
+443	
+444	        word = theme_candidates.pop(0)
+445	        if word in existing_words or word in theme_rejected_words:
+446	            attempts += 1
+447	            continue
+448	
+449	        print(f"[INFO] Kokeillaan teemasanaksi '{word}' parille {pair_index+1}")
+450	        if append_word_images_to_grid(word, pair_index):
+451	            socketio.emit("theme_word_accepted", {
+452	                "theme": pending_theme,
+453	                "word": word,
+454	                "pair": pair_index + 1,
+455	                "total_pairs": 8
+456	            })
+457	            pending_pair += 1
+458	            # Allow next pair generation
+459	            theme_generation_in_progress = False
+460	            ask_next_word()
+461	            return
+462	
+463	        print(f"[INFO] Pixabay ei loytanyt teemasanalle '{word}' sopivia kuvia, haetaan korvaaja")
+464	        theme_rejected_words.add(word)
+465	        attempts += 1
+466	
+467	    message = f"Teemasta '{pending_theme}' ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa."
+468	    print(f"[WARNING] {message}")
+469	    grid_data.clear()
+470	    reset_pending_state()
+471	    socketio.emit("game_setup_error", {"reason": message})
+472	
+473	
+474	def generate_spanish_learning_pairs(theme, target_pairs=8):
+475	    global pending_pair, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words
+476	    existing_words = {item.get("word") for item in grid_data if item.get("word")}
+477	    attempts = 0
+478	    max_attempts = 160
+479	    search_theme = pending_search_theme or theme
+480	
+481	    while spanish_setup_still_active(theme) and pending_pair < target_pairs and attempts < max_attempts:
+482	        if not theme_candidates:
+483	<<<<<<< HEAD
+484	            # For Spanish study mode, prefer common nouns and drop proper nouns.
+485	            theme_candidates = fetch_theme_words(theme, max_results=160, require_noun=True, exclude_proper=True)
+486	=======
+487	            theme_candidates = fetch_theme_words(search_theme, max_results=160, require_noun=True)
+488	>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
+489	            theme_candidates = [
+490	                candidate for candidate in theme_candidates
+491	                if candidate not in existing_words and candidate not in theme_rejected_words
+492	            ]
+493	            if not theme_candidates:
+494	                break
+495	
+496	        english_word = theme_candidates.pop(0)
+497	        attempts += 1
+498	
+499	        if english_word in existing_words or english_word in theme_rejected_words:
+500	            continue
+501	        if not is_concrete_theme_word(english_word):
+502	            theme_rejected_words.add(english_word)
+503	            continue
+504	
+505	        spanish_word = translate_word_to_spanish(english_word)
+506	        if not spanish_word:
+507	            print(f"[INFO] Espanjan kaannos ei kelpaa sanalle '{english_word}', haetaan korvaaja")
+508	            theme_rejected_words.add(english_word)
+509	            continue
+510	
+511	        finnish_word = translate_word_to_finnish(english_word) or english_word
+512	
+513	        if not spanish_setup_still_active(theme):
+514	            print("[INFO] Espanjapelin generointi keskeytettiin, koska pelitila muuttui")
+515	            return
+516	
+517	        print(f"[INFO] Kokeillaan espanjapariksi '{english_word}' -> '{spanish_word}' parille {pending_pair + 1}")
+518	        image_paths = fetch_and_save_pixabay_images(english_word, pending_pair, required_count=1)
+519	        if not image_paths:
+520	            print(f"[INFO] Pixabay ei loytanyt espanjaparille '{english_word}' sopivaa kuvaa, haetaan korvaaja")

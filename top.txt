@@ -1,0 +1,160 @@
+1	import warnings
+2	
+3	warnings.filterwarnings("ignore", message=".*Eventlet is deprecated.*")
+4	
+5	import eventlet
+6	eventlet.monkey_patch()
+7	
+8	from flask import Flask, render_template, request
+9	from flask_socketio import SocketIO, emit
+10	import random
+11	import os
+12	import re
+13	import time
+14	import requests
+15	from PIL import Image
+16	from io import BytesIO
+17	from dotenv import load_dotenv   # <-- TÄMÄ
+18	from collections import defaultdict
+19	load_dotenv()                   # <--
+20	
+21	app = Flask(__name__)
+22	# Salli yhteydet myös muista koneista/osoitteista (kehitystä varten)
+23	socketio = SocketIO(
+24	    app,
+25	    async_mode='eventlet',
+26	    cors_allowed_origins="*",
+27	    logger=False,
+28	    engineio_logger=False,
+29	)
+30	
+31	<<<<<<< HEAD
+32	VERBOSE_DEBUG = True
+33	=======
+34	VERBOSE_DEBUG = False
+35	RECONNECT_GRACE_SECONDS = 30
+36	PAGE_TRANSITION_GRACE_SECONDS = 5
+37	>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
+38	
+39	
+40	def debug(message):
+41	    if VERBOSE_DEBUG:
+42	        print(message)
+43	
+44	players = {}  # { sid: {"username": ..., "reconnect_token": ...} }
+45	max_players = 2
+46	grid_data = []
+47	revealed_cards = []
+48	matched_indices = set()
+49	turn = 0
+50	player_points = {}
+51	round_win = defaultdict(int)
+52	player_order = []  # Pelaajien järjestys
+53	current_game_mode = "manual"
+54	pending_theme = None
+55	pending_search_theme = None
+56	theme_candidates = []
+57	theme_rejected_words = set()
+58	theme_selection_state = {}
+59	used_pixabay_image_ids = set()
+60	# Prevent double-starting Spanish generation when multiple clients trigger asks
+61	spanish_generation_in_progress = False
+62	# Prevent double-starting Theme generation as well
+63	theme_generation_in_progress = False
+64	# Ensure two-card selections come from the same player/turn
+65	current_click_sid = None
+66	
+67	SPANISH_TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
+68	ABSTRACT_THEME_WORDS = {
+69	    "ability", "advice", "anger", "belief", "concept", "courage", "emotion", "faith",
+70	    "freedom", "friendship", "future", "happiness", "hope", "idea", "justice",
+71	    "knowledge", "logic", "love", "peace", "power", "quality", "spirit", "strategy",
+72	    "strength", "success", "theory", "thought", "truth", "value", "vision", "wisdom"
+73	}
+74	
+75	
+76	def reset_pending_state():
+77	<<<<<<< HEAD
+78	    global current_game_mode, pending_theme, theme_candidates, theme_rejected_words, used_pixabay_image_ids, spanish_generation_in_progress, theme_generation_in_progress, current_click_sid
+79	=======
+80	    global current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, theme_selection_state, used_pixabay_image_ids
+81	>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
+82	    globals().pop('pending_pair', None)
+83	    globals().pop('pending_words', None)
+84	    globals().pop('pending_player', None)
+85	    current_game_mode = "manual"
+86	    pending_theme = None
+87	    pending_search_theme = None
+88	    theme_candidates = []
+89	    theme_rejected_words = set()
+90	    theme_selection_state = {}
+91	    used_pixabay_image_ids = set()
+92	    spanish_generation_in_progress = False
+93	    theme_generation_in_progress = False
+94	    current_click_sid = None
+95	
+96	
+97	def get_active_player_items():
+98	    return [(sid, data) for sid, data in players.items() if data.get("connected", True)]
+99	
+100	
+101	def get_active_players_ordered():
+102	    return [data for _, data in get_active_player_items()]
+103	
+104	
+105	def get_active_player_count():
+106	    return len(get_active_player_items())
+107	
+108	
+109	def is_effectively_present(player_data):
+110	    if player_data.get("connected", True):
+111	        return True
+112	    disconnected_at = player_data.get("disconnected_at")
+113	    if disconnected_at is None:
+114	        return False
+115	    return (time.monotonic() - disconnected_at) < PAGE_TRANSITION_GRACE_SECONDS
+116	
+117	
+118	def get_effective_player_items():
+119	    return [(sid, data) for sid, data in players.items() if is_effectively_present(data)]
+120	
+121	
+122	def get_effective_players_ordered():
+123	    return [data for _, data in get_effective_player_items()]
+124	
+125	
+126	def get_effective_player_count():
+127	    return len(get_effective_player_items())
+128	
+129	
+130	def theme_selection_active():
+131	    return bool(theme_selection_state.get("active"))
+132	
+133	
+134	def build_theme_selection_payload(message=None):
+135	    if not theme_selection_active():
+136	        return {"active": False}
+137	    return {
+138	        "active": True,
+139	        "theme": theme_selection_state.get("theme"),
+140	        "candidates": list(theme_selection_state.get("candidates", [])),
+141	        "selected_words": list(theme_selection_state.get("selected_words", [])),
+142	        "rejected_words": list(theme_selection_state.get("rejected_words", [])),
+143	        "turn": theme_selection_state.get("turn"),
+144	        "counts": dict(theme_selection_state.get("counts", {})),
+145	        "players": list(player_order),
+146	        "message": message
+147	    }
+148	
+149	
+150	def emit_theme_selection_state(message=None, sid=None):
+151	    payload = build_theme_selection_payload(message=message)
+152	    if sid:
+153	        socketio.emit("theme_selection_updated", payload, to=sid)
+154	        return
+155	    socketio.emit("theme_selection_updated", payload)
+156	
+157	
+158	def build_theme_candidate_list(search_theme, candidate_count=24):
+159	    raw_candidates = fetch_theme_words(search_theme, max_results=160, require_noun=True)
+160	    filtered = []

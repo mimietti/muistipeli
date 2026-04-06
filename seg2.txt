@@ -1,0 +1,200 @@
+481	    while spanish_setup_still_active(theme) and pending_pair < target_pairs and attempts < max_attempts:
+482	        if not theme_candidates:
+483	<<<<<<< HEAD
+484	            # For Spanish study mode, prefer common nouns and drop proper nouns.
+485	            theme_candidates = fetch_theme_words(theme, max_results=160, require_noun=True, exclude_proper=True)
+486	=======
+487	            theme_candidates = fetch_theme_words(search_theme, max_results=160, require_noun=True)
+488	>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
+489	            theme_candidates = [
+490	                candidate for candidate in theme_candidates
+491	                if candidate not in existing_words and candidate not in theme_rejected_words
+492	            ]
+493	            if not theme_candidates:
+494	                break
+495	
+496	        english_word = theme_candidates.pop(0)
+497	        attempts += 1
+498	
+499	        if english_word in existing_words or english_word in theme_rejected_words:
+500	            continue
+501	        if not is_concrete_theme_word(english_word):
+502	            theme_rejected_words.add(english_word)
+503	            continue
+504	
+505	        spanish_word = translate_word_to_spanish(english_word)
+506	        if not spanish_word:
+507	            print(f"[INFO] Espanjan kaannos ei kelpaa sanalle '{english_word}', haetaan korvaaja")
+508	            theme_rejected_words.add(english_word)
+509	            continue
+510	
+511	        finnish_word = translate_word_to_finnish(english_word) or english_word
+512	
+513	        if not spanish_setup_still_active(theme):
+514	            print("[INFO] Espanjapelin generointi keskeytettiin, koska pelitila muuttui")
+515	            return
+516	
+517	        print(f"[INFO] Kokeillaan espanjapariksi '{english_word}' -> '{spanish_word}' parille {pending_pair + 1}")
+518	        image_paths = fetch_and_save_pixabay_images(english_word, pending_pair, required_count=1)
+519	        if not image_paths:
+520	            print(f"[INFO] Pixabay ei loytanyt espanjaparille '{english_word}' sopivaa kuvaa, haetaan korvaaja")
+521	            theme_rejected_words.add(english_word)
+522	            continue
+523	
+524	        if not spanish_setup_still_active(theme):
+525	            print("[INFO] Espanjapelin generointi keskeytettiin kuvanhaun aikana, koska pelitila muuttui")
+526	            return
+527	
+528	        pair = {
+529	            "pair_id": pending_pair + 1,
+530	            "english_word": english_word,
+531	            "spanish_word": spanish_word,
+532	            "finnish_word": finnish_word,
+533	            "image_url": "/" + image_paths[0]
+534	        }
+535	        append_spanish_learning_pair_to_grid(pair)
+536	        existing_words.add(english_word)
+537	        socketio.emit("theme_word_accepted", {
+538	            "theme": pending_theme,
+539	            "word": english_word,
+540	            "pair": pending_pair + 1,
+541	            "total_pairs": target_pairs,
+542	            "mode": "spanish"
+543	        })
+544	        pending_pair += 1
+545	
+546	    if not spanish_setup_still_active(theme):
+547	        print("[INFO] Espanjapelin generointi lopetettiin siististi keskeytyneen pelin vuoksi")
+548	        return
+549	
+550	    if pending_pair >= target_pairs:
+551	        try:
+552	            ask_next_word()
+553	        finally:
+554	            # Mark Spanish generation as finished so a new round can start cleanly
+555	            try:
+556	                spanish_generation_in_progress
+557	            except NameError:
+558	                pass
+559	            else:
+560	                spanish_generation_in_progress = False
+561	        return
+562	
+563	    message = f"Teemasta '{pending_theme}' ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa."
+564	    print(f"[WARNING] {message}")
+565	    grid_data.clear()
+566	    reset_pending_state()
+567	    socketio.emit("game_setup_error", {"reason": message})
+568	
+569	
+570	@app.route("/")
+571	def index():
+572	    return render_template("index.html")
+573	
+574	@app.route("/waiting")
+575	def waiting():
+576	    return render_template("waiting_room.html")
+577	
+578	@app.route("/game")
+579	def game():
+580	    return render_template("game.html")
+581	
+582	
+583	def build_lobby_payload():
+584	    players_ordered = get_active_players_ordered()
+585	    usernames = [v["username"] for v in players_ordered]
+586	    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token")}
+587	             for v in players_ordered]
+588	    last_token = infos[-1]["reconnect_token"] if infos else None
+589	    return {
+590	        "players": usernames,
+591	        "players_info": infos,
+592	        "last_joined_token": last_token
+593	    }
+594	
+595	@socketio.on("join")
+596	def on_join(data):
+597	    global players
+598	    username = data["username"]
+599	    sid = request.sid
+600	    reconnect_token = data.get("reconnect_token")
+601	    if not reconnect_token:
+602	        print(f"[WARNING] HYLÄTTY join ilman reconnect_tokenia: {username}, SID: {sid}")
+603	        return
+604	    # Sama selain voi vaihtaa sivua tai nimeä; reconnect_token yksilöi istunnon.
+605	    for k, v in list(players.items()):
+606	        if v.get("reconnect_token") == reconnect_token:
+607	            del players[k]
+608	    if get_active_player_count() < max_players:
+609	        players[sid] = {
+610	            "username": username,
+611	            "reconnect_token": reconnect_token,
+612	            "connected": True,
+613	            "disconnected_at": None
+614	        }
+615	        print(f"[INFO] {username} liittyi peliin.")
+616	    payload = build_lobby_payload()
+617	    payload["username"] = username
+618	    socketio.emit("player_joined", payload)
+619	    if theme_selection_active():
+620	        emit_theme_selection_state()
+621	
+622	
+623	@socketio.on("request_lobby_state")
+624	def handle_request_lobby_state():
+625	    emit("lobby_state", build_lobby_payload())
+626	    if theme_selection_active():
+627	        emit("theme_selection_updated", build_theme_selection_payload())
+628	
+629	@socketio.on("start_game_clicked")
+630	def handle_start_game():
+631	    if get_effective_player_count() == max_players:
+632	        print("[INFO] Molemmat pelaajat liittyneet, aloitetaan peli")
+633	        # Luo pelidata jo tässä
+634	        generate_grid()
+635	        emit("start_game", broadcast=True)
+636	    else:
+637	        print("[WARNING] Pelaajia ei ole tarpeeksi pelin aloittamiseen")
+638	
+639	
+640	@socketio.on("request_grid")
+641	def handle_grid_request():
+642	    global player_order, turn
+643	    debug("[DEBUG] request_grid vastaanotettu – tarkistetaan pelitila")
+644	    debug(f"[DEBUG] Pelaajat: {players}")
+645	    debug(f"[DEBUG] Grid sisältää {len(grid_data)} korttia")
+646	
+647	    if get_effective_player_count() < 2:
+648	        print("[WARNING] Ei tarpeeksi pelaajia ruudukon palauttamiseen.")
+649	        emit("no_grid", {"reason": "Pelaajia liian vähän"})
+650	        return
+651	
+652	    # Jos ruudukko ei ole valmis, ilmoita siitä ja tarvittaessa toista käynnissä oleva sanapyyntö
+653	    if not grid_data or len(grid_data) < 16:
+654	        debug("[DEBUG] Ruudukko ei ole valmis – ei lähetetä init_grid")
+655	        emit("no_grid", {"reason": "Grid ei valmis"})
+656	        if theme_selection_active():
+657	            emit("theme_selection_updated", build_theme_selection_payload())
+658	            return
+659	        # Jos custom-pelin sanojen kysely on käynnissä, toista viimeisin pyyntö
+660	        if 'pending_pair' in globals():
+661	            try:
+662	                if current_game_mode in {"theme", "spanish"}:
+663	                    emit(
+664	                        "theme_generation_started",
+665	                        {"theme": pending_theme, "pair": pending_pair + 1, "mode": current_game_mode},
+666	                        broadcast=True
+667	                    )
+668	                    return
+669	                if len(player_order) < 1:
+670	                    # Fallback järjestys
+671	                    player_order[:] = [v["username"] for v in get_effective_players_ordered()]
+672	                first_player = player_order[0] if player_order else None
+673	                if first_player is not None and pending_pair < 8:
+674	                    debug(f"[DEBUG] request_grid: toistetaan ask_for_word pelaajalle {first_player}, pari {pending_pair+1}")
+675	                    emit("ask_for_word", {"player": first_player, "pair": pending_pair + 1}, broadcast=True)
+676	            except Exception as e:
+677	                debug(f"[DEBUG] request_grid: ask_for_word toisto epäonnistui: {e}")
+678	        return
+679	
+680	    # Muodosta samassa muodossa kuin custom-pelissä

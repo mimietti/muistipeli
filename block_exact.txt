@@ -1,0 +1,26 @@
+<<<<<<< HEAD
+    if current_game_mode == "theme":
+        print(f"[INFO] Generoidaan teemasanat teemalle '{pending_theme}'")
+        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "theme"})
+        global theme_generation_in_progress
+        if theme_generation_in_progress:
+            debug("[DEBUG] Teemagenerointi on jo kaynnissa, ei kaynnisteta toista taustatehtavaa")
+            return
+        theme_generation_in_progress = True
+        socketio.start_background_task(generate_theme_pair)
+        return
+    if current_game_mode == "spanish":
+        print(f"[INFO] Generoidaan espanjan opiskelupeli teemalle '{pending_theme}'")
+        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "spanish"})
+        global spanish_generation_in_progress
+        if spanish_generation_in_progress:
+            debug("[DEBUG] Espanjan generointi on jo kaynnissa, ei kaynnisteta toista taustatehtavaa")
+            return
+        spanish_generation_in_progress = True
+        socketio.start_background_task(generate_spanish_learning_pairs, pending_theme)
+=======
+    if current_game_mode in {"theme", "spanish"}:
+        if theme_selection_active():
+            emit_theme_selection_state()
+>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
+        return

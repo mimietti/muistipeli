@@ -9,3 +9,4 @@ flask-socketio
 eventlet
 pillow
 python-dotenv
+gunicorn

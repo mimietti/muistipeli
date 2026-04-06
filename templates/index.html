@@ -12,6 +12,17 @@
             text-align: center;
             padding-top: 100px;
         }
+        .hero {
+            width: min(560px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 32px 28px 36px;
+            border-radius: 24px;
+            background:
+                radial-gradient(circle at top, rgba(94, 220, 135, 0.18), transparent 42%),
+                linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+        }
 
         input[type="text"] {
             font-size: 18px;
@@ -52,56 +63,82 @@
             border-radius: 6px;
             border: none;
         }
+        #lobbyStatus {
+            min-height: 82px;
+            margin: 22px auto 0;
+            padding: 16px 18px;
+            color: #ebfff0;
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.4;
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.24), rgba(24, 59, 35, 0.72));
+            border: 1px solid rgba(126, 231, 135, 0.45);
+            border-radius: 18px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #lobbyStatus.is-empty {
+            color: #b9c0b9;
+            font-size: 17px;
+            font-weight: 500;
+            background: rgba(255,255,255,0.03);
+            border-color: rgba(255,255,255,0.08);
+            box-shadow: none;
+        }
+        #introText {
+            max-width: 470px;
+            margin: 0 auto 24px;
+            color: #d4ddd4;
+            font-size: 16px;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
-    <div id="languagePicker">
-        <label for="languageSelect" id="languageLabel">Language</label>
-        <select id="languageSelect">
-            <option value="en">English</option>
-            <option value="fi">Suomi</option>
-        </select>
+    <div class="hero">
+        <div id="languagePicker">
+            <label for="languageSelect" id="languageLabel">Language</label>
+            <select id="languageSelect">
+                <option value="en">English</option>
+                <option value="fi">Suomi</option>
+            </select>
+        </div>
+        <h1 id="pageTitle">Welcome to Memory Game!!!</h1>
+        <p id="introText"></p>
+        <input type="text" id="nameInput" placeholder="Your name" />
+        <br>
+        <button id="joinBtn" onclick="joinGame()">Join game</button>
+        <div id="lobbyStatus" class="is-empty"></div>
+        <div id="error"></div>
     </div>
-    <h1 id="pageTitle">Welcome to Memory Game!!!</h1>
-    <input type="text" id="nameInput" placeholder="Your name" />
-    <br>
-    <button id="joinBtn" onclick="joinGame()">Join game</button>
-    <br>
-    <button id="showTokenBtn" style="background-color:#2d7dd2; margin-left: 8px;">Show reconnect token</button>
-    <div id="tokenInfo" style="margin-top:16px; font-size:14px; color:#ccc;"></div>
-    <div id="error"></div>
 
     <script>
         const translations = {
             en: {
                 page_title: "Welcome to Memory Game!!!",
+                intro_text: "The game is similar to a traditional memory game where you turn over two cards at a time. In this version, you need to figure out which cards form a pair. Depending on the game type, a pair can be two different pictures connected by the same word, or a combination of a picture card and a word card.",
                 join: "Join game",
-                show_token: "Show reconnect token",
                 name_placeholder: "Your name",
                 language: "Language",
                 enter_name_first: "Enter your name first.",
                 reconnect_missing: "Reconnect token missing! Reload the page.",
-                copied_clipboard: "(Copied to clipboard)",
-                username_label: "username",
-                channel_label: "channel",
-                reconnect_label: "reconnect_token",
-                unknown_channel: "unknown",
-                connect_error: "Could not connect to the server."
+                connect_error: "Could not connect to the server.",
+                waiting_for_you: "{name} is waiting for you to play.",
+                waiting_other_player: "Waiting for another player..."
             },
             fi: {
                 page_title: "Tervetuloa muistipeliin!!!",
+                intro_text: "Peli muistuttaa perinteistä muistipeliä, jossa käännetään kaksi korttia kerrallaan. Tässä pelissä pitää päätellä, mitkä kortit muodostavat parin. Pelityypistä riippuen pari voi olla kaksi eri kuvaa, joita yhdistää sama sana, tai kuva- ja sanakortin yhdistelmä.",
                 join: "Liity peliin",
-                show_token: "Näytä reconnect_token",
                 name_placeholder: "Nimesi",
                 language: "Kieli",
                 enter_name_first: "Syötä nimi ensin.",
                 reconnect_missing: "Reconnect_token puuttuu! Lataa sivu uudelleen.",
-                copied_clipboard: "(Kopioitu leikepöydälle)",
-                username_label: "username",
-                channel_label: "kanava",
-                reconnect_label: "reconnect_token",
-                unknown_channel: "tuntematon",
-                connect_error: "Yhteyttä ei saatu palvelimeen."
+                connect_error: "Yhteyttä ei saatu palvelimeen.",
+                waiting_for_you: "{name} odottaa sinua pelaamaan.",
+                waiting_other_player: "Odotetaan toista pelaajaa..."
             }
         };
 
@@ -117,19 +154,24 @@
             return next;
         }
 
-        function t(key) {
+        function t(key, vars = {}) {
             const lang = getLanguage();
-            return (translations[lang] && translations[lang][key]) || translations.en[key] || key;
+            let value = (translations[lang] && translations[lang][key]) || translations.en[key] || key;
+            Object.entries(vars).forEach(([name, replacement]) => {
+                value = value.replaceAll(`{${name}}`, String(replacement));
+            });
+            return value;
         }
 
         function applyTranslations() {
             document.title = t("page_title");
             document.getElementById("languageLabel").textContent = t("language");
             document.getElementById("pageTitle").textContent = t("page_title");
+            document.getElementById("introText").textContent = t("intro_text");
             document.getElementById("joinBtn").textContent = t("join");
-            document.getElementById("showTokenBtn").textContent = t("show_token");
             document.getElementById("nameInput").placeholder = t("name_placeholder");
             document.getElementById("languageSelect").value = getLanguage();
+            renderLobbyStatus(window.currentLobbyPlayers || []);
         }
 
         // Turvallinen UUID myös laitteille, joissa crypto.randomUUID puuttuu
@@ -192,6 +234,11 @@
         setLanguage(getLanguage());
         applyTranslations();
 
+        function navigateTo(path) {
+            try { socket.disconnect(); } catch (_) {}
+            window.location.href = path;
+        }
+
         document.getElementById("languageSelect").addEventListener("change", (event) => {
             setLanguage(event.target.value);
             applyTranslations();
@@ -210,43 +257,54 @@
                 return;
             }
             localStorage.setItem("username", username);
-            const joinPayload = { username: username, reconnect_token: reconnectToken };
-            console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
-            socket.emit("join", joinPayload);
+            navigateTo("/waiting");
         }
 
-        // Apurit tokenin kanavan tunnistamiseen ja näyttöön
-        function detectTokenChannel(token) {
-            try { if (localStorage.getItem("reconnect_token") === token) return "localStorage"; } catch(_) {}
-            try { if (sessionStorage.getItem("reconnect_token") === token) return "sessionStorage"; } catch(_) {}
-            try {
-                const m = String(window.name||'').match(/(?:^|;)reconnect_token=([A-Za-z0-9-]+)/);
-                if (m && m[1] === token) return "window.name";
-            } catch(_) {}
-            if (window._reconnect_token === token) return "window._reconnect_token";
-            return t("unknown_channel");
+        function browserIsInLobby(payload) {
+            const reconnectToken = getReconnectToken();
+            const playersInfo = (payload && payload.players_info) || [];
+            return Boolean(
+                reconnectToken &&
+                playersInfo.some((player) => player && player.reconnect_token === reconnectToken)
+            );
         }
 
-        document.getElementById('showTokenBtn').addEventListener('click', () => {
-            const token = getReconnectToken();
-            const channel = detectTokenChannel(token);
-            const user = (function(){ try { return localStorage.getItem('username')||''; } catch(_) { return ''; }})();
-            const info = `${t("reconnect_label")}: ${token}\n${t("channel_label")}: ${channel}${user?`\n${t("username_label")}: ${user}`:''}`;
-            console.log("DEBUG:", info.replace(/\n/g, " | "));
-            const div = document.getElementById('tokenInfo');
-            div.textContent = info;
-            try {
-                navigator.clipboard.writeText(info);
-                div.textContent += `\n${t("copied_clipboard")}`;
-            } catch(_) {}
-        });
+        function renderLobbyStatus(players) {
+            window.currentLobbyPlayers = Array.isArray(players) ? players : [];
+            const lobbyStatus = document.getElementById("lobbyStatus");
+            const myName = (localStorage.getItem("username") || "").trim();
+            if (window.currentLobbyPlayers.length === 1) {
+                const waitingName = window.currentLobbyPlayers[0];
+                if (waitingName && waitingName !== myName) {
+                    lobbyStatus.classList.remove("is-empty");
+                    lobbyStatus.textContent = t("waiting_for_you", { name: waitingName });
+                    return;
+                }
+                lobbyStatus.classList.add("is-empty");
+                lobbyStatus.textContent = t("waiting_other_player");
+                return;
+            }
+            lobbyStatus.classList.add("is-empty");
+            lobbyStatus.textContent = "";
+        }
 
         socket.on("player_joined", (data) => {
-            const myName = localStorage.getItem("username");
-            if (data.players.includes(myName)) {
-                window.location.href = "/waiting";
+            if (browserIsInLobby(data)) {
+                navigateTo("/waiting");
+                return;
             }
+            renderLobbyStatus(data.players || []);
         });
+
+        socket.on("lobby_state", (data) => {
+            if (browserIsInLobby(data)) {
+                navigateTo("/waiting");
+                return;
+            }
+            renderLobbyStatus((data && data.players) || []);
+        });
+
+        socket.emit("request_lobby_state");
 
         socket.on("connect_error", (err) => {
             console.error("[Yhteysvirhe]", err);

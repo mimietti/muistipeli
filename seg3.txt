@@ -1,0 +1,380 @@
+681	    if not player_order:
+682	        # Fallback: käytä liittymisjärjestystä players-sanakirjasta
+683	        player_order = [v["username"] for v in get_effective_players_ordered()]
+684	    current_turn_name = player_order[turn] if player_order and 0 <= turn < len(player_order) else (player_order[0] if player_order else None)
+685	    emit("init_grid", {
+686	        "cards": grid_data,
+687	        "turn": current_turn_name,
+688	        "players": player_order
+689	    })
+690	
+691	@socketio.on("ready_for_game")
+692	def handle_ready_for_game():
+693	    debug("[DEBUG] Client ilmoitti olevansa valmis peliin")
+694	    emit("start_game", broadcast=True)
+695	
+696	def generate_grid():
+697	    global grid_data, revealed_cards, matched_indices, turn, player_points, player_order
+698	    print("[INFO] Peli käynnistyy – luodaan ruudukko")
+699	    images = []
+700	    for filename in sorted(os.listdir("static/images")):
+701	        if filename.endswith(".jpg") or filename.endswith(".png"):
+702	            word = filename.split("_")[0]
+703	            path = f"/static/images/{filename}"
+704	            images.append({"image": path, "word": word})
+705	
+706	    # 👉 Ryhmittele sanojen mukaan
+707	    word_dict = {}
+708	    for item in images:
+709	        word = item["word"]
+710	        word_dict.setdefault(word, []).append(item)
+711	
+712	    # 👉 Valitse 8 satunnaista sanaa, joilla on vähintään 2 kuvaa
+713	    valid_pairs = [v for v in word_dict.values() if len(v) >= 2]
+714	    selected = random.sample(valid_pairs, 8)
+715	    selected_images = []
+716	    for pair in selected:
+717	        # Ota vain 2 kuvaa per sana
+718	        selected_images.extend(pair[:2])
+719	    random.shuffle(selected_images)
+720	    grid_data = selected_images[:16]  # Varmista että kortteja on tasan 16
+721	    revealed_cards = []
+722	    matched_indices = set()
+723	    # Aseta vuorot ja pisteet käyttäjien nimien mukaan
+724	    player_order = [v["username"] for v in get_effective_players_ordered()]
+725	    turn = 0
+726	    player_points = {name: 0 for name in player_order}
+727	    debug(f"[DEBUG] Kortteja yhteensä: {len(grid_data)}")
+728	
+729	
+730	           
+731	
+732	
+733	@socketio.on("card_clicked")
+734	def handle_card_click(data):
+735	    global revealed_cards, turn, matched_indices, player_order, player_points, current_click_sid
+736	
+737	    index = data["index"]
+738	    # Enforce server-side turn ownership to prevent cross-client double-clicks
+739	    clicker = players.get(request.sid) or {}
+740	    clicker_name = clicker.get("username")
+741	    current_player_name = player_order[turn] if player_order and 0 <= turn < len(player_order) else None
+742	    if not clicker_name or clicker_name != current_player_name:
+743	        debug(f"[DEBUG] Hylattiin klikkaus ei-aktiiviselta pelaajalta: {clicker_name} (vuoro: {current_player_name})")
+744	        return
+745	    if index in matched_indices or index in revealed_cards:
+746	        return
+747	
+748	    debug(f"[DEBUG] Kortti klikattu: index {index}, sana: {grid_data[index]['word']}")
+749	    # Ensure both clicks of a pair come from the same client
+750	    if len(revealed_cards) == 0:
+751	        current_click_sid = request.sid
+752	    elif len(revealed_cards) == 1 and current_click_sid != request.sid:
+753	        debug("[DEBUG] Hylattiin toisen kortin klikkaus eri asiakkaalta samalle parille")
+754	        return
+755	    revealed_cards.append(index)
+756	    socketio.emit("reveal_card", {
+757	        "index": index,
+758	        "card": grid_data[index]
+759	    })
+760	
+761	    if len(revealed_cards) == 2:
+762	        idx1, idx2 = revealed_cards
+763	        word1 = grid_data[idx1]["word"]
+764	        word2 = grid_data[idx2]["word"]
+765	        match_key1 = grid_data[idx1].get("pair_id", word1)
+766	        match_key2 = grid_data[idx2].get("pair_id", word2)
+767	
+768	        if match_key1 == match_key2:
+769	            matched_indices.update(revealed_cards)
+770	            debug(f"[DEBUG] Pari löytyi: {word1}")
+771	            socketio.emit("pair_found", {"indices": revealed_cards, "word": word1})
+772	            revealed_cards = []
+773	            current_click_sid = None
+774	            # Piste tälle vuorossa olevalle pelaajalle
+775	            current_player_name = player_order[turn] if 0 <= turn < len(player_order) else None
+776	            if current_player_name is not None:
+777	                player_points[current_player_name] = player_points.get(current_player_name, 0) + 1
+778	                debug(f"[DEBUG] Piste {current_player_name} (+1). Pisteet nyt: {player_points}")
+779	
+780	            # Jos kaikki parit löytyneet, päätä peli kerran
+781	            if len(matched_indices) == len(grid_data):
+782	                print("[INFO] Kaikki parit löytyneet – peli ohi!")
+783	                # Määritä voittaja tai tasapeli pisteiden perusteella
+784	                if player_points:
+785	                    max_pts = max(player_points.values()) if player_points else 0
+786	                    winners = [n for n, p in player_points.items() if p == max_pts]
+787	                    if len(winners) == 1:
+788	                        winner = winners[0]
+789	                        round_win[winner] += 1
+790	                        winner_label = winner
+791	                        print(f"[INFO] Voittaja: {winner}. Erävoitot: {dict(round_win)}")
+792	                    else:
+793	                        winner_label = "Tasapeli"
+794	                        print(f"[INFO] Tasapeli. Pisteet: {player_points}")
+795	
+796	                    socketio.emit("game_over", {
+797	                        "winner": winner_label,
+798	                        "points": player_points,
+799	                        "round_win": dict(round_win)
+800	                    })
+801	                else:
+802	                    print("[ERROR] Ei voittajaa, player_points on tyhjää.")
+803	
+804	                # Pyyhi pelitila, jotta uusi erä voi alkaa heti
+805	                try:
+806	                    grid_data.clear()
+807	                    revealed_cards.clear()
+808	                    matched_indices.clear()
+809	                except Exception:
+810	                    pass
+811	                turn = 0
+812	                player_points = {}
+813	                reset_pending_state()
+814	
+815	        else:
+816	            debug(f"[DEBUG] Ei paria: {word1} vs {word2}")
+817	            indices_to_hide = list(revealed_cards)  # Tee kopio!
+818	            revealed_cards = []
+819	            current_click_sid = None
+820	
+821	            def hide_later():
+822	                socketio.sleep(2)  # Odota 2 sekuntia
+823	                socketio.emit("hide_cards", {"indices": indices_to_hide})
+824	            
+825	            socketio.start_background_task(hide_later)
+826	            # Vuoro vaihtuu vasta epäonnistuneen parin jälkeen
+827	            if player_order:
+828	                turn = (turn + 1) % len(player_order)
+829	        
+830	        # Käytä player_order vuoron näyttämiseen
+831	        next_turn_name = player_order[turn] if player_order else None
+832	        debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")
+833	        socketio.emit("update_turn", {"turn": next_turn_name})
+834	
+835	@socketio.on("disconnect")
+836	def on_disconnect():
+837	    global players
+838	    sid = request.sid
+839	    if sid in players:
+840	        username = players[sid]["username"]
+841	        reconnect_token = players[sid].get("reconnect_token")
+842	        players[sid]["connected"] = False
+843	        print(f"[INFO] {username} poistui, odotetaan mahdollista reconnectia ({RECONNECT_GRACE_SECONDS} s)...")
+844	        players[sid]["disconnected_at"] = time.monotonic()
+845	        payload = build_lobby_payload()
+846	        payload["username"] = username
+847	        socketio.emit("player_joined", payload)
+848	        def remove_later(sid_to_remove, username, expected_token):
+849	            global turn, player_points
+850	            eventlet.sleep(RECONNECT_GRACE_SECONDS)
+851	            if sid_to_remove in players:
+852	                current_token = players[sid_to_remove].get("reconnect_token")
+853	                if current_token != expected_token:
+854	                    print(f"[INFO] {username} reconnectasi uudella SID:llä, vanhaa istuntoa ei poisteta")
+855	                    return
+856	                print(f"[INFO] {username} poistetaan pelaajalistasta (ei reconnectia)")
+857	                del players[sid_to_remove]
+858	                payload = build_lobby_payload()
+859	                payload["username"] = username
+860	                socketio.emit("player_joined", payload)
+861	                if get_effective_player_count() < 2 and (theme_selection_active() or grid_data or 'pending_pair' in globals()):
+862	                    print("[INFO] Pelaajia liian vähän keskeneräiseen erään – keskeytetään nykyinen pelitila")
+863	                    socketio.emit("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."})
+864	                    grid_data.clear()
+865	                    revealed_cards.clear()
+866	                    matched_indices.clear()
+867	                    turn = 0
+868	                    player_points.clear()
+869	                    reset_pending_state()
+870	                    return
+871	                # Jos kaikki pelaajat poistuneet, nollaa pelitila
+872	                if len(players) == 0:
+873	                    print("[INFO] Kaikki pelaajat poistuneet – nollataan pelitila")
+874	                    grid_data.clear()
+875	                    revealed_cards.clear()
+876	                    matched_indices.clear()
+877	                    turn = 0
+878	                    player_points.clear()
+879	                    reset_pending_state()
+880	        socketio.start_background_task(remove_later, sid, username, reconnect_token)
+881	    else:
+882	        debug(f"[DEBUG] Tuntematon SID {sid} poistui pelistä")
+883	
+884	@socketio.on("start_custom_game")
+885	def handle_start_custom_game(data=None):
+886	    global pending_words, pending_player, pending_pair, grid_data, player_order, current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words
+887	    data = data or {}
+888	    print(f"[INFO] Uusi erä käynnistetään. Tila: mode={data.get('mode', 'manual')}, players={get_effective_player_count()}")
+889	    # Jos peli on jo käynnissä, mutta pelaajien reconnect_tokenit ovat vaihtuneet, nollaa peli
+890	    current_tokens = set(v['reconnect_token'] for v in get_effective_players_ordered())
+891	    grid_tokens = getattr(handle_start_custom_game, 'last_tokens', set())
+892	    if grid_data and current_tokens != grid_tokens:
+893	        print("[INFO] Pelaajien reconnect-tokenit vaihtuneet – nollataan pelitila")
+894	        grid_data.clear()
+895	        revealed_cards.clear()
+896	        matched_indices.clear()
+897	        global turn, player_points
+898	        turn = 0
+899	        player_points.clear()
+900	        reset_pending_state()
+901	    # Tallenna nykyiset reconnect_tokenit seuraavaa vertailua varten
+902	    handle_start_custom_game.last_tokens = set(v['reconnect_token'] for v in get_effective_players_ordered())
+903	    # Tallenna pelaajien järjestys kun peli alkaa
+904	    player_order = [v["username"] for v in get_effective_players_ordered()]
+905	    if grid_data:  # Jos peli on jo käynnissä, älä aloita uutta
+906	        print("[WARNING] Uuden erän pyyntö hylätty: peli on jo käynnissä")
+907	        return
+908	
+909	    mode = str(data.get("mode", "manual")).strip().lower()
+910	    theme = str(data.get("theme", "")).strip()
+911	    ui_language = str(data.get("ui_language", "")).strip().lower()
+912	    if mode not in {"manual", "theme", "spanish"}:
+913	        mode = "manual"
+914	    if mode in {"theme", "spanish"} and not theme:
+915	        emit("game_setup_error", {"reason": "Teema puuttuu."}, broadcast=True)
+916	        return
+917	
+918	    print("[INFO] Aloitetaan sanojen keruu")
+919	    pending_words = []
+920	    pending_player = 0
+921	    pending_pair = 0
+922	    grid_data.clear()
+923	    current_game_mode = mode
+924	    pending_theme = theme if mode in {"theme", "spanish"} else None
+925	    pending_search_theme = translate_theme_to_english(theme, ui_language) if mode in {"theme", "spanish"} else None
+926	    theme_candidates = []
+927	    theme_rejected_words = set()
+928	    if current_game_mode in {"theme", "spanish"}:
+929	        starter_name = players.get(request.sid, {}).get("username")
+930	        prepare_theme_selection(starter_name)
+931	        return
+932	    ask_next_word()
+933	
+934	def ask_next_word():
+935	    global pending_pair, player_order, player_points, matched_indices, revealed_cards, turn, current_game_mode
+936	    debug(f"[DEBUG] ask_next_word kutsuttu! pending_pair: {pending_pair}, grid_data: {len(grid_data)}, mode: {current_game_mode}")
+937	    # Jos kaikki 8 paria on annettu, lähetä ruudukko näkyviin
+938	    if pending_pair >= 8:
+939	        print("[INFO] Kaikki sanat annettu, peli voidaan aloittaa")
+940	        # Alusta pelitila ennen ruudukon lähetystä
+941	        matched_indices = set()
+942	        revealed_cards = []
+943	        turn = 0
+944	        player_points = {name: 0 for name in player_order}
+945	        random.shuffle(grid_data)
+946	        socketio.emit("init_grid", {
+947	            "cards": grid_data,
+948	            "turn": player_order[0] if player_order else None,
+949	            "players": player_order
+950	        })
+951	        return
+952	
+953	    if len(player_order) < 2:
+954	        print("[WARNING] Pelaajia liian vähän, peli keskeytetään")
+955	        socketio.emit("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."})
+956	        return
+957	    # Kysy aina ekalta pelaajalta (player_order[0])
+958	    first_player = player_order[0]
+959	<<<<<<< HEAD
+960	    if current_game_mode == "theme":
+961	        print(f"[INFO] Generoidaan teemasanat teemalle '{pending_theme}'")
+962	        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "theme"})
+963	        global theme_generation_in_progress
+964	        if theme_generation_in_progress:
+965	            debug("[DEBUG] Teemagenerointi on jo kaynnissa, ei kaynnisteta toista taustatehtavaa")
+966	            return
+967	        theme_generation_in_progress = True
+968	        socketio.start_background_task(generate_theme_pair)
+969	        return
+970	    if current_game_mode == "spanish":
+971	        print(f"[INFO] Generoidaan espanjan opiskelupeli teemalle '{pending_theme}'")
+972	        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "spanish"})
+973	        global spanish_generation_in_progress
+974	        if spanish_generation_in_progress:
+975	            debug("[DEBUG] Espanjan generointi on jo kaynnissa, ei kaynnisteta toista taustatehtavaa")
+976	            return
+977	        spanish_generation_in_progress = True
+978	        socketio.start_background_task(generate_spanish_learning_pairs, pending_theme)
+979	=======
+980	    if current_game_mode in {"theme", "spanish"}:
+981	        if theme_selection_active():
+982	            emit_theme_selection_state()
+983	>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
+984	        return
+985	
+986	    print(f"[INFO] Pyydetään sana pelaajalta {first_player}, pari {pending_pair+1}")
+987	    socketio.emit("ask_for_word", {
+988	        "player": first_player,
+989	        "pair": pending_pair + 1
+990	    })
+991	
+992	
+993	@socketio.on("select_theme_word")
+994	def handle_select_theme_word(data):
+995	    global pending_pair
+996	    if current_game_mode not in {"theme", "spanish"} or not theme_selection_active():
+997	        emit("theme_selection_failed", {"reason": "selection_inactive"})
+998	        return
+999	
+1000	    sid = request.sid
+1001	    if sid not in players:
+1002	        emit("theme_selection_failed", {"reason": "player_missing"})
+1003	        return
+1004	
+1005	    username = players[sid]["username"]
+1006	    word = normalize_candidate_word((data or {}).get("word"))
+1007	    if not word:
+1008	        emit("theme_selection_failed", {"reason": "invalid_word"})
+1009	        return
+1010	
+1011	    counts = theme_selection_state.get("counts", {})
+1012	    selected_words = theme_selection_state.get("selected_words", [])
+1013	    rejected_words = theme_selection_state.get("rejected_words", [])
+1014	    candidates = theme_selection_state.get("candidates", [])
+1015	
+1016	    if theme_selection_state.get("turn") != username:
+1017	        emit("theme_selection_failed", {"reason": "not_your_turn"})
+1018	        return
+1019	    if counts.get(username, 0) >= 4:
+1020	        emit("theme_selection_failed", {"reason": "quota_full"})
+1021	        return
+1022	    if word not in candidates:
+1023	        emit("theme_selection_failed", {"reason": "unknown_word"})
+1024	        return
+1025	    if any(item.get("word") == word for item in selected_words) or word in rejected_words:
+1026	        emit("theme_selection_failed", {"reason": "word_unavailable"})
+1027	        return
+1028	
+1029	    pair_index = pending_pair
+1030	    mode_label = "teemasanan" if current_game_mode == "theme" else "espanjapelin sanan"
+1031	    print(f"[INFO] {username} valitsi {mode_label} '{word}' parille {pair_index + 1}")
+1032	    selection_ok = append_word_images_to_grid(word, pair_index) if current_game_mode == "theme" else append_selected_spanish_pair(word, pair_index)
+1033	    if not selection_ok:
+1034	        print(f"[INFO] Sana '{word}' hylättiin tilassa '{current_game_mode}'")
+1035	        rejected_words.append(word)
+1036	        theme_rejected_words.add(word)
+1037	        socketio.emit("theme_selection_updated", build_theme_selection_payload(
+1038	            message=f"word_rejected:{word}"
+1039	        ))
+1040	        emit("theme_selection_failed", {"reason": "image_missing", "word": word})
+1041	        return
+1042	
+1043	    selected_words.append({"word": word, "chosen_by": username})
+1044	    counts[username] = counts.get(username, 0) + 1
+1045	    pending_pair += 1
+1046	
+1047	    if pending_pair >= 8:
+1048	        emit_theme_selection_state(message=f"word_selected:{word}")
+1049	        ask_next_word()
+1050	        return
+1051	
+1052	    theme_selection_state["turn"] = next_theme_picker_name(username)
+1053	    emit_theme_selection_state(message=f"word_selected:{word}")
+1054	
+1055	@socketio.on("word_given")
+1056	def handle_word_given(data):
+1057	    global pending_pair, grid_data
+1058	    if pending_pair >= 8:
+1059	        debug(f"[DEBUG] word_given hylätty, kaikki parit jo annettu (pending_pair={pending_pair})")
+1060	        return

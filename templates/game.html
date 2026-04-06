@@ -27,20 +27,29 @@
             padding: 40px;
         }
         #remaining-words {
-            max-width: 760px;
+            max-width: 980px;
             margin: 0 auto 24px;
             padding: 0 20px;
             color: #bbb;
-            font-size: 12px;
-            line-height: 1.7;
+            font-size: 20px;
+            line-height: 1.6;
         }
         #remaining-words strong {
             color: #ddd;
-            font-size: 12px;
+            font-size: 20px;
             margin-right: 8px;
         }
         #remaining-words-list {
             display: inline;
+            white-space: normal;
+        }
+        .dictionary-entry {
+            display: inline;
+        }
+        .dictionary-entry.highlighted {
+            color: #71f0a1;
+            font-weight: 700;
+            text-shadow: 0 0 14px rgba(113, 240, 161, 0.35);
         }
         #dictionary {
             max-width: 760px;
@@ -83,7 +92,7 @@
             position: relative;
             background-size: cover;
             background-position: center;
-            transition: transform 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
         }
         .card.word-card {
             background: linear-gradient(160deg, #1f3528, #122018);
@@ -102,6 +111,17 @@
         .card:hover {
             transform: scale(1.05);
         }
+        .card.matched-highlight {
+            box-shadow: 0 0 0 4px rgba(113, 240, 161, 0.95), 0 0 24px rgba(113, 240, 161, 0.55);
+            transform: scale(1.03);
+        }
+        .card.removed {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transform: none;
+            box-shadow: none;
+        }
         .hidden {
             background-image: none !important;
         }
@@ -119,6 +139,66 @@
             z-index: 9999;
             box-shadow: 0 4px 18px rgba(0,0,0,0.4);
             display: none;
+        }
+        #results {
+            width: min(760px, calc(100% - 32px));
+            margin: 40px auto 0;
+            padding: 28px 24px 30px;
+            color: #f3f1c7;
+            font-size: 24px;
+            border-radius: 24px;
+            background:
+                radial-gradient(circle at top, rgba(120, 214, 146, 0.12), transparent 45%),
+                linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+        }
+        .results-section {
+            margin-bottom: 20px;
+        }
+        .results-heading {
+            color: #fff4a8;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .results-subheading {
+            color: white;
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .results-cta {
+            color: white;
+            font-size: 20px;
+            margin-bottom: 16px;
+        }
+        .results-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .results-btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.18s ease, filter 0.18s ease, background-color 0.18s ease;
+        }
+        .results-btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+        }
+        .results-btn.mode {
+            background-color: limegreen;
+            color: #0c150e;
+        }
+        .results-btn.end {
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.1);
         }
     </style>
 </head>
@@ -149,8 +229,12 @@
                 page_title_browser: "Memory Game - Game",
                 setup_building: 'Building a themed game for "{theme}"...',
                 ready_label: "Ready:",
+<<<<<<< HEAD
                 remaining_label: "Remaining:",
                 dictionary_label: "Dictionary:",
+=======
+                remaining_label: "Dictionary:",
+>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
                 game_setup_failed: "Game setup failed.",
                 game_over: "Game over! Winner: {winner}",
                 points: "Points:",
@@ -159,6 +243,10 @@
                 wins_suffix: "wins",
                 play_new_round: "Play a new round?",
                 new_round: "New round",
+                new_round_with: "Start the next round with:",
+                new_round_waiting: "Waiting for player 2 to choose the next round.",
+                enter_words: "Enter your own words",
+                enter_theme: "Enter theme",
                 end_game: "End game",
                 prompt_word: "Enter a word for pair {pair}/8 (describe the pair with a common word):",
                 prompt_word_retry: "Enter a new word for pair {pair}/8:",
@@ -175,8 +263,12 @@
                 page_title_browser: "Muistipeli – Peli",
                 setup_building: 'Rakennetaan teemapelia teemalle "{theme}"...',
                 ready_label: "Valmiina:",
+<<<<<<< HEAD
                 remaining_label: "Löytämättä:",
                 dictionary_label: "Sanakirja:",
+=======
+                remaining_label: "Sanakirja:",
+>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
                 game_setup_failed: "Pelin alustus epäonnistui.",
                 game_over: "Peli päättyi! Voittaja: {winner}",
                 points: "Pisteet:",
@@ -185,6 +277,10 @@
                 wins_suffix: "voittoa",
                 play_new_round: "Pelataanko uusi erä?",
                 new_round: "Uusi erä",
+                new_round_with: "Aloita seuraava erä pelimuodolla:",
+                new_round_waiting: "Odotetaan, että pelaaja 2 valitsee seuraavan erän.",
+                enter_words: "Syötä omat sanat",
+                enter_theme: "Syötä teema",
                 end_game: "Lopeta peli",
                 prompt_word: "Anna {pair}/8 parin sana (kuvaile paria yhdellä yleisellä sanalla):",
                 prompt_word_retry: "Anna {pair}/8 parin sana uudelleen:",
@@ -281,6 +377,7 @@
 
         const socket = io();
         let gameOverShown = false;
+        let gridRetryTimer = null;
         const setupStatus = document.getElementById("setup-status");
         const themeProgress = document.getElementById("theme-progress");
         const themeProgressList = document.getElementById("theme-progress-list");
@@ -290,6 +387,8 @@
         const dictionaryList = document.getElementById("dictionary-list");
         let cards = [];
         let matched = new Set();
+        const recentlyFoundPairs = new Map();
+        let lastPairRemovalDeadline = 0;
         let currentTurn = null;
         // Varmista että uusi erä voi kysyä sanoja tällä sivulla
         try { sessionStorage.removeItem("words_given"); } catch (e) {}
@@ -302,6 +401,10 @@
         if (!reconnectToken) {
             alert("Reconnect_token puuttuu! Lataa sivu uudelleen.");
             location.reload();
+        }
+        function navigateTo(path) {
+            try { socket.disconnect(); } catch (_) {}
+            window.location.href = path;
         }
         // Liity peliin reconnect_tokenin kanssa
         const joinPayload = { username: myName, reconnect_token: reconnectToken };
@@ -336,6 +439,7 @@
 
         function hideCardElement(cardElement) {
             cardElement.classList.add("hidden");
+            cardElement.classList.remove("matched-highlight", "removed");
             cardElement.classList.remove("word-card");
             cardElement.style.backgroundImage = "none";
             cardElement.replaceChildren();
@@ -343,7 +447,7 @@
 
         function revealCardElement(cardElement, cardData) {
             if (!cardElement || !cardData) return;
-            cardElement.classList.remove("hidden");
+            cardElement.classList.remove("hidden", "removed", "matched-highlight");
             cardElement.replaceChildren();
             cardElement.style.backgroundImage = "none";
             cardElement.classList.toggle("word-card", cardData.card_type === "word");
@@ -420,33 +524,102 @@
             return mode === "spanish" ? t("prompt_spanish_theme") : t("prompt_theme");
         }
 
+        function queueNextRound(mode) {
+            if (!canQueueNextRound()) {
+                return;
+            }
+            const payload = { mode };
+            if (modeUsesTheme(mode)) {
+                payload.theme = getLastRoundTheme();
+            }
+            try { sessionStorage.setItem("queued_next_round", JSON.stringify(payload)); } catch (e) {}
+            try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
+            try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
+            navigateTo("/waiting");
+        }
+
+        function getStoredPlayers() {
+            try {
+                return JSON.parse(sessionStorage.getItem("players") || "[]");
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function canQueueNextRound() {
+            const players = getStoredPlayers();
+            return players.length >= 2 && players[1] === myName;
+        }
+
+        function clearRecentlyFoundPairs() {
+            recentlyFoundPairs.forEach((timeoutId) => clearTimeout(timeoutId));
+            recentlyFoundPairs.clear();
+            lastPairRemovalDeadline = 0;
+        }
+
+        function getDictionaryPairKey(card) {
+            return String(card && (card.pair_id || card.word || ""));
+        }
+
+        function getDictionaryEntryLabel(card) {
+            if (!card) return "";
+            const lang = getLanguage();
+            const sourceWord = card.spanish_word || card.text;
+            const targetWord = lang === "fi"
+                ? (card.finnish_word || card.word)
+                : card.word;
+
+            if (sourceWord && targetWord && sourceWord !== targetWord) {
+                return `${sourceWord}-${targetWord}`;
+            }
+            return card.word || sourceWord || "";
+        }
+
         function updateRemainingWords() {
             if (!Array.isArray(cards) || cards.length === 0) {
                 remainingWordsContainer.style.display = "none";
-                remainingWordsList.textContent = "";
+                remainingWordsList.replaceChildren();
                 return;
             }
 
-            const words = [];
+            const dictionaryEntries = [];
             const seen = new Set();
             cards.forEach((card, index) => {
                 if (!card || !card.word) return;
-                if (matched.has(index)) return;
-                if (seen.has(card.word)) return;
-                seen.add(card.word);
-                words.push(card.word);
+                const key = getDictionaryPairKey(card);
+                if (seen.has(key)) return;
+                seen.add(key);
+                const isMatched = matched.has(index);
+                const isHighlighted = recentlyFoundPairs.has(key);
+                if (isMatched && !isHighlighted) return;
+                dictionaryEntries.push({
+                    key,
+                    label: getDictionaryEntryLabel(card),
+                    highlighted: isHighlighted
+                });
             });
 
-            if (words.length === 0) {
+            if (dictionaryEntries.length === 0) {
                 remainingWordsContainer.style.display = "none";
-                remainingWordsList.textContent = "";
+                remainingWordsList.replaceChildren();
                 return;
             }
 
-            remainingWordsList.textContent = words.join(", ");
+            const fragments = [];
+            dictionaryEntries.forEach((entry, index) => {
+                const span = document.createElement("span");
+                span.className = `dictionary-entry${entry.highlighted ? " highlighted" : ""}`;
+                span.textContent = entry.label;
+                fragments.push(span);
+                if (index < dictionaryEntries.length - 1) {
+                    fragments.push(document.createTextNode(", "));
+                }
+            });
+            remainingWordsList.replaceChildren(...fragments);
             remainingWordsContainer.style.display = "block";
         }
 
+<<<<<<< HEAD
         function updateDictionary() {
             if (!Array.isArray(cards) || cards.length === 0) {
                 dictionaryContainer.style.display = "none";
@@ -466,6 +639,18 @@
             }
             dictionaryList.textContent = pairs.map(([en, es]) => `${en} → ${es}`).join(", ");
             dictionaryContainer.style.display = "block";
+=======
+        function removeMatchedCardElement(cardElement) {
+            if (!cardElement) return;
+            cardElement.classList.remove("matched-highlight", "word-card", "hidden");
+            cardElement.style.backgroundImage = "none";
+            cardElement.replaceChildren();
+            cardElement.classList.add("removed");
+        }
+
+        function getRemainingPairHighlightTime() {
+            return Math.max(0, lastPairRemovalDeadline - Date.now());
+>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
         }
 
         const storedSetupMode = sessionStorage.getItem("game_setup_mode");
@@ -487,6 +672,11 @@
         // Kun peli käynnistyy, aseta front-flag
         socket.on("init_grid", (data) => {
             gameOverShown = false;
+            if (gridRetryTimer) {
+                clearTimeout(gridRetryTimer);
+                gridRetryTimer = null;
+            }
+            try { sessionStorage.removeItem("pending_game_navigation"); } catch (e) {}
             sessionStorage.setItem("game_started", "1");
             sessionStorage.setItem("words_given", "1"); // Merkitse että kaikki sanat on jo annettu
             try {
@@ -514,6 +704,7 @@
             currentTurn = data.turn;
             sessionStorage.setItem("players", JSON.stringify(data.players));
             matched = new Set();
+            clearRecentlyFoundPairs();
             drawGrid();
             updatePlayers();
             updateRemainingWords();
@@ -524,6 +715,27 @@
         // Aloitus tapahtuu odotushuoneessa, tai käyttäjä voi palata sinne.
         socket.on("no_grid", (data) => {
             console.log("[DEBUG] no_grid vastaanotettu:", data && data.reason);
+            const reason = (data && data.reason) || "";
+            const setupMode = sessionStorage.getItem("game_setup_mode");
+            const hasPendingAsk = Boolean(sessionStorage.getItem("pending_ask"));
+            const gameAlreadyStarted = sessionStorage.getItem("game_started") === "1";
+            const pendingGameNavigationTs = parseInt(sessionStorage.getItem("pending_game_navigation") || "0", 10);
+            const navigationIsFresh = pendingGameNavigationTs && (Date.now() - pendingGameNavigationTs) < 12000;
+            if (reason === "Pelaajia liian vähän") {
+                if (navigationIsFresh || setupMode || hasPendingAsk) {
+                    if (gridRetryTimer) clearTimeout(gridRetryTimer);
+                    gridRetryTimer = setTimeout(() => {
+                        socket.emit("request_grid");
+                    }, 800);
+                    return;
+                }
+                navigateTo("/waiting");
+                return;
+            }
+            if (!gameAlreadyStarted && !setupMode && !hasPendingAsk && !navigationIsFresh) {
+                navigateTo("/waiting");
+                return;
+            }
             if (modeUsesTheme(sessionStorage.getItem("game_setup_mode"))) {
                 const theme = sessionStorage.getItem("game_setup_theme") || "theme";
                 showSetupStatus(t("setup_building", { theme }));
@@ -557,7 +769,7 @@
             hideSetupStatus();
             clearThemeProgress();
             alert(reason);
-            window.location.href = "/waiting";
+            navigateTo("/waiting");
         });
 
         socket.on("update_turn", (data) => {
@@ -587,57 +799,98 @@
         socket.on("pair_found", (data) => {
             console.log("[DEBUG] Pari löytyi:", data.word);
             data.indices.forEach(i => matched.add(i));
+            const pairCard = cards[data.indices[0]];
+            const pairKey = getDictionaryPairKey(pairCard);
+            const removalDeadline = Date.now() + 3000;
+            lastPairRemovalDeadline = Math.max(lastPairRemovalDeadline, removalDeadline);
+            if (pairKey) {
+                const existingTimeout = recentlyFoundPairs.get(pairKey);
+                if (existingTimeout) clearTimeout(existingTimeout);
+                const timeoutId = setTimeout(() => {
+                    recentlyFoundPairs.delete(pairKey);
+                    if (recentlyFoundPairs.size === 0) {
+                        lastPairRemovalDeadline = 0;
+                    }
+                    updateRemainingWords();
+                }, 3000);
+                recentlyFoundPairs.set(pairKey, timeoutId);
+            }
+            data.indices.forEach((i) => {
+                const card = document.getElementById(`card-${i}`);
+                if (card) {
+                    card.classList.add("matched-highlight");
+                    setTimeout(() => {
+                        removeMatchedCardElement(card);
+                    }, 3000);
+                }
+            });
             showWordMessage(data.word);
             updateRemainingWords();
             updateDictionary();
         });
 
         socket.on("game_over", (data) => {
-            if (gameOverShown) {
-                console.log("[DEBUG] game_over ohitettu, tulosnakyma on jo auki.");
+            const delayMs = getRemainingPairHighlightTime();
+            const renderResults = () => {
+                if (gameOverShown) {
+                    console.log("[DEBUG] game_over ohitettu, tulosnakyma on jo auki.");
+                    return;
+                }
+                gameOverShown = true;
+                console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
+                document.getElementById("grid").style.display = "none";
+                document.getElementById("players").style.display = "none";
+                remainingWordsContainer.style.display = "none";
+                themeProgress.style.display = "none";
+                const oldResults = document.getElementById("results");
+                if (oldResults) oldResults.remove();
+
+                const results = document.createElement("div");
+                results.id = "results";
+
+                const points = data.points || {};
+                const wins = data.round_win || {};
+
+                const canChooseNextRound = canQueueNextRound();
+                results.innerHTML = `
+                    <div class="results-section">
+                        <div class="results-heading">${t("game_over", { winner: data.winner })}</div>
+                        <br>
+                        <span style="font-size:20px;">${t("points")}</span><br>
+                        ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} ${t("pairs_suffix")}`).join("<br>")}
+                    </div>
+                    <div class="results-section results-subheading">
+                        ${t("round_wins")}<br>
+                        ${Object.entries(wins).map(([name, w]) => `${name}: ${w} ${t("wins_suffix")}`).join("<br>")}
+                    </div>
+                    <br>
+                    <div class="results-cta">
+                        ${canChooseNextRound ? t("new_round_with") : t("new_round_waiting")}
+                    </div>
+                    <div class="results-actions" style="${canChooseNextRound ? "" : "display:none;"}">
+                        <button id="restart-manual-btn" class="results-btn mode">${t("enter_words")}</button>
+                        <button id="restart-theme-btn" class="results-btn mode">${t("enter_theme")}</button>
+                        <button id="restart-spanish-btn" class="results-btn mode">${t("study_spanish")}</button>
+                    </div>
+                    <div class="results-actions">
+                        <button id="end-game-btn" class="results-btn end">${t("end_game")}</button>
+                    </div>
+                `;
+                document.body.appendChild(results);
+                document.getElementById("restart-manual-btn")?.addEventListener("click", () => queueNextRound("manual"));
+                document.getElementById("restart-theme-btn")?.addEventListener("click", () => queueNextRound("theme"));
+                document.getElementById("restart-spanish-btn")?.addEventListener("click", () => queueNextRound("spanish"));
+                document.getElementById("end-game-btn")?.addEventListener("click", endGame);
+
+                const winnerMessage = document.getElementById("winner-message");
+                if (winnerMessage) winnerMessage.style.display = "none";
+            };
+
+            if (delayMs > 0) {
+                setTimeout(renderResults, delayMs);
                 return;
             }
-            gameOverShown = true;
-            console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
-            document.getElementById("grid").style.display = "none";
-            document.getElementById("players").style.display = "none";
-            remainingWordsContainer.style.display = "none";
-            themeProgress.style.display = "none";
-            const oldResults = document.getElementById("results");
-            if (oldResults) oldResults.remove();
-
-            const results = document.createElement("div");
-            results.id = "results";
-            results.style.marginTop = "40px";
-            results.style.color = "gold";
-            results.style.fontSize = "24px";
-
-            const points = data.points || {};
-            const wins = data.round_win || {};
-
-            results.innerHTML = `
-                <div style="margin-bottom:20px;">
-                    <strong>${t("game_over", { winner: data.winner })}</strong><br><br>
-                    <span style="font-size:20px;">${t("points")}</span><br>
-                    ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} ${t("pairs_suffix")}`).join("<br>")}
-                </div>
-                <div style="color:white; font-size:22px;">
-                    <strong>${t("round_wins")}</strong><br>
-                    ${Object.entries(wins).map(([name, w]) => `${name}: ${w} ${t("wins_suffix")}`).join("<br>")}
-                </div>
-                <br>
-                <div style="color:white; font-size:20px; margin-bottom:16px;">
-                    ${t("play_new_round")}
-                </div>
-                <button id="restart-game-btn">${t("new_round")}</button>
-                <button id="end-game-btn">${t("end_game")}</button>
-            `;
-            document.body.appendChild(results);
-            document.getElementById("restart-game-btn")?.addEventListener("click", restartGame);
-            document.getElementById("end-game-btn")?.addEventListener("click", endGame);
-
-            const winnerMessage = document.getElementById("winner-message");
-            if (winnerMessage) winnerMessage.style.display = "none";
+            renderResults();
         });
 
         // Sanojen kysely Pixabayn käyttöön
@@ -708,44 +961,15 @@
         })();
 
         function restartGame() {
-            console.log("[DEBUG] Lähetetään uusi erä -pyyntö (custom game)");
-            // Tyhjennä flagit, jotta sana-promptit näytetään uudessa erässä
-            hideRestartChoices();
-            try { sessionStorage.removeItem("words_given"); } catch (e) {}
-            try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
-            const lastMode = getLastRoundMode();
-            if (modeUsesTheme(lastMode)) {
-                const lastTheme = getLastRoundTheme();
-                const themePrompt = getThemePromptForMode(lastMode);
-                let theme = prompt(themePrompt, lastTheme || "");
-                while (theme !== null && theme.trim().length === 0) {
-                    theme = prompt(themePrompt, lastTheme || "");
-                }
-                if (theme === null) {
-                    return;
-                }
-                theme = theme.trim();
-                try { sessionStorage.setItem("game_setup_mode", lastMode); } catch (e) {}
-                try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
-                try { sessionStorage.setItem("last_round_mode", lastMode); } catch (e) {}
-                try { sessionStorage.setItem("last_round_theme", theme); } catch (e) {}
-                clearThemeProgress();
-                showSetupStatus(t("setup_building", { theme }));
-                socket.emit("start_custom_game", { mode: lastMode, theme });
-                return;
-            }
-
-            try { sessionStorage.setItem("game_setup_mode", "manual"); } catch (e) {}
-            try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
-            try { sessionStorage.setItem("last_round_mode", "manual"); } catch (e) {}
-            try { sessionStorage.removeItem("last_round_theme"); } catch (e) {}
-            clearThemeProgress();
-            hideSetupStatus();
-            socket.emit("start_custom_game", { mode: "manual" });
+            queueNextRound(getLastRoundMode());
         }
 
         // Tyhjennä front-flag kun peli päättyy tai käyttäjä palaa etusivulle
         function endGame() {
+            if (gridRetryTimer) {
+                clearTimeout(gridRetryTimer);
+                gridRetryTimer = null;
+            }
             sessionStorage.removeItem("game_started");
             sessionStorage.removeItem("words_given");
             sessionStorage.removeItem("last_asked_pair");
@@ -754,9 +978,20 @@
             sessionStorage.removeItem("last_round_mode");
             sessionStorage.removeItem("last_round_theme");
             sessionStorage.removeItem("accepted_theme_words");
+            sessionStorage.removeItem("queued_next_round");
             console.log("[DEBUG] Peli lopetetaan.");
             window.location.href = "/";
         }
+
+        socket.on("game_aborted", (data) => {
+            if (gridRetryTimer) {
+                clearTimeout(gridRetryTimer);
+                gridRetryTimer = null;
+            }
+            const reason = (data && data.reason) || "Peli keskeytettiin.";
+            alert(reason);
+            navigateTo("/waiting");
+        });
 
         function drawGrid() {
             console.log("[DEBUG] Piirretään ruudukko...");

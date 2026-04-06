@@ -1,0 +1,40 @@
+941	    # Kysy aina ekalta pelaajalta (player_order[0])
+942	    first_player = player_order[0]
+943	<<<<<<< HEAD
+944	    if current_game_mode == "theme":
+945	        print(f"[INFO] Generoidaan teemasanat teemalle '{pending_theme}'")
+946	        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "theme"})
+947	        global theme_generation_in_progress
+948	        if theme_generation_in_progress:
+949	            debug("[DEBUG] Teemagenerointi on jo kaynnissa, ei kaynnisteta toista taustatehtavaa")
+950	            return
+951	        theme_generation_in_progress = True
+952	        socketio.start_background_task(generate_theme_pair)
+953	        return
+954	    if current_game_mode == "spanish":
+955	        print(f"[INFO] Generoidaan espanjan opiskelupeli teemalle '{pending_theme}'")
+956	        socketio.emit("theme_generation_started", {"theme": pending_theme, "pair": pending_pair + 1, "mode": "spanish"})
+957	        global spanish_generation_in_progress
+958	        if spanish_generation_in_progress:
+959	            debug("[DEBUG] Espanjan generointi on jo kaynnissa, ei kaynnisteta toista taustatehtavaa")
+960	            return
+961	        spanish_generation_in_progress = True
+962	        socketio.start_background_task(generate_spanish_learning_pairs, pending_theme)
+963	=======
+964	    if current_game_mode in {"theme", "spanish"}:
+965	        if theme_selection_active():
+966	            emit_theme_selection_state()
+967	>>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
+968	        return
+969	
+970	    print(f"[INFO] Pyydetään sana pelaajalta {first_player}, pari {pending_pair+1}")
+971	    socketio.emit("ask_for_word", {
+972	        "player": first_player,
+973	        "pair": pending_pair + 1
+974	    })
+975	
+976	
+977	@socketio.on("select_theme_word")
+978	def handle_select_theme_word(data):
+979	    global pending_pair
+980	    if current_game_mode not in {"theme", "spanish"} or not theme_selection_active():

@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: muistipeli
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k eventlet -w 1 -b 0.0.0.0:$PORT app:app
+    autoDeploy: true
+    envVars:
+      - key: PIXABAY_API_KEY
+        sync: false
+      - key: VERBOSE_DEBUG
+        value: "0"
