@@ -231,6 +231,7 @@
         }
 
         const socket = io();
+        try { window.socket = socket; } catch (_) {}
         setLanguage(getLanguage());
         applyTranslations();
 
