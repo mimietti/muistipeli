@@ -152,6 +152,13 @@ def emit_theme_selection_state(message=None, sid=None):
     socketio.emit("theme_selection_updated", payload)
 
 
+def deactivate_theme_selection():
+    global theme_selection_state, theme_generation_in_progress, spanish_generation_in_progress
+    theme_selection_state = {}
+    theme_generation_in_progress = False
+    spanish_generation_in_progress = False
+
+
 def build_theme_candidate_list(search_theme, candidate_count=24):
     raw_candidates = fetch_theme_words(search_theme, max_results=160, require_noun=True)
     filtered = []
@@ -942,6 +949,9 @@ def ask_next_word():
     # Jos kaikki 8 paria on annettu, lähetä ruudukko näkyviin
     if pending_pair >= 8:
         print("[INFO] Kaikki sanat annettu, peli voidaan aloittaa")
+        deactivate_theme_selection()
+        globals().pop('pending_player', None)
+        globals().pop('pending_pair', None)
         # Alusta pelitila ennen ruudukon lähetystä
         matched_indices = set()
         revealed_cards = []
@@ -1054,7 +1064,8 @@ def handle_select_theme_word(data):
     pending_pair += 1
 
     if pending_pair >= 8:
-        emit_theme_selection_state(message=f"word_selected:{word}")
+        deactivate_theme_selection()
+        socketio.emit("theme_selection_updated", {"active": False})
         ask_next_word()
         return
 
