@@ -767,9 +767,8 @@
             if (data.theme) {
                 try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
             }
-            if (gameOverShown) {
-                navigateTo("/waiting");
-            }
+            try { sessionStorage.removeItem("game_started"); } catch (e) {}
+            navigateTo("/waiting");
         });
 
         socket.on("game_setup_error", (data) => {
