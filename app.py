@@ -162,9 +162,63 @@ def theme_selection_active():
     return bool(theme_selection_state.get("active"))
 
 
+def sync_theme_selection_players():
+    global player_order
+    if not theme_selection_active():
+        return []
+
+    current_players = get_effective_players_ordered()
+    if not current_players:
+        return []
+
+    old_tokens = dict(theme_selection_state.get("player_tokens", {}))
+    old_counts = dict(theme_selection_state.get("counts", {}))
+    old_ready = dict(theme_selection_state.get("ready", {}))
+    new_counts = {}
+    new_ready = {}
+    new_tokens = {}
+
+    for player in current_players:
+        username = player["username"]
+        reconnect_token = player.get("reconnect_token")
+        previous_name = None
+        for old_name, old_token in old_tokens.items():
+            if reconnect_token and old_token == reconnect_token:
+                previous_name = old_name
+                break
+        if previous_name is None and username in old_counts:
+            previous_name = username
+
+        new_counts[username] = old_counts.get(previous_name, old_counts.get(username, 0))
+        new_ready[username] = old_ready.get(previous_name, old_ready.get(username, False))
+        new_tokens[username] = reconnect_token
+
+    selected_words = theme_selection_state.get("selected_words", [])
+    rename_map = {}
+    for player in current_players:
+        username = player["username"]
+        reconnect_token = player.get("reconnect_token")
+        for old_name, old_token in old_tokens.items():
+            if reconnect_token and old_token == reconnect_token and old_name != username:
+                rename_map[old_name] = username
+
+    if rename_map:
+        for item in selected_words:
+            chosen_by = item.get("chosen_by")
+            if chosen_by in rename_map:
+                item["chosen_by"] = rename_map[chosen_by]
+
+    player_order = [player["username"] for player in current_players]
+    theme_selection_state["counts"] = new_counts
+    theme_selection_state["ready"] = new_ready
+    theme_selection_state["player_tokens"] = new_tokens
+    return current_players
+
+
 def build_theme_selection_payload(message=None):
     if not theme_selection_active():
         return {"active": False}
+    sync_theme_selection_players()
     return {
         "active": True,
         "theme": theme_selection_state.get("theme"),
@@ -272,6 +326,10 @@ def prepare_theme_selection(starter_name):
         "rejected_words": rejected_words,
         "counts": counts,
         "ready": ready,
+        "player_tokens": {
+            player["username"]: player.get("reconnect_token")
+            for player in get_effective_players_ordered()
+        },
         "swap_limit": 4,
     }
     print(f"[INFO] Teeman '{pending_theme}' sanavalinta aloitettu tilassa '{current_game_mode}'. Ehdokkaita: {len(candidates)}")
@@ -568,6 +626,7 @@ def launch_grid_round():
 
 def finalize_theme_selection():
     global grid_data
+    sync_theme_selection_players()
     selected_words = list(theme_selection_state.get("selected_words", []))
     if len(selected_words) < 8:
         return
@@ -1149,6 +1208,7 @@ def handle_select_theme_word(data):
     if not player_info:
         emit("theme_selection_failed", {"reason": "player_missing"})
         return
+    sync_theme_selection_players()
 
     username = player_info["username"]
     word = normalize_candidate_word((data or {}).get("word"))
@@ -1224,6 +1284,7 @@ def handle_set_theme_ready(data):
     if not player_info:
         emit("theme_selection_failed", {"reason": "player_missing"})
         return
+    sync_theme_selection_players()
 
     username = player_info["username"]
     ready = theme_selection_state.get("ready", {})
