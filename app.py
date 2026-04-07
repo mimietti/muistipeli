@@ -901,7 +901,7 @@ def handle_start_custom_game(data=None):
 
     print("[INFO] Aloitetaan sanojen keruu")
     pending_words = []
-    pending_player = 0
+    pending_player = None
     pending_pair = 0
     grid_data.clear()
     current_game_mode = mode
@@ -916,7 +916,7 @@ def handle_start_custom_game(data=None):
     ask_next_word()
 
 def ask_next_word():
-    global pending_pair, player_order, player_points, matched_indices, revealed_cards, turn, current_game_mode
+    global pending_pair, pending_player, player_order, player_points, matched_indices, revealed_cards, turn, current_game_mode
     debug(f"[DEBUG] ask_next_word kutsuttu! pending_pair: {pending_pair}, grid_data: {len(grid_data)}, mode: {current_game_mode}")
     # Jos kaikki 8 paria on annettu, lähetä ruudukko näkyviin
     if pending_pair >= 8:
@@ -940,6 +940,7 @@ def ask_next_word():
         return
     # Kysy aina ekalta pelaajalta (player_order[0])
     first_player = player_order[0]
+    pending_player = first_player
     if current_game_mode == "theme":
         if theme_selection_active():
             emit_theme_selection_state()
@@ -1037,17 +1038,20 @@ def handle_select_theme_word(data):
 
 @socketio.on("word_given")
 def handle_word_given(data):
-    global pending_pair, grid_data
+    global pending_pair, pending_player, grid_data
     if pending_pair >= 8:
         debug(f"[DEBUG] word_given hylätty, kaikki parit jo annettu (pending_pair={pending_pair})")
+        return
+    sender_name = (players.get(request.sid) or {}).get("username")
+    expected_player = pending_player or (player_order[0] if player_order else None)
+    if expected_player and sender_name != expected_player:
+        debug(f"[DEBUG] word_given hylatty vaaralta pelaajalta: sender={sender_name}, expected={expected_player}")
         return
     word = normalize_candidate_word(data["word"])
     if not word:
         print("[WARNING] Käyttäjän sana ei kelpaa, pyydetään uusi sana")
-        player_names = [v["username"] for v in get_active_players_ordered()]
-        first_player = player_names[0] if player_names else None
         emit("word_failed", {
-            "player": first_player,
+            "player": expected_player,
             "pair": pending_pair + 1
         }, broadcast=True)
         return
@@ -1058,10 +1062,8 @@ def handle_word_given(data):
         ask_next_word()
     else:
         print(f"[WARNING] Pixabay ei löytänyt kuvia sanalle '{word}', pyydetään uusi sana")
-        player_names = [v["username"] for v in get_active_players_ordered()]
-        first_player = player_names[0]
         emit("word_failed", {
-            "player": first_player,
+            "player": expected_player,
             "pair": pending_pair + 1
         }, broadcast=True)
 
