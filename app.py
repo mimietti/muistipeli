@@ -133,6 +133,7 @@ def build_theme_selection_payload(message=None):
     return {
         "active": True,
         "theme": theme_selection_state.get("theme"),
+        "mode": current_game_mode,
         "candidates": list(theme_selection_state.get("candidates", [])),
         "selected_words": list(theme_selection_state.get("selected_words", [])),
         "rejected_words": list(theme_selection_state.get("rejected_words", [])),

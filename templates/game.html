@@ -758,6 +758,20 @@
             }
         });
 
+        socket.on("theme_selection_updated", (data) => {
+            console.log("[DEBUG] theme_selection_updated(game):", data);
+            if (!data || !data.active) {
+                return;
+            }
+            try { sessionStorage.setItem("game_setup_mode", (data.mode || sessionStorage.getItem("last_round_mode") || "theme")); } catch (e) {}
+            if (data.theme) {
+                try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
+            }
+            if (gameOverShown) {
+                navigateTo("/waiting");
+            }
+        });
+
         socket.on("game_setup_error", (data) => {
             const reason = localizeServerMessage((data && data.reason) || t("game_setup_failed"));
             console.error("[DEBUG] game_setup_error:", reason);
