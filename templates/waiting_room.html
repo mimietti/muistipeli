@@ -594,7 +594,6 @@
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 socket.emit("start_custom_game", { mode: "manual" });
-                navigateTo("/game");
             }
 
             function startThemeRound(prefill = "") {

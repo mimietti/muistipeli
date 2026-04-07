@@ -718,6 +718,7 @@
             const gameAlreadyStarted = sessionStorage.getItem("game_started") === "1";
             const pendingGameNavigationTs = parseInt(sessionStorage.getItem("pending_game_navigation") || "0", 10);
             const navigationIsFresh = pendingGameNavigationTs && (Date.now() - pendingGameNavigationTs) < 12000;
+            const manualSetupInProgress = setupMode === "manual";
             if (reason === "Pelaajia liian vähän") {
                 if (navigationIsFresh || setupMode || hasPendingAsk) {
                     if (gridRetryTimer) clearTimeout(gridRetryTimer);
@@ -727,6 +728,13 @@
                     return;
                 }
                 navigateTo("/waiting");
+                return;
+            }
+            if (!gameAlreadyStarted && (manualSetupInProgress || hasPendingAsk || navigationIsFresh)) {
+                if (gridRetryTimer) clearTimeout(gridRetryTimer);
+                gridRetryTimer = setTimeout(() => {
+                    socket.emit("request_grid");
+                }, 800);
                 return;
             }
             if (!gameAlreadyStarted && !setupMode && !hasPendingAsk && !navigationIsFresh) {
