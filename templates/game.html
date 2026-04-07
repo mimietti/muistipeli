@@ -252,7 +252,8 @@
                 found_word: "You found the word: {word}",
                 study_spanish: "Study Spanish",
                 theme_missing: "Theme is missing.",
-                theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.'
+                theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
+                pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env."
             },
             fi: {
                 page_title: "Muistipeli",
@@ -282,7 +283,8 @@
                 found_word: "Löysit sanan: {word}",
                 study_spanish: "Opiskele espanjaa",
                 theme_missing: "Teema puuttuu.",
-                theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.'
+                theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
+                pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta."
             }
         };
 
@@ -303,6 +305,9 @@
         function localizeServerMessage(message) {
             if (!message) return t("game_setup_failed");
             if (message === "Teema puuttuu." || message === "Theme is missing.") return t("theme_missing");
+            if (message === "Pixabay API key is missing. Check PIXABAY_API_KEY." || message === "Pixabay rejected the request. Check PIXABAY_API_KEY in Render and .env.") {
+                return t("pixabay_config_error");
+            }
             const themed = message.match(/Teemasta '(.+)' ei löytynyt tarpeeksi käyttökelpoisia sanoja\. Kokeile toista teemaa\./)
                 || message.match(/Not enough usable words were found for theme "(.+)". Try another theme\./);
             if (themed) return t("theme_not_enough", { theme: themed[1] });

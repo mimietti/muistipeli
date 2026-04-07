@@ -202,6 +202,7 @@
                 disconnect_alert: "Connection to the server was lost. Trying again...",
                 game_aborted: "The round was cancelled because the other player left.",
                 theme_missing: "Theme is missing.",
+                pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
                 theme_selection_title: 'Theme: "{theme}"',
                 theme_selection_help: "Choose 4 words from the shared list. Players pick one word at a time, and every word is checked for an image immediately.",
@@ -239,6 +240,7 @@
                 disconnect_alert: "Yhteys katkesi palvelimeen. Yritetään uudelleen...",
                 game_aborted: "Erä keskeytettiin, koska toinen pelaaja poistui.",
                 theme_missing: "Teema puuttuu.",
+                pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
                 theme_selection_title: 'Teema: "{theme}"',
                 theme_selection_help: "Valitse yhteisestä listasta 4 sanaa. Pelaajat valitsevat yhden sanan kerrallaan, ja jokaiselle sanalle tarkistetaan heti kuva.",
@@ -280,6 +282,9 @@
         function localizeServerMessage(message) {
             if (!message) return t("setup_failed");
             if (message === "Teema puuttuu." || message === "Theme is missing.") return t("theme_missing");
+            if (message === "Pixabay API key is missing. Check PIXABAY_API_KEY." || message === "Pixabay rejected the request. Check PIXABAY_API_KEY in Render and .env.") {
+                return t("pixabay_config_error");
+            }
             const themed = message.match(/Teemasta '(.+)' ei löytynyt tarpeeksi käyttökelpoisia sanoja\. Kokeile toista teemaa\./)
                 || message.match(/Not enough usable words were found for theme "(.+)". Try another theme\./);
             if (themed) return t("theme_not_enough").replace("{theme}", themed[1]);

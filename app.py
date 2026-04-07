@@ -33,6 +33,10 @@ RECONNECT_GRACE_SECONDS = 30
 PAGE_TRANSITION_GRACE_SECONDS = 5
 
 
+class PixabayConfigError(RuntimeError):
+    pass
+
+
 def debug(message):
     if VERBOSE_DEBUG:
         print(message)
@@ -215,6 +219,13 @@ def append_selected_spanish_pair(word, pair_index):
     }
     append_spanish_learning_pair_to_grid(pair)
     return True
+
+
+def abort_round_due_to_pixabay_error(message):
+    print(f"[ERROR] {message}")
+    grid_data.clear()
+    reset_pending_state()
+    socketio.emit("game_setup_error", {"reason": message})
 
 
 def next_theme_picker_name(current_name):
@@ -435,7 +446,12 @@ def generate_theme_pair():
             continue
 
         print(f"[INFO] Kokeillaan teemasanaksi '{word}' parille {pair_index+1}")
-        if append_word_images_to_grid(word, pair_index):
+        try:
+            selection_ok = append_word_images_to_grid(word, pair_index)
+        except PixabayConfigError as e:
+            abort_round_due_to_pixabay_error(str(e))
+            return
+        if selection_ok:
             socketio.emit("theme_word_accepted", {
                 "theme": pending_theme,
                 "word": word,
@@ -499,7 +515,11 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
             return
 
         print(f"[INFO] Kokeillaan espanjapariksi '{english_word}' -> '{spanish_word}' parille {pending_pair + 1}")
-        image_paths = fetch_and_save_pixabay_images(english_word, pending_pair, required_count=1)
+        try:
+            image_paths = fetch_and_save_pixabay_images(english_word, pending_pair, required_count=1)
+        except PixabayConfigError as e:
+            abort_round_due_to_pixabay_error(str(e))
+            return
         if not image_paths:
             print(f"[INFO] Pixabay ei loytanyt espanjaparille '{english_word}' sopivaa kuvaa, haetaan korvaaja")
             theme_rejected_words.add(english_word)
@@ -1013,7 +1033,11 @@ def handle_select_theme_word(data):
     pair_index = pending_pair
     mode_label = "teemasanan" if current_game_mode == "theme" else "espanjapelin sanan"
     print(f"[INFO] {username} valitsi {mode_label} '{word}' parille {pair_index + 1}")
-    selection_ok = append_word_images_to_grid(word, pair_index) if current_game_mode == "theme" else append_selected_spanish_pair(word, pair_index)
+    try:
+        selection_ok = append_word_images_to_grid(word, pair_index) if current_game_mode == "theme" else append_selected_spanish_pair(word, pair_index)
+    except PixabayConfigError as e:
+        abort_round_due_to_pixabay_error(str(e))
+        return
     if not selection_ok:
         print(f"[INFO] Sana '{word}' hylättiin tilassa '{current_game_mode}'")
         rejected_words.append(word)
@@ -1057,7 +1081,12 @@ def handle_word_given(data):
         return
     pair_index = pending_pair
     print(f"[INFO] Vastaanotettu sana '{word}' parille {pair_index+1}")
-    if append_word_images_to_grid(word, pair_index):
+    try:
+        image_append_ok = append_word_images_to_grid(word, pair_index)
+    except PixabayConfigError as e:
+        abort_round_due_to_pixabay_error(str(e))
+        return
+    if image_append_ok:
         pending_pair += 1
         ask_next_word()
     else:
@@ -1085,6 +1114,7 @@ def fetch_and_save_pixabay_images(word, pair_index, required_count=2):
     debug(f"[DEBUG] Haetaan Pixabaysta kuvia sanalla: {word}")
     pixabay_api_key = (os.getenv("PIXABAY_API_KEY") or "").strip()
     if not pixabay_api_key:
+        raise PixabayConfigError("Pixabay API key is missing. Check PIXABAY_API_KEY.")
         print("[ERROR] PIXABAY_API_KEY puuttuu. Lisää avain .env-tiedostoon.")
         return None
     url = "https://pixabay.com/api/"
@@ -1098,6 +1128,8 @@ def fetch_and_save_pixabay_images(word, pair_index, required_count=2):
     }
     try:
         response = requests.get(url, params=params, timeout=15)
+        if response.status_code in {400, 401, 403}:
+            raise PixabayConfigError("Pixabay rejected the request. Check PIXABAY_API_KEY in Render and .env.")
         response.raise_for_status()
     except requests.RequestException as e:
         print(f"[ERROR] Pixabay-pyyntö epäonnistui: {e}")
