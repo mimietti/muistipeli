@@ -229,11 +229,8 @@
                 page_title_browser: "Memory Game - Game",
                 setup_building: 'Building a themed game for "{theme}"...',
                 ready_label: "Ready:",
-<<<<<<< HEAD
                 remaining_label: "Remaining:",
                 dictionary_label: "Dictionary:",
-=======
->>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
                 game_setup_failed: "Game setup failed.",
                 game_over: "Game over! Winner: {winner}",
                 points: "Points:",
@@ -262,11 +259,8 @@
                 page_title_browser: "Muistipeli – Peli",
                 setup_building: 'Rakennetaan teemapelia teemalle "{theme}"...',
                 ready_label: "Valmiina:",
-<<<<<<< HEAD
                 remaining_label: "Löytämättä:",
                 dictionary_label: "Sanakirja:",
-=======
->>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
                 game_setup_failed: "Pelin alustus epäonnistui.",
                 game_over: "Peli päättyi! Voittaja: {winner}",
                 points: "Pisteet:",
@@ -617,7 +611,6 @@
             remainingWordsContainer.style.display = "block";
         }
 
-<<<<<<< HEAD
         function updateDictionary() {
             if (!Array.isArray(cards) || cards.length === 0) {
                 dictionaryContainer.style.display = "none";
@@ -637,7 +630,8 @@
             }
             dictionaryList.textContent = pairs.map(([en, es]) => `${en} → ${es}`).join(", ");
             dictionaryContainer.style.display = "block";
-=======
+        }
+
         function removeMatchedCardElement(cardElement) {
             if (!cardElement) return;
             cardElement.classList.remove("matched-highlight", "word-card", "hidden");
@@ -648,7 +642,6 @@
 
         function getRemainingPairHighlightTime() {
             return Math.max(0, lastPairRemovalDeadline - Date.now());
->>>>>>> 17900bfef6e6e302ebe49bd54c20d1c88fac14ae
         }
 
         const storedSetupMode = sessionStorage.getItem("game_setup_mode");
