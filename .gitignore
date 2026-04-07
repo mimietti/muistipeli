@@ -1,4 +1,4 @@
 .env
 static/images
 .venv/
-__pycache__/
+__pycache__/CON
