@@ -123,6 +123,41 @@ def get_effective_player_count():
     return len(get_effective_player_items())
 
 
+def resolve_player_for_event(data=None):
+    sid = request.sid
+    player_info = players.get(sid)
+    if player_info:
+        player_info["connected"] = True
+        player_info["disconnected_at"] = None
+        return sid, player_info
+
+    reconnect_token = ((data or {}).get("reconnect_token") or "").strip()
+    username_hint = ((data or {}).get("username") or "").strip()
+    matched_sid = None
+
+    for existing_sid, info in list(players.items()):
+        if reconnect_token and info.get("reconnect_token") == reconnect_token:
+            matched_sid = existing_sid
+            player_info = info
+            break
+        if username_hint and info.get("username") == username_hint:
+            matched_sid = existing_sid
+            player_info = info
+            break
+
+    if not player_info:
+        return sid, None
+
+    players[sid] = {
+        **player_info,
+        "connected": True,
+        "disconnected_at": None
+    }
+    if matched_sid is not None and matched_sid != sid and matched_sid in players:
+        del players[matched_sid]
+    return sid, players[sid]
+
+
 def theme_selection_active():
     return bool(theme_selection_state.get("active"))
 
@@ -135,10 +170,17 @@ def build_theme_selection_payload(message=None):
         "theme": theme_selection_state.get("theme"),
         "mode": current_game_mode,
         "candidates": list(theme_selection_state.get("candidates", [])),
-        "selected_words": list(theme_selection_state.get("selected_words", [])),
+        "selected_words": [
+            {
+                "word": item.get("word"),
+                "chosen_by": item.get("chosen_by")
+            }
+            for item in theme_selection_state.get("selected_words", [])
+        ],
         "rejected_words": list(theme_selection_state.get("rejected_words", [])),
-        "turn": theme_selection_state.get("turn"),
         "counts": dict(theme_selection_state.get("counts", {})),
+        "ready": dict(theme_selection_state.get("ready", {})),
+        "swap_limit": int(theme_selection_state.get("swap_limit", 4)),
         "players": list(player_order),
         "message": message
     }
@@ -188,18 +230,49 @@ def prepare_theme_selection(starter_name):
         return
 
     counts = {name: 0 for name in player_order}
-    if starter_name not in counts and player_order:
-        starter_name = player_order[-1]
+    ready = {name: False for name in player_order}
+    selected_words = []
+    rejected_words = []
+    remaining_candidates = []
+
+    for word in candidates:
+        if len(selected_words) >= 8:
+            remaining_candidates.append(word)
+            continue
+        pair_index = len(selected_words)
+        try:
+            pair_entry = build_pair_entry_for_mode(word, pair_index)
+        except PixabayConfigError as e:
+            abort_round_due_to_pixabay_error(str(e))
+            return
+        if pair_entry is None:
+            rejected_words.append(word)
+            theme_rejected_words.add(word)
+            continue
+        selected_words.append({
+            "word": word,
+            "chosen_by": "System",
+            "entry": pair_entry
+        })
+
+    if len(selected_words) < 8:
+        message = f"Teemasta '{pending_theme}' ei lÃ¶ytynyt tarpeeksi kÃ¤yttÃ¶kelpoisia sanoja. Kokeile toista teemaa."
+        print(f"[WARNING] {message}")
+        grid_data.clear()
+        reset_pending_state()
+        socketio.emit("game_setup_error", {"reason": message})
+        return
 
     theme_selection_state = {
         "active": True,
         "theme": pending_theme,
         "search_theme": search_theme,
-        "candidates": candidates,
-        "selected_words": [],
-        "rejected_words": [],
-        "turn": starter_name,
+        "candidates": remaining_candidates,
+        "selected_words": selected_words,
+        "rejected_words": rejected_words,
         "counts": counts,
+        "ready": ready,
+        "swap_limit": 4,
     }
     print(f"[INFO] Teeman '{pending_theme}' sanavalinta aloitettu tilassa '{current_game_mode}'. Ehdokkaita: {len(candidates)}")
     emit_theme_selection_state()
@@ -225,8 +298,7 @@ def append_selected_spanish_pair(word, pair_index):
         "finnish_word": finnish_word,
         "image_url": "/" + image_paths[0]
     }
-    append_spanish_learning_pair_to_grid(pair)
-    return True
+    return pair
 
 
 def abort_round_due_to_pixabay_error(message):
@@ -435,9 +507,81 @@ def append_spanish_learning_pair_to_grid(pair):
     })
 
 
+def build_theme_pair_entry(word, pair_index):
+    result = fetch_and_save_pixabay_images(word, pair_index)
+    if not result:
+        print(f"[INFO] Pixabay-haku epaonnistui sanalle '{word}'")
+        return None
+    print(f"[INFO] Pixabaysta loytyi kuvat sanalle '{word}': {result}")
+    return {
+        "type": "theme",
+        "word": word,
+        "images": ["/" + path for path in result]
+    }
+
+
+def build_pair_entry_for_mode(word, pair_index):
+    if current_game_mode == "theme":
+        return build_theme_pair_entry(word, pair_index)
+    if current_game_mode == "spanish":
+        pair = append_selected_spanish_pair(word, pair_index)
+        if not pair:
+            return None
+        return {
+            "type": "spanish",
+            "pair": pair
+        }
+    return None
+
+
+def append_pair_entry_to_grid(entry, pair_index):
+    global grid_data
+    if not entry:
+        return
+    if entry.get("type") == "theme":
+        for image in entry.get("images", []):
+            grid_data.append({
+                "pair_id": pair_index + 1,
+                "image": image,
+                "word": entry.get("word")
+            })
+        return
+    if entry.get("type") == "spanish":
+        pair = dict(entry.get("pair") or {})
+        pair["pair_id"] = pair_index + 1
+        append_spanish_learning_pair_to_grid(pair)
+
+
+def launch_grid_round():
+    global matched_indices, revealed_cards, turn, player_points
+    matched_indices = set()
+    revealed_cards = []
+    turn = 0
+    player_points = {name: 0 for name in player_order}
+    random.shuffle(grid_data)
+    socketio.emit("init_grid", {
+        "cards": grid_data,
+        "turn": player_order[0] if player_order else None,
+        "players": player_order
+    })
+
+
+def finalize_theme_selection():
+    global grid_data
+    selected_words = list(theme_selection_state.get("selected_words", []))
+    if len(selected_words) < 8:
+        return
+    grid_data.clear()
+    for pair_index, item in enumerate(selected_words):
+        append_pair_entry_to_grid(item.get("entry"), pair_index)
+    deactivate_theme_selection()
+    globals().pop('pending_player', None)
+    globals().pop('pending_pair', None)
+    launch_grid_round()
+
+
 def generate_theme_pair():
     global pending_pair, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, theme_generation_in_progress
-    pair_index = pending_pair
     existing_words = {item["word"] for item in grid_data}
     attempts = 0
 
@@ -952,17 +1096,7 @@ def ask_next_word():
         deactivate_theme_selection()
         globals().pop('pending_player', None)
         globals().pop('pending_pair', None)
-        # Alusta pelitila ennen ruudukon lähetystä
-        matched_indices = set()
-        revealed_cards = []
-        turn = 0
-        player_points = {name: 0 for name in player_order}
-        random.shuffle(grid_data)
-        socketio.emit("init_grid", {
-            "cards": grid_data,
-            "turn": player_order[0] if player_order else None,
-            "players": player_order
-        })
+        launch_grid_round()
         return
 
     if len(player_order) < 2:
@@ -1007,66 +1141,50 @@ def ask_next_word():
 
 @socketio.on("select_theme_word")
 def handle_select_theme_word(data):
-    global pending_pair
     if current_game_mode not in {"theme", "spanish"} or not theme_selection_active():
         emit("theme_selection_failed", {"reason": "selection_inactive"})
         return
 
-    sid = request.sid
-    player_info = players.get(sid)
+    _, player_info = resolve_player_for_event(data)
     if not player_info:
-        reconnect_token = (data or {}).get("reconnect_token")
-        username_hint = ((data or {}).get("username") or "").strip()
-        matched_sid = None
-        for existing_sid, info in list(players.items()):
-            if reconnect_token and info.get("reconnect_token") == reconnect_token:
-                matched_sid = existing_sid
-                player_info = info
-                break
-            if username_hint and info.get("username") == username_hint:
-                matched_sid = existing_sid
-                player_info = info
-                break
-        if player_info and matched_sid is not None and matched_sid != sid:
-            players[sid] = {
-                **player_info,
-                "connected": True,
-                "disconnected_at": None
-            }
-            del players[matched_sid]
-        elif not player_info:
-            emit("theme_selection_failed", {"reason": "player_missing"})
-            return
+        emit("theme_selection_failed", {"reason": "player_missing"})
+        return
 
     username = player_info["username"]
     word = normalize_candidate_word((data or {}).get("word"))
+    replace_word = normalize_candidate_word((data or {}).get("replace_word"))
     if not word:
         emit("theme_selection_failed", {"reason": "invalid_word"})
         return
 
     counts = theme_selection_state.get("counts", {})
+    ready = theme_selection_state.get("ready", {})
     selected_words = theme_selection_state.get("selected_words", [])
     rejected_words = theme_selection_state.get("rejected_words", [])
     candidates = theme_selection_state.get("candidates", [])
+    swap_limit = int(theme_selection_state.get("swap_limit", 4))
 
-    if theme_selection_state.get("turn") != username:
-        emit("theme_selection_failed", {"reason": "not_your_turn"})
-        return
-    if counts.get(username, 0) >= 4:
+    if counts.get(username, 0) >= swap_limit:
         emit("theme_selection_failed", {"reason": "quota_full"})
+        return
+    if not replace_word:
+        emit("theme_selection_failed", {"reason": "replace_missing"})
         return
     if word not in candidates:
         emit("theme_selection_failed", {"reason": "unknown_word"})
+        return
+    selected_index = next((index for index, item in enumerate(selected_words) if item.get("word") == replace_word), -1)
+    if selected_index < 0:
+        emit("theme_selection_failed", {"reason": "replace_missing"})
         return
     if any(item.get("word") == word for item in selected_words) or word in rejected_words:
         emit("theme_selection_failed", {"reason": "word_unavailable"})
         return
 
-    pair_index = pending_pair
     mode_label = "teemasanan" if current_game_mode == "theme" else "espanjapelin sanan"
-    print(f"[INFO] {username} valitsi {mode_label} '{word}' parille {pair_index + 1}")
+    print(f"[INFO] {username} vaihtaa {mode_label}n '{replace_word}' -> '{word}' paikalle {selected_index + 1}")
     try:
-        selection_ok = append_word_images_to_grid(word, pair_index) if current_game_mode == "theme" else append_selected_spanish_pair(word, pair_index)
+        selection_ok = build_pair_entry_for_mode(word, selected_index)
     except PixabayConfigError as e:
         abort_round_due_to_pixabay_error(str(e))
         return
@@ -1080,18 +1198,40 @@ def handle_select_theme_word(data):
         emit("theme_selection_failed", {"reason": "image_missing", "word": word})
         return
 
-    selected_words.append({"word": word, "chosen_by": username})
+    previous_item = selected_words[selected_index]
+    previous_word = previous_item.get("word")
+    selected_words[selected_index] = {
+        "word": word,
+        "chosen_by": username,
+        "entry": selection_ok
+    }
     counts[username] = counts.get(username, 0) + 1
-    pending_pair += 1
+    for player_name in list(ready.keys()):
+        ready[player_name] = False
+    theme_selection_state["candidates"] = [candidate for candidate in candidates if candidate != word]
+    if previous_word and previous_word not in rejected_words and previous_word not in theme_selection_state["candidates"]:
+        theme_selection_state["candidates"].append(previous_word)
+    emit_theme_selection_state(message=f"word_swapped:{previous_word}:{word}")
 
-    if pending_pair >= 8:
-        deactivate_theme_selection()
-        socketio.emit("theme_selection_updated", {"active": False})
-        ask_next_word()
+
+@socketio.on("set_theme_ready")
+def handle_set_theme_ready(data):
+    if current_game_mode not in {"theme", "spanish"} or not theme_selection_active():
+        emit("theme_selection_failed", {"reason": "selection_inactive"})
         return
 
-    theme_selection_state["turn"] = next_theme_picker_name(username)
-    emit_theme_selection_state(message=f"word_selected:{word}")
+    _, player_info = resolve_player_for_event(data)
+    if not player_info:
+        emit("theme_selection_failed", {"reason": "player_missing"})
+        return
+
+    username = player_info["username"]
+    ready = theme_selection_state.get("ready", {})
+    ready[username] = bool((data or {}).get("ready", True))
+    emit_theme_selection_state(message=f"ready:{username}" if ready[username] else f"unready:{username}")
+    if player_order and all(ready.get(name, False) for name in player_order):
+        print(f"[INFO] Kaikki pelaajat valmiina – aloitetaan {current_game_mode}-erä teemalla '{pending_theme}'")
+        finalize_theme_selection()
 
 @socketio.on("word_given")
 def handle_word_given(data):

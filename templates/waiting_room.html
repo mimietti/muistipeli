@@ -111,12 +111,69 @@
             margin: 12px 0;
             color: #eef2ee;
         }
+        #selectedWords {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .selected-words-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        .selected-word-chip {
+            border: none;
+            border-radius: 999px;
+            padding: 10px 14px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #204a2c;
+            color: #fff;
+        }
+        .selected-word-chip.active {
+            background: #f2d46d;
+            color: #111;
+            box-shadow: 0 0 0 2px rgba(242, 212, 109, 0.3);
+        }
+        .selected-word-chip:disabled {
+            background: #555;
+            color: #ddd;
+            cursor: not-allowed;
+        }
         #themeCandidates {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
             justify-content: center;
             margin-top: 16px;
+        }
+        #themeSelectionActions {
+            display: flex;
+            justify-content: center;
+            margin-top: 18px;
+        }
+        .theme-action-btn {
+            background-color: #f2d46d;
+            color: #111;
+            border: none;
+            border-radius: 999px;
+            padding: 10px 18px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .theme-action-btn.ready {
+            background-color: #89ef9d;
+        }
+        .theme-action-btn:hover {
+            filter: brightness(1.03);
+        }
+        .footer-credit {
+            margin-top: 28px;
+            color: #8c928c;
+            font-size: 12px;
+            letter-spacing: 0.04em;
         }
         .theme-word-chip {
             border: none;
@@ -174,8 +231,12 @@
             <div id="themeSelectionCounts"></div>
             <div id="selectedWords"></div>
             <div id="themeCandidates"></div>
+            <div id="themeSelectionActions">
+                <button id="themeReadyBtn" class="theme-action-btn">Ready</button>
+            </div>
         </div>
         <button id="changeNameBtn" style="margin-top: 20px;">Change name</button>
+        <div class="footer-credit">© Michael Miettinen</div>
     </div>
 
     <script>
@@ -205,18 +266,27 @@
                 pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
                 theme_selection_title: 'Theme: "{theme}"',
-                theme_selection_help: "Choose 4 words from the shared list. Players pick one word at a time, and every word is checked for an image immediately.",
-                theme_selection_turn_you: "Your turn to choose a word.",
-                theme_selection_turn_other: "{name} is choosing a word.",
+                theme_selection_help: "We preselected 8 usable words. Each player can swap up to 4 of them before the round starts.",
+                theme_selection_turn_you: "Choose one of the selected words to replace.",
+                theme_selection_turn_other: "{name} is editing the shared word set.",
                 theme_selection_progress: "Selections: {count}/8",
-                theme_selection_counts: "{name}: {count}/4",
-                theme_selection_selected_none: "No accepted words yet.",
-                theme_selection_selected_label: "Accepted words:",
+                theme_selection_counts: "{name}: {count}/{limit} swaps used",
+                theme_selection_selected_none: "No selected words.",
+                theme_selection_selected_label: "Selected words",
                 theme_selection_word_selected: 'Word accepted: "{word}"',
+                theme_selection_word_swapped: 'Replaced "{old}" with "{new}".',
                 theme_selection_word_rejected: 'No suitable image was found for "{word}". Choose another word.',
                 theme_selection_error_turn: "It is not your turn.",
                 theme_selection_error_image: 'No suitable image was found for "{word}". Choose another word.',
-                theme_selection_error_generic: "The word could not be selected."
+                theme_selection_error_generic: "The word could not be selected.",
+                theme_selection_error_replace: "Choose one of the selected words to replace first.",
+                theme_selection_selected_hint: "Click a selected word, then choose a replacement below.",
+                theme_selection_selected_active: 'Replacing: "{word}"',
+                theme_selection_ready: "Ready",
+                theme_selection_unready: "Keep editing",
+                theme_selection_ready_waiting: "Waiting for both players to press Ready.",
+                theme_selection_ready_state: "{name}: ready",
+                theme_selection_not_ready_state: "{name}: editing"
             },
             fi: {
                 page_title: "Odotushuone",
@@ -243,18 +313,27 @@
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
                 theme_selection_title: 'Teema: "{theme}"',
-                theme_selection_help: "Valitse yhteisestä listasta 4 sanaa. Pelaajat valitsevat yhden sanan kerrallaan, ja jokaiselle sanalle tarkistetaan heti kuva.",
-                theme_selection_turn_you: "Sinun vuorosi valita sana.",
-                theme_selection_turn_other: "{name} valitsee sanaa.",
+                theme_selection_help: "Valitsimme valmiiksi 8 käyttökelpoista sanaa. Molemmat pelaajat voivat vaihtaa niistä enintään 4 ennen erän alkua.",
+                theme_selection_turn_you: "Valitse ensin vaihdettava sana valituista sanoista.",
+                theme_selection_turn_other: "{name} muokkaa yhteistä sanalistaa.",
                 theme_selection_progress: "Valinnat: {count}/8",
-                theme_selection_counts: "{name}: {count}/4",
-                theme_selection_selected_none: "Hyväksyttyjä sanoja ei vielä ole.",
-                theme_selection_selected_label: "Hyväksytyt sanat:",
+                theme_selection_counts: "{name}: {count}/{limit} vaihtoa käytetty",
+                theme_selection_selected_none: "Valittuja sanoja ei vielä ole.",
+                theme_selection_selected_label: "Valitut sanat",
                 theme_selection_word_selected: 'Sana hyväksyttiin: "{word}"',
+                theme_selection_word_swapped: 'Vaihdettiin "{old}" → "{new}".',
                 theme_selection_word_rejected: 'Sanalle "{word}" ei löytynyt sopivaa kuvaa. Valitse toinen sana.',
                 theme_selection_error_turn: "Nyt ei ole sinun vuorosi.",
                 theme_selection_error_image: 'Sanalle "{word}" ei löytynyt sopivaa kuvaa. Valitse toinen sana.',
-                theme_selection_error_generic: "Sanaa ei voitu valita."
+                theme_selection_error_generic: "Sanaa ei voitu valita.",
+                theme_selection_error_replace: "Valitse ensin yksi valituista sanoista, jonka haluat vaihtaa.",
+                theme_selection_selected_hint: "Klikkaa valittua sanaa ja valitse sitten alhaalta korvaava sana.",
+                theme_selection_selected_active: 'Vaihdettava sana: "{word}"',
+                theme_selection_ready: "Valmis",
+                theme_selection_unready: "Jatka muokkausta",
+                theme_selection_ready_waiting: "Odotetaan, että molemmat painavat Valmis.",
+                theme_selection_ready_state: "{name}: valmis",
+                theme_selection_not_ready_state: "{name}: muokkaa"
             }
         };
 
@@ -444,6 +523,8 @@
             const themeSelectionCountsEl = document.getElementById("themeSelectionCounts");
             const selectedWordsEl = document.getElementById("selectedWords");
             const themeCandidatesEl = document.getElementById("themeCandidates");
+            const themeReadyBtn = document.getElementById("themeReadyBtn");
+            let selectedReplacementWord = null;
 
             function navigateTo(path) {
                 if (path === "/game") {
@@ -458,8 +539,15 @@
                 if (message.startsWith("word_selected:")) {
                     return t("theme_selection_word_selected", { word: message.slice("word_selected:".length) });
                 }
+                if (message.startsWith("word_swapped:")) {
+                    const parts = message.split(":");
+                    return t("theme_selection_word_swapped", { old: parts[1] || "", new: parts[2] || "" });
+                }
                 if (message.startsWith("word_rejected:")) {
                     return t("theme_selection_word_rejected", { word: message.slice("word_rejected:".length) });
+                }
+                if (message.startsWith("ready:") || message.startsWith("unready:")) {
+                    return t("theme_selection_ready_waiting");
                 }
                 return message;
             }
@@ -470,6 +558,7 @@
                 if (!state.active) {
                     themeSelectionEl.style.display = "none";
                     themeSelectionMessageEl.textContent = "";
+                    selectedReplacementWord = null;
                     return;
                 }
 
@@ -477,23 +566,62 @@
                 const selectedWords = Array.isArray(state.selected_words) ? state.selected_words : [];
                 const rejectedWords = new Set(Array.isArray(state.rejected_words) ? state.rejected_words : []);
                 const counts = state.counts || {};
-                const canChoose = state.turn && state.turn === myNameNow && (counts[myNameNow] || 0) < 4;
+                const ready = state.ready || {};
+                const swapLimit = Number(state.swap_limit || 4);
+                const mySwapsUsed = counts[myNameNow] || 0;
+                const canChoose = mySwapsUsed < swapLimit;
+                const myReady = Boolean(ready[myNameNow]);
+                if (selectedReplacementWord && !selectedWords.some((item) => item.word === selectedReplacementWord)) {
+                    selectedReplacementWord = null;
+                }
 
                 themeSelectionEl.style.display = "block";
                 document.getElementById("startOptions").style.display = "none";
                 themeSelectionTitleEl.textContent = t("theme_selection_title", { theme: state.theme || "" });
                 themeSelectionHelpEl.textContent = t("theme_selection_help");
-                themeSelectionTurnEl.textContent = state.turn === myNameNow
-                    ? t("theme_selection_turn_you")
-                    : t("theme_selection_turn_other", { name: state.turn || "" });
+                themeSelectionTurnEl.textContent = selectedReplacementWord
+                    ? t("theme_selection_selected_active", { word: selectedReplacementWord })
+                    : t("theme_selection_selected_hint");
                 themeSelectionMessageEl.textContent = decodeThemeSelectionMessage(state.message);
                 themeSelectionProgressEl.textContent = t("theme_selection_progress", { count: selectedWords.length });
                 themeSelectionCountsEl.textContent = (state.players || [])
-                    .map((name) => t("theme_selection_counts", { name, count: counts[name] || 0 }))
+                    .map((name) => {
+                        const swapPart = t("theme_selection_counts", { name, count: counts[name] || 0, limit: swapLimit });
+                        const readyPart = ready[name]
+                            ? t("theme_selection_ready_state", { name })
+                            : t("theme_selection_not_ready_state", { name });
+                        return `${swapPart} • ${readyPart}`;
+                    })
                     .join(" | ");
-                selectedWordsEl.textContent = selectedWords.length
-                    ? `${t("theme_selection_selected_label")} ${selectedWords.map((item) => `${item.word} (${item.chosen_by})`).join(", ")}`
-                    : t("theme_selection_selected_none");
+
+                selectedWordsEl.innerHTML = "";
+                const selectedLabel = document.createElement("div");
+                selectedLabel.textContent = t("theme_selection_selected_label");
+                selectedWordsEl.appendChild(selectedLabel);
+                const selectedWrap = document.createElement("div");
+                selectedWrap.className = "selected-words-wrap";
+                if (!selectedWords.length) {
+                    const empty = document.createElement("div");
+                    empty.textContent = t("theme_selection_selected_none");
+                    selectedWordsEl.appendChild(empty);
+                } else {
+                    selectedWords.forEach((item) => {
+                        const button = document.createElement("button");
+                        button.type = "button";
+                        button.className = "selected-word-chip";
+                        button.textContent = item.word;
+                        if (selectedReplacementWord === item.word) {
+                            button.classList.add("active");
+                        }
+                        button.disabled = !canChoose;
+                        button.addEventListener("click", () => {
+                            selectedReplacementWord = selectedReplacementWord === item.word ? null : item.word;
+                            renderThemeSelection(window.currentThemeSelectionState);
+                        });
+                        selectedWrap.appendChild(button);
+                    });
+                    selectedWordsEl.appendChild(selectedWrap);
+                }
 
                 const selectedSet = new Set(selectedWords.map((item) => item.word));
                 themeCandidatesEl.innerHTML = "";
@@ -509,10 +637,11 @@
                         button.classList.add("rejected");
                         button.disabled = true;
                     } else {
-                        button.disabled = !canChoose;
+                        button.disabled = !canChoose || !selectedReplacementWord;
                         button.addEventListener("click", () => {
                             socket.emit("select_theme_word", {
                                 word,
+                                replace_word: selectedReplacementWord,
                                 username: myNameNow,
                                 reconnect_token: getReconnectToken()
                             });
@@ -520,6 +649,16 @@
                     }
                     themeCandidatesEl.appendChild(button);
                 });
+
+                themeReadyBtn.textContent = myReady ? t("theme_selection_unready") : t("theme_selection_ready");
+                themeReadyBtn.classList.toggle("ready", myReady);
+                themeReadyBtn.onclick = () => {
+                    socket.emit("set_theme_ready", {
+                        ready: !myReady,
+                        username: myNameNow,
+                        reconnect_token: getReconnectToken()
+                    });
+                };
             }
 
             renderThemeSelection(window.currentThemeSelectionState || { active: false });
@@ -717,12 +856,12 @@
             socket.on("theme_selection_failed", (payload) => {
                 console.log("[DEBUG] theme_selection_failed:", payload);
                 const reason = (payload && payload.reason) || "";
-                if (reason === "not_your_turn") {
-                    themeSelectionMessageEl.textContent = t("theme_selection_error_turn");
-                    return;
-                }
                 if (reason === "image_missing") {
                     themeSelectionMessageEl.textContent = t("theme_selection_error_image", { word: (payload && payload.word) || "" });
+                    return;
+                }
+                if (reason === "replace_missing") {
+                    themeSelectionMessageEl.textContent = t("theme_selection_error_replace");
                     return;
                 }
                 themeSelectionMessageEl.textContent = t("theme_selection_error_generic");
