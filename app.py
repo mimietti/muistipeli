@@ -1013,11 +1013,32 @@ def handle_select_theme_word(data):
         return
 
     sid = request.sid
-    if sid not in players:
-        emit("theme_selection_failed", {"reason": "player_missing"})
-        return
+    player_info = players.get(sid)
+    if not player_info:
+        reconnect_token = (data or {}).get("reconnect_token")
+        username_hint = ((data or {}).get("username") or "").strip()
+        matched_sid = None
+        for existing_sid, info in list(players.items()):
+            if reconnect_token and info.get("reconnect_token") == reconnect_token:
+                matched_sid = existing_sid
+                player_info = info
+                break
+            if username_hint and info.get("username") == username_hint:
+                matched_sid = existing_sid
+                player_info = info
+                break
+        if player_info and matched_sid is not None and matched_sid != sid:
+            players[sid] = {
+                **player_info,
+                "connected": True,
+                "disconnected_at": None
+            }
+            del players[matched_sid]
+        elif not player_info:
+            emit("theme_selection_failed", {"reason": "player_missing"})
+            return
 
-    username = players[sid]["username"]
+    username = player_info["username"]
     word = normalize_candidate_word((data or {}).get("word"))
     if not word:
         emit("theme_selection_failed", {"reason": "invalid_word"})

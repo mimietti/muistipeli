@@ -511,7 +511,11 @@
                     } else {
                         button.disabled = !canChoose;
                         button.addEventListener("click", () => {
-                            socket.emit("select_theme_word", { word });
+                            socket.emit("select_theme_word", {
+                                word,
+                                username: myNameNow,
+                                reconnect_token: getReconnectToken()
+                            });
                         });
                     }
                     themeCandidatesEl.appendChild(button);
