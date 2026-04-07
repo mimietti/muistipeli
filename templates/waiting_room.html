@@ -428,7 +428,8 @@
             let joinEmittedCount = 0;
             let queuedNextRoundHandled = false;
             console.log("DEBUG: startSocketWhenReady, myName:", myName, "reconnectToken:", reconnectToken);
-            const socket = window.io();`n            try { window.socket = socket; } catch (_) {}
+            const socket = window.io();
+            try { window.socket = socket; } catch (_) {}
             const themeSelectionEl = document.getElementById("themeSelection");
             const themeSelectionTitleEl = document.getElementById("themeSelectionTitle");
             const themeSelectionHelpEl = document.getElementById("themeSelectionHelp");
