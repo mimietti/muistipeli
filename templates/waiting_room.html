@@ -428,7 +428,7 @@
             let joinEmittedCount = 0;
             let queuedNextRoundHandled = false;
             console.log("DEBUG: startSocketWhenReady, myName:", myName, "reconnectToken:", reconnectToken);
-            const socket = window.io();\n            try { window.socket = socket; } catch (_) {}
+            const socket = window.io();`n            try { window.socket = socket; } catch (_) {}
             const themeSelectionEl = document.getElementById("themeSelection");
             const themeSelectionTitleEl = document.getElementById("themeSelectionTitle");
             const themeSelectionHelpEl = document.getElementById("themeSelectionHelp");
@@ -587,7 +587,7 @@
                 try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
-                socket.emit("start_custom_game", { mode: "manual" });`r`n                    navigateTo("/game");
+                socket.emit("start_custom_game", { mode: "manual" });`n                navigateTo("/game");
             }
 
             function startThemeRound(prefill = "") {
