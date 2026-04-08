@@ -124,8 +124,8 @@
         @media (max-width: 1180px) {
             #grid {
                 grid-template-columns: repeat(4, 132px);
-                gap: 12px;
-                padding: 12px 10px 10px;
+                gap: 16px;
+                padding: 14px 12px 12px;
             }
             .card {
                 width: 132px;
@@ -1164,7 +1164,10 @@
             if (!confirm(t("surrender_round_confirm"))) {
                 return;
             }
-            socket.emit("surrender_round");
+            socket.emit("surrender_round", {
+                username: myName,
+                reconnect_token: getReconnectToken()
+            });
         });
         exitGameBtn.addEventListener("click", () => {
             endGame();

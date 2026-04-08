@@ -1463,13 +1463,13 @@ def handle_word_given(data):
 
 
 @socketio.on("surrender_round")
-def handle_surrender_round():
+def handle_surrender_round(data=None):
     global current_click_sid
     if not grid_data or get_effective_player_count() < 2:
         emit("round_surrender_failed", {"reason": "round_not_active"})
         return
 
-    _, player_info = resolve_player_for_event()
+    _, player_info = resolve_player_for_event(data)
     if not player_info:
         emit("round_surrender_failed", {"reason": "player_missing"})
         return
