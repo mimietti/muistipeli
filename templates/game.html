@@ -1163,7 +1163,11 @@
                 div.addEventListener("click", () => {
                     console.log(`[DEBUG] Klikattiin korttia: ${index}`);
                     if (myName === currentTurn && !matched.has(index)) {
-                        socket.emit("card_clicked", { index });
+                        socket.emit("card_clicked", {
+                            index,
+                            username: myName,
+                            reconnect_token: getReconnectToken()
+                        });
                     }
                 });
                 hideCardElement(div);

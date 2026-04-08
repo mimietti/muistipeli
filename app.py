@@ -1063,8 +1063,8 @@ def handle_card_click(data):
 
     index = data["index"]
     # Enforce server-side turn ownership to prevent cross-client double-clicks
-    clicker = players.get(request.sid) or {}
-    clicker_name = clicker.get("username")
+    resolved_sid, clicker = resolve_player_for_event(data)
+    clicker_name = (clicker or {}).get("username")
     current_player_name = player_order[turn] if player_order and 0 <= turn < len(player_order) else None
     if not clicker_name or clicker_name != current_player_name:
         debug(f"[DEBUG] Hylattiin klikkaus ei-aktiiviselta pelaajalta: {clicker_name} (vuoro: {current_player_name})")
@@ -1075,8 +1075,8 @@ def handle_card_click(data):
     debug(f"[DEBUG] Kortti klikattu: index {index}, sana: {grid_data[index]['word']}")
     # Ensure both clicks of a pair come from the same client
     if len(revealed_cards) == 0:
-        current_click_sid = request.sid
-    elif len(revealed_cards) == 1 and current_click_sid != request.sid:
+        current_click_sid = resolved_sid
+    elif len(revealed_cards) == 1 and current_click_sid != resolved_sid:
         debug("[DEBUG] Hylattiin toisen kortin klikkaus eri asiakkaalta samalle parille")
         return
     revealed_cards.append(index)
