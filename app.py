@@ -31,6 +31,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = 30
 PAGE_TRANSITION_GRACE_SECONDS = 5
+APP_VERSION = "Beta v0.0.1 (2026-04-08)"
 
 
 class PixabayConfigError(RuntimeError):
@@ -40,6 +41,11 @@ class PixabayConfigError(RuntimeError):
 def debug(message):
     if VERBOSE_DEBUG:
         print(message)
+
+
+@app.context_processor
+def inject_app_version():
+    return {"app_version": APP_VERSION}
 
 players = {}  # { sid: {"username": ..., "reconnect_token": ...} }
 max_players = 2
@@ -257,7 +263,7 @@ def deactivate_theme_selection():
 
 
 def build_theme_candidate_list(search_theme, candidate_count=24):
-    raw_candidates = fetch_theme_words(search_theme, max_results=160, require_noun=True)
+    raw_candidates = fetch_theme_words(search_theme, max_results=120, require_noun=False)
     filtered = []
     seen = set()
     for word in raw_candidates:
@@ -289,6 +295,14 @@ def prepare_theme_selection(starter_name):
     selected_words = []
     rejected_words = []
     remaining_candidates = []
+
+    socketio.emit("theme_generation_started", {
+        "theme": pending_theme,
+        "pair": pending_pair + 1,
+        "mode": current_game_mode,
+        "starter_name": starter_name,
+        "phase": "drawing_cards"
+    })
 
     for word in candidates:
         if len(selected_words) >= 8:
@@ -472,7 +486,6 @@ def fetch_theme_words(theme, max_results=80, require_noun=False, exclude_proper=
             seen.add(word)
             all_words.append(word)
 
-    random.shuffle(all_words)
     preview = ", ".join(all_words[:12]) if all_words else "(ei sanoja)"
     print(f"[INFO] Datamuse ehdotti teemalle '{theme}' {len(all_words)} sanaa: {preview}")
     return all_words
@@ -742,7 +755,7 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
     while spanish_setup_still_active(theme) and pending_pair < target_pairs and attempts < max_attempts:
         if not theme_candidates:
             # For Spanish study mode, prefer nouns but do not immediately drop proper nouns.
-            theme_candidates = fetch_theme_words(search_theme, max_results=160, require_noun=True, exclude_proper=False)
+            theme_candidates = fetch_theme_words(search_theme, max_results=120, require_noun=False, exclude_proper=False)
             theme_candidates = [
                 candidate for candidate in theme_candidates
                 if candidate not in existing_words and candidate not in theme_rejected_words
@@ -1221,7 +1234,8 @@ def handle_start_custom_game(data=None):
             "theme": pending_theme,
             "pair": pending_pair + 1,
             "mode": current_game_mode,
-            "starter_name": starter_name
+            "starter_name": starter_name,
+            "phase": "finding_words"
         })
         prepare_theme_selection(starter_name)
         return
@@ -1255,7 +1269,8 @@ def ask_next_word():
             "theme": pending_theme,
             "pair": pending_pair + 1,
             "mode": "theme",
-            "starter_name": first_player
+            "starter_name": first_player,
+            "phase": "drawing_cards"
         })
         global theme_generation_in_progress
         if theme_generation_in_progress:
@@ -1273,7 +1288,8 @@ def ask_next_word():
             "theme": pending_theme,
             "pair": pending_pair + 1,
             "mode": "spanish",
-            "starter_name": first_player
+            "starter_name": first_player,
+            "phase": "drawing_cards"
         })
         global spanish_generation_in_progress
         if spanish_generation_in_progress:
@@ -1472,7 +1488,7 @@ def fetch_and_save_pixabay_images(word, pair_index, required_count=2):
         "q": word,
         "image_type": "photo",
         "orientation": "horizontal",
-        "per_page": 20,
+        "per_page": 12,
         "safesearch": "true"
     }
     try:
@@ -1505,7 +1521,7 @@ def fetch_and_save_pixabay_images(word, pair_index, required_count=2):
             continue
         selected_hits.append(hit)
         local_ids.add(image_id)
-        if len(selected_hits) >= max(required_count * 4, required_count):
+        if len(selected_hits) >= max(required_count + 2, required_count):
             break
 
     if skipped_duplicates:
@@ -1517,22 +1533,11 @@ def fetch_and_save_pixabay_images(word, pair_index, required_count=2):
         download_failures = 0
         for hit in selected_hits:
             img_url = hit["webformatURL"]
-            img_response = None
-            downloaded = False
-            for attempt in range(2):
-                try:
-                    img_response = requests.get(img_url, timeout=15)
-                    img_response.raise_for_status()
-                    downloaded = True
-                    break
-                except requests.RequestException as e:
-                    print(f"[ERROR] Kuvan lataus epÃ¤onnistui ({img_url}): {e}")
-                    status_code = getattr(getattr(e, "response", None), "status_code", None)
-                    if status_code == 429 and attempt == 0:
-                        time.sleep(0.6)
-                        continue
-                    break
-            if not downloaded or img_response is None:
+            try:
+                img_response = requests.get(img_url, timeout=10)
+                img_response.raise_for_status()
+            except requests.RequestException as e:
+                print(f"[ERROR] Kuvan lataus epÃ¤onnistui ({img_url}): {e}")
                 download_failures += 1
                 continue
             img_data = img_response.content

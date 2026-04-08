@@ -347,7 +347,7 @@
         <div>
             <button id="exitGameBtn" class="secondaryBtn">Exit game</button>
         </div>
-        <div class="footer-credit">© Michael Miettinen</div>
+        <div class="footer-credit">© Michael Miettinen • {{ app_version }}</div>
     </div>
 
     <script>
@@ -377,9 +377,9 @@
                 theme_missing: "Theme is missing.",
                 pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
-                setup_status_title: "Preparing cards",
-                setup_status_theme: 'Finding usable words and building cards for "{theme}"...',
-                setup_status_spanish: 'Preparing Spanish study cards for "{theme}"...',
+                setup_status_title: "Preparing next round",
+                setup_status_finding_words: 'Finding words that match "{theme}"...',
+                setup_status_drawing_cards: 'Drawing cards for "{theme}"...',
                 setup_status_manual: '{name} is entering words for the next round...',
                 setup_status_chosen_theme: '{name} chose the theme "{theme}".',
                 setup_status_chosen_spanish: '{name} chose Spanish study with theme "{theme}".',
@@ -438,9 +438,9 @@
                 theme_missing: "Teema puuttuu.",
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
-                setup_status_title: "Tehdään kortteja",
-                setup_status_theme: 'Haetaan käyttökelpoisia sanoja ja tehdään kortteja teemalle "{theme}"...',
-                setup_status_spanish: 'Haetaan espanjakortteja teemalle "{theme}"...',
+                setup_status_title: "Valmistellaan seuraavaa erää",
+                setup_status_finding_words: 'Haetaan teemaan sopivia sanoja teemalle "{theme}"...',
+                setup_status_drawing_cards: 'Piirretään kortteja teemalle "{theme}"...',
                 setup_status_manual: '{name} syöttää sanoja seuraavaa kierrosta varten...',
                 setup_status_chosen_theme: '{name} valitsi teemaksi "{theme}".',
                 setup_status_chosen_spanish: '{name} valitsi espanjan teemaksi "{theme}".',
@@ -742,6 +742,7 @@
                 document.body.classList.add("compact-lobby");
                 const theme = state.theme || "";
                 const mode = state.mode || "theme";
+                const phase = state.phase || "drawing_cards";
                 const starterName = state.starter_name || "";
                 setupStatusEl.style.display = "block";
                 document.getElementById("startOptions").style.display = "none";
@@ -751,9 +752,9 @@
                         ? t("setup_status_chosen_spanish", { name: starterName, theme })
                         : t("setup_status_chosen_theme", { name: starterName, theme }))
                     : "";
-                const loadingText = mode === "spanish"
-                    ? t("setup_status_spanish", { theme })
-                    : t("setup_status_theme", { theme });
+                const loadingText = phase === "finding_words"
+                    ? t("setup_status_finding_words", { theme })
+                    : t("setup_status_drawing_cards", { theme });
                 setupStatusTextEl.textContent = chosenText ? `${chosenText} ${loadingText}` : loadingText;
             }
 
@@ -1117,7 +1118,9 @@
                 renderSetupStatus({
                     active: true,
                     mode,
-                    theme: (data && data.theme) || ""
+                    theme: (data && data.theme) || "",
+                    phase: (data && data.phase) || "drawing_cards",
+                    starter_name: (data && data.starter_name) || ""
                 });
                 renderThemeSelection({ active: false });
             });

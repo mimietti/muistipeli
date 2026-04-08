@@ -113,6 +113,7 @@
     </div>
 
     <script>
+        const APP_VERSION = {{ app_version|tojson }};
         const translations = {
             en: {
                 page_title: "Summary",
@@ -153,6 +154,7 @@
             document.getElementById("leaderboardText").textContent = t("leaderboard_placeholder");
             document.getElementById("newGameBtn").textContent = t("start_new_game");
             document.getElementById("clearSummaryBtn").textContent = t("clear_summary");
+            document.querySelector(".footer-credit").textContent = `© Michael Miettinen • ${APP_VERSION}`;
 
             const summaryList = document.getElementById("summaryList");
             const emptyState = document.getElementById("emptyState");

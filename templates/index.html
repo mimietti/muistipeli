@@ -122,6 +122,7 @@
     </div>
 
     <script>
+        const APP_VERSION = {{ app_version|tojson }};
         const translations = {
             en: {
                 page_title: "Welcome to Memory Game!!!",
@@ -178,6 +179,7 @@
             document.getElementById("joinBtn").textContent = t("join");
             document.getElementById("nameInput").placeholder = t("name_placeholder");
             document.getElementById("languageSelect").value = getLanguage();
+            document.querySelector(".footer-credit").textContent = `© Michael Miettinen • ${APP_VERSION}`;
             renderLobbyStatus(window.currentLobbyPlayers || []);
         }
 

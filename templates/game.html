@@ -291,14 +291,15 @@
     </div>
     <div id="winner-message" style="display: none; margin-top: 20px; color: gold; font-size: 24px;"></div>
     <div id="toast"></div>
-    <div class="footer-credit">© Michael Miettinen</div>
+    <div class="footer-credit">© Michael Miettinen • {{ app_version }}</div>
 
     <script>
         const translations = {
             en: {
                 page_title: "Memory Game",
                 page_title_browser: "Memory Game - Game",
-                setup_building: 'Building a themed game for "{theme}"...',
+                setup_finding_words: 'Finding words that match "{theme}"...',
+                setup_drawing_cards: 'Drawing cards for "{theme}"...',
                 setup_manual: '{name} is entering words for the next round...',
                 ready_label: "Ready:",
                 remaining_label: "Remaining:",
@@ -335,7 +336,8 @@
             fi: {
                 page_title: "Muistipeli",
                 page_title_browser: "Muistipeli – Peli",
-                setup_building: 'Rakennetaan teemapelia teemalle "{theme}"...',
+                setup_finding_words: 'Haetaan teemaan sopivia sanoja teemalle "{theme}"...',
+                setup_drawing_cards: 'Piirretään kortteja teemalle "{theme}"...',
                 setup_manual: '{name} syöttää sanoja seuraavaa kierrosta varten...',
                 ready_label: "Valmiina:",
                 remaining_label: "Löytämättä:",
@@ -525,6 +527,13 @@
         function showSetupStatus(message) {
             setupStatus.textContent = message;
             setupStatus.style.display = "block";
+        }
+
+        function showThemeSetupStatus(theme, phase) {
+            const normalizedTheme = theme || "theme";
+            const normalizedPhase = phase || "drawing_cards";
+            const key = normalizedPhase === "finding_words" ? "setup_finding_words" : "setup_drawing_cards";
+            showSetupStatus(t(key, { theme: normalizedTheme }));
         }
 
         function hideSetupStatus() {
@@ -754,8 +763,9 @@
 
         const storedSetupMode = sessionStorage.getItem("game_setup_mode");
         const storedTheme = sessionStorage.getItem("game_setup_theme");
+        const storedSetupPhase = sessionStorage.getItem("game_setup_phase");
         if (modeUsesTheme(storedSetupMode)) {
-            showSetupStatus(t("setup_building", { theme: storedTheme || "theme" }));
+            showThemeSetupStatus(storedTheme || "theme", storedSetupPhase || "drawing_cards");
             renderThemeProgress();
         }
 
@@ -783,14 +793,15 @@
                 sessionStorage.setItem("last_round_mode", activeMode);
                 if (modeUsesTheme(activeMode)) {
                     const activeTheme = sessionStorage.getItem("game_setup_theme") || getLastRoundTheme();
-                    if (activeTheme) sessionStorage.setItem("last_round_theme", activeTheme);
-                } else {
-                    sessionStorage.removeItem("last_round_theme");
-                }
-            } catch (e) {}
-            try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
-            try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
-            document.getElementById("grid").style.display = "";
+                if (activeTheme) sessionStorage.setItem("last_round_theme", activeTheme);
+            } else {
+                sessionStorage.removeItem("last_round_theme");
+            }
+        } catch (e) {}
+        try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
+        try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
+        try { sessionStorage.removeItem("game_setup_phase"); } catch (e) {}
+        document.getElementById("grid").style.display = "";
             document.getElementById("players").style.display = "";
             hideRestartChoices();
             hideSetupStatus();
@@ -844,7 +855,8 @@
             }
             if (modeUsesTheme(sessionStorage.getItem("game_setup_mode"))) {
                 const theme = sessionStorage.getItem("game_setup_theme") || "theme";
-                showSetupStatus(t("setup_building", { theme }));
+                const phase = sessionStorage.getItem("game_setup_phase") || "drawing_cards";
+                showThemeSetupStatus(theme, phase);
                 renderThemeProgress();
             }
             updateRoundActionsVisibility();
@@ -856,6 +868,7 @@
                 try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
             }
             try { sessionStorage.setItem("game_setup_mode", (data && data.mode) || "theme"); } catch (e) {}
+            try { sessionStorage.setItem("game_setup_phase", (data && data.phase) || "drawing_cards"); } catch (e) {}
             navigateTo("/waiting");
         });
 
