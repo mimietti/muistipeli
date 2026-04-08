@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Memory Game - Summary</title>
+    <style>
+        body {
+            background-color: #111;
+            color: #fff;
+            font-family: sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        .shell {
+            width: min(760px, calc(100% - 32px));
+            margin: 40px auto 0;
+            padding: 0 0 32px;
+        }
+        h1 {
+            font-size: 42px;
+            margin-bottom: 18px;
+        }
+        .card {
+            margin-top: 22px;
+            padding: 24px 22px;
+            border-radius: 22px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .section-title {
+            color: #fff4a8;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+        .summary-list {
+            display: grid;
+            gap: 10px;
+            text-align: left;
+            max-width: 520px;
+            margin: 0 auto;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.03);
+        }
+        .summary-name {
+            color: #fff;
+            font-weight: 700;
+        }
+        .summary-value {
+            color: #9fe5a8;
+            font-weight: 700;
+        }
+        .muted {
+            color: #cbd4cb;
+            line-height: 1.6;
+        }
+        .actions {
+            margin-top: 22px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .btn.primary {
+            background-color: limegreen;
+            color: #0c150e;
+        }
+        .btn.secondary {
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .footer-credit {
+            margin-top: 28px;
+            color: #8c928c;
+            font-size: 12px;
+            letter-spacing: 0.04em;
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <h1 id="pageTitle">Summary</h1>
+        <div class="card">
+            <div class="section-title" id="winsTitle">Rounds won</div>
+            <div id="summaryList" class="summary-list"></div>
+            <div id="emptyState" class="muted" style="display:none;">No completed rounds yet.</div>
+        </div>
+        <div class="card">
+            <div class="section-title" id="leaderboardTitle">Leaderboard</div>
+            <div class="muted" id="leaderboardText">A full leaderboard comes later, after login and persistent storage are added.</div>
+        </div>
+        <div class="actions">
+            <button class="btn primary" id="newGameBtn">Start new game</button>
+            <button class="btn secondary" id="clearSummaryBtn">Clear summary</button>
+        </div>
+        <div class="footer-credit">© Michael Miettinen</div>
+    </div>
+
+    <script>
+        const translations = {
+            en: {
+                page_title: "Summary",
+                rounds_won: "Rounds won",
+                no_rounds: "No completed rounds yet.",
+                leaderboard: "Leaderboard",
+                leaderboard_placeholder: "A full leaderboard comes later, after login and persistent storage are added.",
+                start_new_game: "Start new game",
+                clear_summary: "Clear summary"
+            },
+            fi: {
+                page_title: "Yhteenveto",
+                rounds_won: "Voitetut erät",
+                no_rounds: "Valmiita eriä ei vielä ole.",
+                leaderboard: "Tulostaulu",
+                leaderboard_placeholder: "Varsinainen leaderboard tulee myöhemmin, kun kirjautuminen ja pysyvä tallennus on lisätty.",
+                start_new_game: "Aloita uusi peli",
+                clear_summary: "Tyhjennä yhteenveto"
+            }
+        };
+
+        function getLanguage() {
+            const stored = localStorage.getItem("ui_language");
+            return stored === "fi" ? "fi" : "en";
+        }
+
+        function t(key) {
+            const lang = getLanguage();
+            return (translations[lang] && translations[lang][key]) || translations.en[key] || key;
+        }
+
+        function renderSummary() {
+            document.documentElement.lang = getLanguage();
+            document.title = `Memory Game - ${t("page_title")}`;
+            document.getElementById("pageTitle").textContent = t("page_title");
+            document.getElementById("winsTitle").textContent = t("rounds_won");
+            document.getElementById("leaderboardTitle").textContent = t("leaderboard");
+            document.getElementById("leaderboardText").textContent = t("leaderboard_placeholder");
+            document.getElementById("newGameBtn").textContent = t("start_new_game");
+            document.getElementById("clearSummaryBtn").textContent = t("clear_summary");
+
+            const summaryList = document.getElementById("summaryList");
+            const emptyState = document.getElementById("emptyState");
+            summaryList.replaceChildren();
+
+            let wins = {};
+            try {
+                wins = JSON.parse(localStorage.getItem("memory_summary_round_wins") || "{}");
+            } catch (_) {
+                wins = {};
+            }
+            const entries = Object.entries(wins).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+            if (!entries.length) {
+                emptyState.textContent = t("no_rounds");
+                emptyState.style.display = "block";
+                return;
+            }
+
+            emptyState.style.display = "none";
+            entries.forEach(([name, value]) => {
+                const row = document.createElement("div");
+                row.className = "summary-row";
+                const nameEl = document.createElement("div");
+                nameEl.className = "summary-name";
+                nameEl.textContent = name;
+                const valueEl = document.createElement("div");
+                valueEl.className = "summary-value";
+                valueEl.textContent = String(value);
+                row.appendChild(nameEl);
+                row.appendChild(valueEl);
+                summaryList.appendChild(row);
+            });
+        }
+
+        function clearVolatileGameState() {
+            [
+                "game_started",
+                "words_given",
+                "last_asked_pair",
+                "game_setup_mode",
+                "game_setup_theme",
+                "last_round_mode",
+                "last_round_theme",
+                "accepted_theme_words",
+                "queued_next_round",
+                "pending_ask",
+                "pending_game_navigation",
+                "players"
+            ].forEach((key) => {
+                try { sessionStorage.removeItem(key); } catch (_) {}
+            });
+            try { localStorage.removeItem("reconnect_token"); } catch (_) {}
+        }
+
+        document.getElementById("newGameBtn").addEventListener("click", () => {
+            clearVolatileGameState();
+            window.location.href = "/";
+        });
+        document.getElementById("clearSummaryBtn").addEventListener("click", () => {
+            try { localStorage.removeItem("memory_summary_round_wins"); } catch (_) {}
+            renderSummary();
+        });
+
+        renderSummary();
+    </script>
+</body>
+</html>

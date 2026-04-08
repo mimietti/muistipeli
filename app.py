@@ -823,6 +823,11 @@ def game():
     return render_template("game.html")
 
 
+@app.route("/summary")
+def summary():
+    return render_template("summary.html")
+
+
 def build_lobby_payload():
     players_ordered = get_active_players_ordered()
     usernames = [v["username"] for v in players_ordered]
@@ -868,6 +873,48 @@ def handle_request_lobby_state():
     emit("lobby_state", build_lobby_payload())
     if theme_selection_active():
         emit("theme_selection_updated", build_theme_selection_payload())
+
+
+@socketio.on("leave_game")
+def handle_leave_game(data=None):
+    global turn, player_points
+    data = data or {}
+    sid, player_info = resolve_player_for_event(data)
+    if not player_info:
+        return {"ok": False}
+
+    username = player_info.get("username", "Unknown")
+    reconnect_token = player_info.get("reconnect_token")
+
+    for existing_sid, info in list(players.items()):
+        if existing_sid == sid or (reconnect_token and info.get("reconnect_token") == reconnect_token):
+            del players[existing_sid]
+
+    print(f"[INFO] {username} poistui pelistä käyttäjän pyynnöstä.")
+    payload = build_lobby_payload()
+    payload["username"] = username
+    socketio.emit("player_joined", payload)
+
+    if get_effective_player_count() < 2 and (theme_selection_active() or grid_data or 'pending_pair' in globals()):
+        print("[INFO] Pelaaja poistui pelistä kesken erän – keskeytetään nykyinen pelitila")
+        socketio.emit("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."})
+        grid_data.clear()
+        revealed_cards.clear()
+        matched_indices.clear()
+        turn = 0
+        player_points.clear()
+        reset_pending_state()
+
+    if len(players) == 0:
+        print("[INFO] Kaikki pelaajat poistuneet – nollataan pelitila")
+        grid_data.clear()
+        revealed_cards.clear()
+        matched_indices.clear()
+        turn = 0
+        player_points.clear()
+        reset_pending_state()
+
+    return {"ok": True}
 
 @socketio.on("start_game_clicked")
 def handle_start_game():

@@ -129,6 +129,12 @@
             margin: 12px 0;
             color: #eef2ee;
         }
+        .theme-section-label {
+            margin: 12px 0 8px;
+            color: #fff4a8;
+            font-size: 18px;
+            font-weight: 700;
+        }
         #themeReadyStatus {
             display: flex;
             justify-content: center;
@@ -162,6 +168,10 @@
             flex-wrap: wrap;
             gap: 10px;
             justify-content: center;
+            padding: 12px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
         }
         .selected-word-chip {
             border: none;
@@ -169,17 +179,18 @@
             padding: 10px 14px;
             font-size: 16px;
             cursor: pointer;
-            background: #204a2c;
-            color: #fff;
-        }
-        .selected-word-chip.active {
             background: #f2d46d;
             color: #111;
-            box-shadow: 0 0 0 2px rgba(242, 212, 109, 0.3);
+            font-weight: 700;
+        }
+        .selected-word-chip.active {
+            background: #ffd24d;
+            color: #111;
+            box-shadow: 0 0 0 3px rgba(255, 210, 77, 0.35);
         }
         .selected-word-chip:disabled {
-            background: #555;
-            color: #ddd;
+            background: #8c7a3f;
+            color: #231d0b;
             cursor: not-allowed;
         }
         #themeCandidates {
@@ -216,17 +227,30 @@
             font-size: 12px;
             letter-spacing: 0.04em;
         }
+        .secondaryBtn {
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            font-size: 18px;
+            padding: 10px 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 14px;
+        }
+        .secondaryBtn:hover {
+            background: rgba(255,255,255,0.12);
+        }
         .theme-word-chip {
             border: none;
             border-radius: 999px;
             padding: 10px 14px;
             font-size: 16px;
             cursor: pointer;
-            background: #2e5d37;
-            color: #fff;
+            background: #4b4f56;
+            color: #f3f3f3;
         }
         .theme-word-chip:hover {
-            background: #367243;
+            background: #5c7d63;
         }
         .theme-word-chip.selected {
             background: #7ccf8d;
@@ -276,12 +300,16 @@
             <div id="themeSelectionCounts"></div>
             <div id="themeReadyStatus"></div>
             <div id="selectedWords"></div>
+            <div id="themeCandidatesLabel" class="theme-section-label"></div>
             <div id="themeCandidates"></div>
             <div id="themeSelectionActions">
                 <button id="themeReadyBtn" class="theme-action-btn">Ready</button>
             </div>
         </div>
         <button id="changeNameBtn" style="margin-top: 20px;">Change name</button>
+        <div>
+            <button id="exitGameBtn" class="secondaryBtn">Exit game</button>
+        </div>
         <div class="footer-credit">© Michael Miettinen</div>
     </div>
 
@@ -299,6 +327,7 @@
                 enter_words: "Enter your own words",
                 enter_theme: "Enter theme",
                 study_spanish: "Study Spanish",
+                exit_game: "Exit game",
                 change_name: "Change name",
                 reconnect_missing_alert: "Reconnect token missing! The page cannot be loaded, please try again.",
                 prompt_name: "Enter your name:",
@@ -322,6 +351,7 @@
                 theme_selection_counts: "{name}: {count}/{limit} swaps used",
                 theme_selection_selected_none: "No selected words.",
                 theme_selection_selected_label: "Selected words",
+                theme_selection_candidates_label: "Available replacement words",
                 theme_selection_word_selected: 'Word accepted: "{word}"',
                 theme_selection_word_swapped: 'Replaced "{old}" with "{new}".',
                 theme_selection_word_rejected: 'No suitable image was found for "{word}". Choose another word.',
@@ -351,6 +381,7 @@
                 enter_words: "Syötä omat sanat",
                 enter_theme: "Syötä teema",
                 study_spanish: "Opiskele espanjaa",
+                exit_game: "Poistu pelistä",
                 change_name: "Vaihda nimi",
                 reconnect_missing_alert: "Reconnect_token puuttuu! Sivua ei voi ladata, yritä uudelleen.",
                 prompt_name: "Anna nimesi:",
@@ -374,6 +405,7 @@
                 theme_selection_counts: "{name}: {count}/{limit} vaihtoa käytetty",
                 theme_selection_selected_none: "Valittuja sanoja ei vielä ole.",
                 theme_selection_selected_label: "Valitut sanat",
+                theme_selection_candidates_label: "Vaihtoehtoiset sanat",
                 theme_selection_word_selected: 'Sana hyväksyttiin: "{word}"',
                 theme_selection_word_swapped: 'Vaihdettiin "{old}" → "{new}".',
                 theme_selection_word_rejected: 'Sanalle "{word}" ei löytynyt sopivaa kuvaa. Valitse toinen sana.',
@@ -458,6 +490,7 @@
             document.getElementById("manualStartBtn").textContent = t("enter_words");
             document.getElementById("themeStartBtn").textContent = t("enter_theme");
             document.getElementById("spanishStartBtn").textContent = t("study_spanish");
+            document.getElementById("exitGameBtn").textContent = t("exit_game");
             document.getElementById("changeNameBtn").textContent = t("change_name");
             renderPlayerRole(window.latestPlayersInfo || []);
         }
@@ -580,6 +613,7 @@
             const themeReadyStatusEl = document.getElementById("themeReadyStatus");
             const selectedWordsEl = document.getElementById("selectedWords");
             const themeCandidatesEl = document.getElementById("themeCandidates");
+            const themeCandidatesLabelEl = document.getElementById("themeCandidatesLabel");
             const themeReadyBtn = document.getElementById("themeReadyBtn");
             const setupStatusEl = document.getElementById("setupStatus");
             const setupStatusTitleEl = document.getElementById("setupStatusTitle");
@@ -592,6 +626,38 @@
                 }
                 try { socket.disconnect(); } catch (_) {}
                 window.location.href = path;
+            }
+
+            function clearVolatileGameState() {
+                [
+                    "game_started",
+                    "words_given",
+                    "last_asked_pair",
+                    "game_setup_mode",
+                    "game_setup_theme",
+                    "last_round_mode",
+                    "last_round_theme",
+                    "accepted_theme_words",
+                    "queued_next_round",
+                    "pending_ask",
+                    "pending_game_navigation",
+                    "players"
+                ].forEach((key) => {
+                    try { sessionStorage.removeItem(key); } catch (_) {}
+                });
+                try { localStorage.removeItem("reconnect_token"); } catch (_) {}
+            }
+
+            function exitGame() {
+                socket.emit("leave_game", {
+                    username: myName,
+                    reconnect_token: getReconnectToken()
+                });
+                clearVolatileGameState();
+                setTimeout(() => {
+                    try { socket.disconnect(); } catch (_) {}
+                    window.location.href = "/summary";
+                }, 120);
             }
 
             function decodeThemeSelectionMessage(message) {
@@ -637,6 +703,7 @@
                 if (!state.active) {
                     themeSelectionEl.style.display = "none";
                     themeSelectionMessageEl.textContent = "";
+                    themeCandidatesLabelEl.textContent = "";
                     selectedReplacementWord = null;
                     return;
                 }
@@ -686,6 +753,7 @@
 
                 selectedWordsEl.innerHTML = "";
                 const selectedLabel = document.createElement("div");
+                selectedLabel.className = "theme-section-label";
                 selectedLabel.textContent = t("theme_selection_selected_label");
                 selectedWordsEl.appendChild(selectedLabel);
                 const selectedWrap = document.createElement("div");
@@ -714,16 +782,17 @@
                 }
 
                 const selectedSet = new Set(selectedWords.map((item) => item.word));
+                themeCandidatesLabelEl.textContent = t("theme_selection_candidates_label");
                 themeCandidatesEl.innerHTML = "";
                 (state.candidates || []).forEach((word) => {
+                    if (selectedSet.has(word)) {
+                        return;
+                    }
                     const button = document.createElement("button");
                     button.type = "button";
                     button.className = "theme-word-chip";
                     button.textContent = word;
-                    if (selectedSet.has(word)) {
-                        button.classList.add("selected");
-                        button.disabled = true;
-                    } else if (rejectedWords.has(word)) {
+                    if (rejectedWords.has(word)) {
                         button.classList.add("rejected");
                         button.disabled = true;
                     } else {
@@ -920,6 +989,9 @@
             document.getElementById("spanishStartBtn").addEventListener("click", () => {
                 startSpanishRound();
             });
+            document.getElementById("exitGameBtn").addEventListener("click", () => {
+                exitGame();
+            });
 
             socket.on("start_game", () => {
                 console.log("[DEBUG] Vastaanotettiin 'start_game', siirrytään peliin");
@@ -948,6 +1020,7 @@
                     mode,
                     theme: (data && data.theme) || ""
                 });
+                renderThemeSelection({ active: false });
             });
             socket.on("theme_selection_updated", (payload) => {
                 console.log("[DEBUG] theme_selection_updated:", payload);
