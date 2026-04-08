@@ -624,6 +624,34 @@ def launch_grid_round():
     })
 
 
+def conclude_round(winner_label, surrendered_by=None):
+    global turn, player_points, current_click_sid
+    points_payload = {name: player_points.get(name, 0) for name in player_order}
+    if isinstance(winner_label, str) and winner_label not in {"Tasapeli", "Tie"} and winner_label in player_order:
+        round_win[winner_label] += 1
+        print(f"[INFO] Voittaja: {winner_label}. Erävoitot: {dict(round_win)}")
+    else:
+        print(f"[INFO] Kierros päättyi. Tulos: {winner_label}")
+
+    socketio.emit("game_over", {
+        "winner": winner_label,
+        "points": points_payload,
+        "round_win": dict(round_win),
+        "surrendered_by": surrendered_by
+    })
+
+    try:
+        grid_data.clear()
+        revealed_cards.clear()
+        matched_indices.clear()
+    except Exception:
+        pass
+    turn = 0
+    current_click_sid = None
+    player_points = {}
+    reset_pending_state()
+
+
 def finalize_theme_selection():
     global grid_data
     sync_theme_selection_players()
@@ -1000,32 +1028,13 @@ def handle_card_click(data):
                     max_pts = max(player_points.values()) if player_points else 0
                     winners = [n for n, p in player_points.items() if p == max_pts]
                     if len(winners) == 1:
-                        winner = winners[0]
-                        round_win[winner] += 1
-                        winner_label = winner
-                        print(f"[INFO] Voittaja: {winner}. Erävoitot: {dict(round_win)}")
+                        winner_label = winners[0]
                     else:
                         winner_label = "Tasapeli"
                         print(f"[INFO] Tasapeli. Pisteet: {player_points}")
-
-                    socketio.emit("game_over", {
-                        "winner": winner_label,
-                        "points": player_points,
-                        "round_win": dict(round_win)
-                    })
+                    conclude_round(winner_label)
                 else:
                     print("[ERROR] Ei voittajaa, player_points on tyhjää.")
-
-                # Pyyhi pelitila, jotta uusi erä voi alkaa heti
-                try:
-                    grid_data.clear()
-                    revealed_cards.clear()
-                    matched_indices.clear()
-                except Exception:
-                    pass
-                turn = 0
-                player_points = {}
-                reset_pending_state()
 
         else:
             debug(f"[DEBUG] Ei paria: {word1} vs {word2}")
@@ -1329,6 +1338,30 @@ def handle_word_given(data):
             "player": expected_player,
             "pair": pending_pair + 1
         }, broadcast=True)
+
+
+@socketio.on("surrender_round")
+def handle_surrender_round():
+    global current_click_sid
+    if not grid_data or get_effective_player_count() < 2:
+        emit("round_surrender_failed", {"reason": "round_not_active"})
+        return
+
+    _, player_info = resolve_player_for_event()
+    if not player_info:
+        emit("round_surrender_failed", {"reason": "player_missing"})
+        return
+
+    surrendering_player = player_info["username"]
+    opponents = [name for name in player_order if name != surrendering_player]
+    if not opponents:
+        emit("round_surrender_failed", {"reason": "opponent_missing"})
+        return
+
+    winner = opponents[0]
+    print(f"[INFO] {surrendering_player} luovutti tämän kierroksen. Voittaja: {winner}")
+    current_click_sid = None
+    conclude_round(winner, surrendered_by=surrendering_player)
 
 @socketio.on("ask_for_word")
 def handle_client_request_ask_for_word(data):

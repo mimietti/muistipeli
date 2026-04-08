@@ -16,6 +16,29 @@
         #players {
             margin-top: 20px;
         }
+        #roundActions {
+            margin-top: 18px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+        .round-action-btn {
+            border: none;
+            border-radius: 999px;
+            padding: 10px 16px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: filter 0.18s ease, transform 0.18s ease;
+        }
+        .round-action-btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+        }
+        .round-action-btn.surrender {
+            background: #7b2b2b;
+            color: #fff6f6;
+        }
         .active {
             color: limegreen;
         }
@@ -211,6 +234,9 @@
 <body>
     <h1 id="pageTitle">Memory Game</h1>
     <div id="players"></div>
+    <div id="roundActions">
+        <button id="surrenderRoundBtn" class="round-action-btn surrender" style="display:none;">Surrender this round</button>
+    </div>
     <div id="setup-status" style="display:none; margin-top: 24px; color: #ccc; font-size: 18px;"></div>
     <div id="theme-progress">
         <strong id="themeProgressLabel">Ready:</strong>
@@ -251,6 +277,10 @@
                 enter_words: "Enter your own words",
                 enter_theme: "Enter theme",
                 end_game: "End game",
+                surrender_round: "Surrender this round",
+                surrender_round_confirm: "Do you really want to surrender this round?",
+                surrendered_round: "{name} surrendered this round.",
+                surrender_failed: "This round cannot be surrendered right now.",
                 prompt_word: "Enter a word for pair {pair}/8 (describe the pair with a common word):",
                 prompt_word_retry: "Enter a new word for pair {pair}/8:",
                 prompt_theme: "Enter theme:",
@@ -282,6 +312,10 @@
                 enter_words: "Syötä omat sanat",
                 enter_theme: "Syötä teema",
                 end_game: "Lopeta peli",
+                surrender_round: "Luovuta tämä kierros",
+                surrender_round_confirm: "Haluatko varmasti luovuttaa tämän kierroksen?",
+                surrendered_round: "{name} luovutti tämän kierroksen.",
+                surrender_failed: "Tätä kierrosta ei voi luovuttaa juuri nyt.",
                 prompt_word: "Anna {pair}/8 parin sana (kuvaile paria yhdellä yleisellä sanalla):",
                 prompt_word_retry: "Anna {pair}/8 parin sana uudelleen:",
                 prompt_theme: "Anna teema:",
@@ -328,6 +362,7 @@
             document.getElementById("themeProgressLabel").textContent = t("ready_label");
             document.getElementById("remainingWordsLabel").textContent = t("remaining_label");
             document.getElementById("dictionaryLabel").textContent = t("dictionary_label");
+            document.getElementById("surrenderRoundBtn").textContent = t("surrender_round");
         }
 
         applyTranslations();
@@ -383,6 +418,7 @@
         try { window.socket = socket; } catch (_) {}
         let gameOverShown = false;
         let gridRetryTimer = null;
+        const surrenderRoundBtn = document.getElementById("surrenderRoundBtn");
         const setupStatus = document.getElementById("setup-status");
         const themeProgress = document.getElementById("theme-progress");
         const themeProgressList = document.getElementById("theme-progress-list");
@@ -415,6 +451,12 @@
         const joinPayload = { username: myName, reconnect_token: reconnectToken };
         console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
         socket.emit("join", joinPayload);
+
+        function updateRoundActionsVisibility() {
+            if (!surrenderRoundBtn) return;
+            const show = Array.isArray(cards) && cards.length > 0 && !gameOverShown;
+            surrenderRoundBtn.style.display = show ? "inline-flex" : "none";
+        }
 
         function showSetupStatus(message) {
             setupStatus.textContent = message;
@@ -701,6 +743,7 @@
             hideRestartChoices();
             hideSetupStatus();
             clearThemeProgress();
+            updateRoundActionsVisibility();
 
             console.log("[DEBUG] init_grid saapui! Kortteja:", data.cards.length);
             cards = data.cards;
@@ -753,6 +796,7 @@
                 showSetupStatus(t("setup_building", { theme }));
                 renderThemeProgress();
             }
+            updateRoundActionsVisibility();
         });
 
         socket.on("theme_generation_started", (data) => {
@@ -865,6 +909,7 @@
                 console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
                 document.getElementById("grid").style.display = "none";
                 document.getElementById("players").style.display = "none";
+                updateRoundActionsVisibility();
                 remainingWordsContainer.style.display = "none";
                 themeProgress.style.display = "none";
                 const oldResults = document.getElementById("results");
@@ -877,6 +922,10 @@
                 const wins = data.round_win || {};
 
                 const canChooseNextRound = canQueueNextRound();
+                const surrenderedBy = data.surrendered_by;
+                const surrenderedLine = surrenderedBy
+                    ? `<div class="results-section" style="font-size:18px; color:#ffd8d8;">${t("surrendered_round", { name: surrenderedBy })}</div>`
+                    : "";
                 results.innerHTML = `
                     <div class="results-section">
                         <div class="results-heading">${t("game_over", { winner: data.winner })}</div>
@@ -884,6 +933,7 @@
                         <span style="font-size:20px;">${t("points")}</span><br>
                         ${Object.entries(points).map(([name, pts]) => `${name}: ${pts} ${t("pairs_suffix")}`).join("<br>")}
                     </div>
+                    ${surrenderedLine}
                     <div class="results-section results-subheading">
                         ${t("round_wins")}<br>
                         ${Object.entries(wins).map(([name, w]) => `${name}: ${w} ${t("wins_suffix")}`).join("<br>")}
@@ -916,6 +966,10 @@
                 return;
             }
             renderResults();
+        });
+
+        socket.on("round_surrender_failed", () => {
+            alert(t("surrender_failed"));
         });
 
         // Sanojen kysely Pixabayn käyttöön
@@ -1008,6 +1062,13 @@
             window.location.href = "/";
         }
 
+        surrenderRoundBtn.addEventListener("click", () => {
+            if (!confirm(t("surrender_round_confirm"))) {
+                return;
+            }
+            socket.emit("surrender_round");
+        });
+
         socket.on("game_aborted", (data) => {
             if (gridRetryTimer) {
                 clearTimeout(gridRetryTimer);
@@ -1022,6 +1083,7 @@
             console.log("[DEBUG] Piirretään ruudukko...");
             const grid = document.getElementById("grid");
             grid.innerHTML = "";
+            updateRoundActionsVisibility();
 
             cards.forEach((card, index) => {
                 const div = document.createElement("div");
