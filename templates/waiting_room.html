@@ -111,6 +111,29 @@
             margin: 12px 0;
             color: #eef2ee;
         }
+        #themeReadyStatus {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 12px 0;
+        }
+        .ready-status-chip {
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 14px;
+            font-weight: 700;
+            background: #4c4c4c;
+            color: #f1f1f1;
+        }
+        .ready-status-chip.is-ready {
+            background: #89ef9d;
+            color: #10361a;
+        }
+        .ready-status-chip.is-waiting {
+            background: #6b5a27;
+            color: #fff0b3;
+        }
         #selectedWords {
             display: flex;
             flex-direction: column;
@@ -229,6 +252,7 @@
             <div id="themeSelectionMessage"></div>
             <div id="themeSelectionProgress"></div>
             <div id="themeSelectionCounts"></div>
+            <div id="themeReadyStatus"></div>
             <div id="selectedWords"></div>
             <div id="themeCandidates"></div>
             <div id="themeSelectionActions">
@@ -286,7 +310,9 @@
                 theme_selection_unready: "Keep editing",
                 theme_selection_ready_waiting: "Waiting for both players to press Ready.",
                 theme_selection_ready_state: "{name}: ready",
-                theme_selection_not_ready_state: "{name}: editing"
+                theme_selection_not_ready_state: "{name}: editing",
+                theme_selection_ready_badge_ready: "{name} is ready",
+                theme_selection_ready_badge_waiting: "{name} is still editing"
             },
             fi: {
                 page_title: "Odotushuone",
@@ -333,7 +359,9 @@
                 theme_selection_unready: "Jatka muokkausta",
                 theme_selection_ready_waiting: "Odotetaan, että molemmat painavat Valmis.",
                 theme_selection_ready_state: "{name}: valmis",
-                theme_selection_not_ready_state: "{name}: muokkaa"
+                theme_selection_not_ready_state: "{name}: muokkaa",
+                theme_selection_ready_badge_ready: "{name} on valmis",
+                theme_selection_ready_badge_waiting: "{name} muokkaa vielä"
             }
         };
 
@@ -521,6 +549,7 @@
             const themeSelectionMessageEl = document.getElementById("themeSelectionMessage");
             const themeSelectionProgressEl = document.getElementById("themeSelectionProgress");
             const themeSelectionCountsEl = document.getElementById("themeSelectionCounts");
+            const themeReadyStatusEl = document.getElementById("themeReadyStatus");
             const selectedWordsEl = document.getElementById("selectedWords");
             const themeCandidatesEl = document.getElementById("themeCandidates");
             const themeReadyBtn = document.getElementById("themeReadyBtn");
@@ -593,6 +622,16 @@
                         return `${swapPart} • ${readyPart}`;
                     })
                     .join(" | ");
+                themeReadyStatusEl.innerHTML = "";
+                (state.players || []).forEach((name) => {
+                    const badge = document.createElement("div");
+                    const isReady = Boolean(ready[name]);
+                    badge.className = `ready-status-chip ${isReady ? "is-ready" : "is-waiting"}`;
+                    badge.textContent = isReady
+                        ? t("theme_selection_ready_badge_ready", { name })
+                        : t("theme_selection_ready_badge_waiting", { name });
+                    themeReadyStatusEl.appendChild(badge);
+                });
 
                 selectedWordsEl.innerHTML = "";
                 const selectedLabel = document.createElement("div");
