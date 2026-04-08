@@ -12,8 +12,6 @@ import os
 import re
 import time
 import requests
-from PIL import Image
-from io import BytesIO
 from dotenv import load_dotenv   # <-- TÃ„MÃ„
 from collections import defaultdict
 load_dotenv()                   # <--
@@ -31,7 +29,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = 30
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.0.1 (2026-04-08)"
+APP_VERSION = "Beta v0.0.2 (2026-04-08)"
 
 
 class PixabayConfigError(RuntimeError):
@@ -263,7 +261,7 @@ def deactivate_theme_selection():
 
 
 def build_theme_candidate_list(search_theme, candidate_count=24):
-    raw_candidates = fetch_theme_words(search_theme, max_results=120, require_noun=False)
+    raw_candidates = fetch_theme_words(search_theme, max_results=72, require_noun=False)
     filtered = []
     seen = set()
     for word in raw_candidates:
@@ -370,7 +368,7 @@ def append_selected_spanish_pair(word, pair_index):
         "english_word": word,
         "spanish_word": spanish_word,
         "finnish_word": finnish_word,
-        "image_url": "/" + image_paths[0]
+        "image_url": image_source_for_card(image_paths[0])
     }
     return pair
 
@@ -405,7 +403,7 @@ def spanish_setup_still_active(theme):
 
 def normalize_candidate_word(word):
     cleaned = str(word or "").strip().lower()
-    if not re.fullmatch(r"[a-z]{3,15}", cleaned):
+    if not re.fullmatch(r"[a-z]{2,18}", cleaned):
         return None
     return cleaned
 
@@ -440,7 +438,7 @@ def has_proper_tag(tags):
     return False
 
 
-def fetch_theme_words(theme, max_results=80, require_noun=False, exclude_proper=False):
+def fetch_theme_words(theme, max_results=60, require_noun=False, exclude_proper=False):
     theme = str(theme or "").strip()
     if not theme:
         return []
@@ -452,7 +450,6 @@ def fetch_theme_words(theme, max_results=80, require_noun=False, exclude_proper=
     query_variants = [
         {"ml": theme, "max": max_results, "md": "p"},
         {"topics": theme, "max": max_results, "md": "p"},
-        {"rel_trg": theme, "max": max_results, "md": "p"},
     ]
 
     for params in query_variants:
@@ -564,6 +561,14 @@ def translate_theme_to_english(theme, ui_language):
     return translated_text
 
 
+def image_source_for_card(image_ref):
+    if not image_ref:
+        return image_ref
+    if isinstance(image_ref, str) and image_ref.startswith(("http://", "https://")):
+        return image_ref
+    return "/" + str(image_ref).replace("\\", "/").lstrip("/")
+
+
 def append_word_images_to_grid(word, pair_index):
     global grid_data
     result = fetch_and_save_pixabay_images(word, pair_index)
@@ -572,7 +577,7 @@ def append_word_images_to_grid(word, pair_index):
         return False
     print(f"[INFO] Pixabaysta loytyi kuvat sanalle '{word}': {result}")
     for path in result:
-        grid_data.append({"image": "/" + path, "word": word})
+        grid_data.append({"image": image_source_for_card(path), "word": word})
     return True
 
 
@@ -605,7 +610,7 @@ def build_theme_pair_entry(word, pair_index):
     return {
         "type": "theme",
         "word": word,
-        "images": ["/" + path for path in result]
+        "images": [image_source_for_card(path) for path in result]
     }
 
 
@@ -1488,7 +1493,7 @@ def fetch_and_save_pixabay_images(word, pair_index, required_count=2):
         "q": word,
         "image_type": "photo",
         "orientation": "horizontal",
-        "per_page": 12,
+        "per_page": 8,
         "safesearch": "true"
     }
     try:
@@ -1528,36 +1533,18 @@ def fetch_and_save_pixabay_images(word, pair_index, required_count=2):
         print(f"[INFO] Ohitettiin {skipped_duplicates} jo kaytettya Pixabay-kuvaa sanalle '{word}'")
 
     if len(selected_hits) >= required_count:
-        os.makedirs("static/images", exist_ok=True)
-        paths = []
-        download_failures = 0
+        image_refs = []
         for hit in selected_hits:
-            img_url = hit["webformatURL"]
-            try:
-                img_response = requests.get(img_url, timeout=10)
-                img_response.raise_for_status()
-            except requests.RequestException as e:
-                print(f"[ERROR] Kuvan lataus epÃ¤onnistui ({img_url}): {e}")
-                download_failures += 1
+            img_url = hit.get("webformatURL") or hit.get("previewURL") or hit.get("largeImageURL")
+            if not img_url:
                 continue
-            img_data = img_response.content
-            img = Image.open(BytesIO(img_data)).convert("RGB")
-            img = img.resize((512, 512))
-            filename = f"{word}{len(paths)+1}_{pair_index}.png"
-            save_path = os.path.join("static/images", filename)
-            img.save(save_path)
-            debug(f"[DEBUG] Tallennettu kuva: {save_path}")
-            # Use web-friendly forward slashes in URLs regardless of OS
-            web_path = save_path.replace("\\", "/")
-            paths.append(web_path)
+            image_refs.append(img_url)
             used_pixabay_image_ids.add(hit["id"])
-            if len(paths) >= required_count:
+            if len(image_refs) >= required_count:
                 break
-        if download_failures:
-            print(f"[INFO] Sanan '{word}' kuvista {download_failures} hylattiin latausvirheiden takia")
-        if len(paths) >= required_count:
-            return paths
-        print(f"[INFO] Sanalle '{word}' ei saatu ladattua tarpeeksi Pixabay-kuvia")
+        if len(image_refs) >= required_count:
+            return image_refs
+        print(f"[INFO] Sanalle '{word}' ei loytynyt tarpeeksi kaytettavia Pixabay-kuvia")
         return None
     else:
         print(f"[INFO] Sanalle '{word}' ei loytynyt tarpeeksi uusia Pixabay-kuvia taman eran sisalla")
