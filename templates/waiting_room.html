@@ -390,8 +390,8 @@
                 theme_selection_progress: "Selections: {count}/8",
                 theme_selection_counts: "{name}: {count}/{limit} swaps used",
                 theme_selection_selected_none: "No selected words.",
-                theme_selection_selected_label: "1. Selected words",
-                theme_selection_selected_subtitle: "These will become cards for the next round.",
+                theme_selection_selected_label: "Choose a word to swap or press Ready",
+                theme_selection_selected_subtitle: "",
                 theme_selection_candidates_label: "2. Replacement words",
                 theme_selection_candidates_subtitle: "Choose a replacement only after selecting one of the words above.",
                 theme_selection_word_selected: 'Word accepted: "{word}"',
@@ -401,9 +401,9 @@
                 theme_selection_error_image: 'No suitable image was found for "{word}". Choose another word.',
                 theme_selection_error_generic: "The word could not be selected.",
                 theme_selection_error_replace: "Choose one of the selected words to replace first.",
-                theme_selection_selected_hint: "Click a selected word, then choose a replacement below.",
+                theme_selection_selected_hint: "Choose a word to swap or press Ready.",
                 theme_selection_selected_active: 'Replacing: "{word}"',
-                theme_selection_ready_review: "All 8 words are ready. Review them and press Ready.",
+                theme_selection_ready_review: "",
                 theme_selection_pick_replacement: "Now pick a replacement from the list below.",
                 theme_selection_ready: "Ready",
                 theme_selection_unready: "Keep editing",
@@ -451,8 +451,8 @@
                 theme_selection_progress: "Valinnat: {count}/8",
                 theme_selection_counts: "{name}: {count}/{limit} vaihtoa käytetty",
                 theme_selection_selected_none: "Valittuja sanoja ei vielä ole.",
-                theme_selection_selected_label: "1. Valitse vaihdettava sana",
-                theme_selection_selected_subtitle: "Näistä tehdään seuraavan erän kortit.",
+                theme_selection_selected_label: "Valitse sana jos tahdot vaihtaa sen tai paina Valmis",
+                theme_selection_selected_subtitle: "",
                 theme_selection_candidates_label: "2. Valitse korvaava sana",
                 theme_selection_candidates_subtitle: "Valitse korvaava sana vasta, kun olet ensin valinnut vaihdettavan sanan yläpuolelta.",
                 theme_selection_word_selected: 'Sana hyväksyttiin: "{word}"',
@@ -462,9 +462,9 @@
                 theme_selection_error_image: 'Sanalle "{word}" ei löytynyt sopivaa kuvaa. Valitse toinen sana.',
                 theme_selection_error_generic: "Sanaa ei voitu valita.",
                 theme_selection_error_replace: "Valitse ensin yksi valituista sanoista, jonka haluat vaihtaa.",
-                theme_selection_selected_hint: "Klikkaa valittua sanaa ja valitse sitten alhaalta korvaava sana.",
+                theme_selection_selected_hint: "Valitse sana jos tahdot vaihtaa sen tai paina Valmis.",
                 theme_selection_selected_active: 'Vaihdettava sana: "{word}"',
-                theme_selection_ready_review: "Kaikki 8 sanaa ovat valmiina. Tarkista ne ja paina Valmis.",
+                theme_selection_ready_review: "",
                 theme_selection_pick_replacement: "Valitse nyt alhaalta korvaava sana.",
                 theme_selection_ready: "Valmis",
                 theme_selection_unready: "Jatka muokkausta",
@@ -789,11 +789,13 @@
                 themeSelectionEl.style.display = "block";
                 document.getElementById("startOptions").style.display = "none";
                 themeSelectionTitleEl.textContent = t("theme_selection_title", { theme: state.theme || "" });
-                themeSelectionHelpEl.textContent = allSelected ? t("theme_selection_ready_review") : t("theme_selection_help");
+                const helpText = allSelected ? t("theme_selection_ready_review") : t("theme_selection_help");
+                themeSelectionHelpEl.textContent = helpText;
+                themeSelectionHelpEl.style.display = helpText ? "" : "none";
                 themeSelectionHelpEl.classList.toggle("compact", allSelected);
                 themeSelectionTurnEl.textContent = selectedReplacementWord
                     ? t("theme_selection_pick_replacement")
-                    : (allSelected ? "" : t("theme_selection_selected_hint"));
+                    : (myReady ? "" : t("theme_selection_selected_hint"));
                 themeSelectionMessageEl.textContent = decodeThemeSelectionMessage(state.message);
                 themeSelectionProgressEl.textContent = allSelected ? "" : t("theme_selection_progress", { count: selectedWords.length });
                 themeSelectionProgressEl.style.display = allSelected ? "none" : "block";
@@ -822,10 +824,13 @@
                 selectedLabel.className = "theme-section-label";
                 selectedLabel.textContent = t("theme_selection_selected_label");
                 selectedWordsEl.appendChild(selectedLabel);
-                const selectedSubtitle = document.createElement("div");
-                selectedSubtitle.className = "theme-section-subtitle";
-                selectedSubtitle.textContent = t("theme_selection_selected_subtitle");
-                selectedWordsEl.appendChild(selectedSubtitle);
+                const selectedSubtitleText = t("theme_selection_selected_subtitle");
+                if (selectedSubtitleText) {
+                    const selectedSubtitle = document.createElement("div");
+                    selectedSubtitle.className = "theme-section-subtitle";
+                    selectedSubtitle.textContent = selectedSubtitleText;
+                    selectedWordsEl.appendChild(selectedSubtitle);
+                }
                 const selectedWrap = document.createElement("div");
                 selectedWrap.className = "selected-words-wrap";
                 if (!selectedWords.length) {
