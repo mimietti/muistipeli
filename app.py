@@ -27,9 +27,9 @@ socketio = SocketIO(
 )
 
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
-RECONNECT_GRACE_SECONDS = 30
+RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "180")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.0.2 (2026-04-08)"
+APP_VERSION = "Beta v0.0.3 (2026-04-08)"
 
 
 class PixabayConfigError(RuntimeError):
