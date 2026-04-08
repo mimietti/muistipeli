@@ -81,6 +81,24 @@
             font-size: 16px;
             margin-bottom: 12px;
         }
+        #setupStatus {
+            display: none;
+            margin-top: 24px;
+            padding: 18px 20px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        #setupStatusTitle {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #fff4a8;
+        }
+        #setupStatusText {
+            color: #d4ddd4;
+            line-height: 1.6;
+        }
         #themeSelection {
             display: none;
             margin-top: 26px;
@@ -245,6 +263,10 @@
             <button id="themeStartBtn" class="modeBtn">Enter theme</button>
             <button id="spanishStartBtn" class="modeBtn">Study Spanish</button>
         </div>
+        <div id="setupStatus">
+            <div id="setupStatusTitle"></div>
+            <div id="setupStatusText"></div>
+        </div>
         <div id="themeSelection">
             <div id="themeSelectionTitle"></div>
             <div id="themeSelectionHelp"></div>
@@ -289,6 +311,9 @@
                 theme_missing: "Theme is missing.",
                 pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
+                setup_status_title: "Preparing cards",
+                setup_status_theme: 'Finding usable words and building cards for "{theme}"...',
+                setup_status_spanish: 'Preparing Spanish study cards for "{theme}"...',
                 theme_selection_title: 'Theme: "{theme}"',
                 theme_selection_help: "We preselected 8 usable words. Each player can swap up to 4 of them before the round starts.",
                 theme_selection_turn_you: "Choose one of the selected words to replace.",
@@ -338,6 +363,9 @@
                 theme_missing: "Teema puuttuu.",
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
+                setup_status_title: "Tehdään kortteja",
+                setup_status_theme: 'Haetaan käyttökelpoisia sanoja ja tehdään kortteja teemalle "{theme}"...',
+                setup_status_spanish: 'Haetaan espanjakortteja teemalle "{theme}"...',
                 theme_selection_title: 'Teema: "{theme}"',
                 theme_selection_help: "Valitsimme valmiiksi 8 käyttökelpoista sanaa. Molemmat pelaajat voivat vaihtaa niistä enintään 4 ennen erän alkua.",
                 theme_selection_turn_you: "Valitse ensin vaihdettava sana valituista sanoista.",
@@ -553,6 +581,9 @@
             const selectedWordsEl = document.getElementById("selectedWords");
             const themeCandidatesEl = document.getElementById("themeCandidates");
             const themeReadyBtn = document.getElementById("themeReadyBtn");
+            const setupStatusEl = document.getElementById("setupStatus");
+            const setupStatusTitleEl = document.getElementById("setupStatusTitle");
+            const setupStatusTextEl = document.getElementById("setupStatusText");
             let selectedReplacementWord = null;
 
             function navigateTo(path) {
@@ -581,6 +612,25 @@
                 return message;
             }
 
+            function renderSetupStatus(payload) {
+                window.currentSetupState = payload && payload.active ? payload : { active: false };
+                const state = window.currentSetupState;
+                if (!state.active) {
+                    setupStatusEl.style.display = "none";
+                    setupStatusTitleEl.textContent = "";
+                    setupStatusTextEl.textContent = "";
+                    return;
+                }
+                const theme = state.theme || "";
+                const mode = state.mode || "theme";
+                setupStatusEl.style.display = "block";
+                document.getElementById("startOptions").style.display = "none";
+                setupStatusTitleEl.textContent = t("setup_status_title");
+                setupStatusTextEl.textContent = mode === "spanish"
+                    ? t("setup_status_spanish", { theme })
+                    : t("setup_status_theme", { theme });
+            }
+
             function renderThemeSelection(payload) {
                 window.currentThemeSelectionState = payload && payload.active ? payload : { active: false };
                 const state = window.currentThemeSelectionState;
@@ -591,6 +641,7 @@
                     return;
                 }
 
+                renderSetupStatus({ active: false });
                 const myNameNow = (localStorage.getItem("username") || "").trim();
                 const selectedWords = Array.isArray(state.selected_words) ? state.selected_words : [];
                 const rejectedWords = new Set(Array.isArray(state.rejected_words) ? state.rejected_words : []);
@@ -700,6 +751,7 @@
                 };
             }
 
+            renderSetupStatus(window.currentSetupState || { active: false });
             renderThemeSelection(window.currentThemeSelectionState || { active: false });
 
             function updateLobbyFromPayload(payload) {
@@ -714,12 +766,14 @@
                 if (players.length === 2) {
                     const myToken = getReconnectToken();
                     const canStart = myToken && lastJoinedToken && myToken === lastJoinedToken;
-                    if (!window.currentThemeSelectionState || !window.currentThemeSelectionState.active) {
+                    if ((!window.currentThemeSelectionState || !window.currentThemeSelectionState.active)
+                        && (!window.currentSetupState || !window.currentSetupState.active)) {
                         document.getElementById("startOptions").style.display = canStart ? "block" : "none";
                     }
                     console.log("[DEBUG] canStart=", canStart, ", myToken=", myToken, ", lastJoined=", lastJoinedToken);
                     maybeStartQueuedNextRound(canStart);
-                } else if (!window.currentThemeSelectionState || !window.currentThemeSelectionState.active) {
+                } else if ((!window.currentThemeSelectionState || !window.currentThemeSelectionState.active)
+                    && (!window.currentSetupState || !window.currentSetupState.active)) {
                     document.getElementById("startOptions").style.display = "none";
                 }
             }
@@ -796,6 +850,8 @@
                 try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
+                renderThemeSelection({ active: false });
+                renderSetupStatus({ active: true, mode: "theme", theme });
                 socket.emit("start_custom_game", { mode: "theme", theme, ui_language: getLanguage() });
             }
 
@@ -817,6 +873,8 @@
                 try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
+                renderThemeSelection({ active: false });
+                renderSetupStatus({ active: true, mode: "spanish", theme });
                 socket.emit("start_custom_game", { mode: "spanish", theme, ui_language: getLanguage() });
             }
 
@@ -871,6 +929,7 @@
             // Custom-peli: kun sanat tai ruudukko alkaa, siirry peliin
             socket.on("ask_for_word", (data) => {
                 console.log("[DEBUG] Vastaanotettiin 'ask_for_word' odotushuoneessa – talletetaan ja siirrytään peliin");
+                renderSetupStatus({ active: false });
                 try { sessionStorage.setItem("game_setup_mode", "manual"); } catch (e) {}
                 try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 try { sessionStorage.setItem("pending_ask", JSON.stringify(data)); } catch (e) {}
@@ -879,14 +938,16 @@
             });
             socket.on("theme_generation_started", (data) => {
                 console.log("[DEBUG] Teemapelin generointi aloitettu:", data);
-                try { sessionStorage.setItem("game_setup_mode", (data && data.mode) || "theme"); } catch (e) {}
+                const mode = (data && data.mode) || "theme";
+                try { sessionStorage.setItem("game_setup_mode", mode); } catch (e) {}
                 if (data && data.theme) {
                     try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
                 }
-                if ((data && data.mode) === "theme") {
-                    return;
-                }
-                navigateTo("/game");
+                renderSetupStatus({
+                    active: true,
+                    mode,
+                    theme: (data && data.theme) || ""
+                });
             });
             socket.on("theme_selection_updated", (payload) => {
                 console.log("[DEBUG] theme_selection_updated:", payload);
@@ -907,6 +968,7 @@
             });
             socket.on("init_grid", () => {
                 console.log("[DEBUG] Vastaanotettiin 'init_grid' odotushuoneessa – siirrytään peliin");
+                renderSetupStatus({ active: false });
                 navigateTo("/game");
             });
             socket.on("game_setup_error", (data) => {
@@ -914,12 +976,14 @@
                 console.error("[DEBUG] game_setup_error:", reason);
                 try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
                 try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
+                renderSetupStatus({ active: false });
                 window.currentThemeSelectionState = { active: false };
                 renderThemeSelection(window.currentThemeSelectionState);
                 alert(reason);
             });
             socket.on("game_aborted", (data) => {
                 const reason = localizeServerMessage((data && data.reason) || t("game_aborted"));
+                renderSetupStatus({ active: false });
                 window.currentThemeSelectionState = { active: false };
                 renderThemeSelection(window.currentThemeSelectionState);
                 alert(reason);

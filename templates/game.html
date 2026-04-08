@@ -67,24 +67,70 @@
             white-space: normal;
         }
         .dictionary-entry {
-            display: inline;
+            display: contents;
         }
         .dictionary-entry.highlighted {
-            color: #71f0a1;
-            font-weight: 700;
-            text-shadow: 0 0 14px rgba(113, 240, 161, 0.35);
+            color: inherit;
+            font-weight: inherit;
+            text-shadow: none;
         }
         #dictionary {
-            max-width: 760px;
+            max-width: 820px;
             margin: 0 auto 24px;
-            padding: 0 20px;
-            color: #bfc7cf;
-            font-size: 12px;
-            line-height: 1.7;
+            padding: 18px 20px;
+            color: #d8dee4;
+            font-size: 15px;
+            line-height: 1.6;
             display: none;
+            text-align: left;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
         }
-        #dictionary strong { color: #fff; font-size: 12px; margin-right: 8px; }
-        #dictionary-list { display: inline; }
+        #dictionary strong {
+            display: block;
+            color: #fff;
+            font-size: 18px;
+            margin: 0 0 14px;
+        }
+        #dictionary-list {
+            display: grid;
+            grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr);
+            gap: 8px 18px;
+            align-items: center;
+        }
+        .dictionary-row {
+            display: contents;
+        }
+        .dictionary-row.highlighted .dictionary-source,
+        .dictionary-row.highlighted .dictionary-target {
+            color: #71f0a1;
+            font-weight: 700;
+            text-shadow: 0 0 14px rgba(113, 240, 161, 0.28);
+        }
+        .dictionary-source,
+        .dictionary-target {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+        .dictionary-source {
+            color: #fff2a8;
+            font-weight: 700;
+        }
+        .dictionary-target {
+            color: #d8dee4;
+        }
+        @media (max-width: 640px) {
+            #dictionary-list {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+            .dictionary-target {
+                padding-top: 0;
+                padding-left: 14px;
+                margin-bottom: 6px;
+            }
+        }
         #theme-progress {
             display: none;
             max-width: 760px;
@@ -666,24 +712,66 @@
             remainingWordsContainer.style.display = "block";
         }
 
+        function getDictionaryEntryWords(card) {
+            if (!card) return null;
+            const sourceWord = card.spanish_word || card.text;
+            const targetWord = getLanguage() === "fi"
+                ? (card.finnish_word || card.word)
+                : card.word;
+            if (!sourceWord || !targetWord) {
+                return null;
+            }
+            return {
+                source: sourceWord,
+                target: targetWord
+            };
+        }
+
         function updateDictionary() {
             if (!Array.isArray(cards) || cards.length === 0) {
                 dictionaryContainer.style.display = "none";
-                dictionaryList.textContent = "";
+                dictionaryList.replaceChildren();
                 return;
             }
-            const pairs = [];
-            cards.forEach((card) => {
-                if (card && card.card_type === "word" && card.text && card.word) {
-                    pairs.push([card.word, card.text]);
-                }
+            const entries = [];
+            const seen = new Set();
+            cards.forEach((card, index) => {
+                const key = getDictionaryPairKey(card);
+                if (!key || seen.has(key)) return;
+                const words = getDictionaryEntryWords(card);
+                if (!words) return;
+                seen.add(key);
+                entries.push({
+                    key,
+                    source: words.source,
+                    target: words.target,
+                    highlighted: recentlyFoundPairs.has(key) || matched.has(index)
+                });
             });
-            if (pairs.length === 0) {
+            if (entries.length === 0) {
                 dictionaryContainer.style.display = "none";
-                dictionaryList.textContent = "";
+                dictionaryList.replaceChildren();
                 return;
             }
-            dictionaryList.textContent = pairs.map(([en, es]) => `${en} → ${es}`).join(", ");
+            const collator = new Intl.Collator(getLanguage() === "fi" ? "fi" : "en", {
+                sensitivity: "base"
+            });
+            entries.sort((a, b) => collator.compare(a.source, b.source));
+            const fragments = [];
+            entries.forEach((entry) => {
+                const row = document.createElement("div");
+                row.className = `dictionary-row${entry.highlighted ? " highlighted" : ""}`;
+                const source = document.createElement("div");
+                source.className = "dictionary-source";
+                source.textContent = entry.source;
+                const target = document.createElement("div");
+                target.className = "dictionary-target";
+                target.textContent = entry.target;
+                row.appendChild(source);
+                row.appendChild(target);
+                fragments.push(row);
+            });
+            dictionaryList.replaceChildren(...fragments);
             dictionaryContainer.style.display = "block";
         }
 
