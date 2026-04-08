@@ -83,7 +83,7 @@
         }
         #dictionary-list {
             display: grid;
-            grid-template-columns: repeat(2, minmax(260px, 1fr));
+            grid-template-columns: repeat(4, minmax(150px, 1fr));
             gap: 12px 18px;
         }
         .dictionary-row {
@@ -113,6 +113,12 @@
         }
         .dictionary-target {
             color: #d8dee4;
+        }
+        @media (max-width: 1120px) {
+            #dictionary-list {
+                grid-template-columns: repeat(2, minmax(220px, 1fr));
+                gap: 10px 14px;
+            }
         }
         @media (max-width: 820px) {
             #dictionary-list {
@@ -293,6 +299,7 @@
                 page_title: "Memory Game",
                 page_title_browser: "Memory Game - Game",
                 setup_building: 'Building a themed game for "{theme}"...',
+                setup_manual: '{name} is entering words for the next round...',
                 ready_label: "Ready:",
                 remaining_label: "Remaining:",
                 dictionary_label: "Dictionary:",
@@ -329,6 +336,7 @@
                 page_title: "Muistipeli",
                 page_title_browser: "Muistipeli – Peli",
                 setup_building: 'Rakennetaan teemapelia teemalle "{theme}"...',
+                setup_manual: '{name} syöttää sanoja seuraavaa kierrosta varten...',
                 ready_label: "Valmiina:",
                 remaining_label: "Löytämättä:",
                 dictionary_label: "Sanakirja:",
@@ -511,7 +519,7 @@
             if (!surrenderRoundBtn || !exitGameBtn) return;
             const show = Array.isArray(cards) && cards.length > 0 && !gameOverShown;
             surrenderRoundBtn.style.display = show ? "inline-flex" : "none";
-            exitGameBtn.style.display = "inline-flex";
+            exitGameBtn.style.display = gameOverShown ? "none" : "inline-flex";
         }
 
         function showSetupStatus(message) {
@@ -848,9 +856,7 @@
                 try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
             }
             try { sessionStorage.setItem("game_setup_mode", (data && data.mode) || "theme"); } catch (e) {}
-            const theme = (data && data.theme) || sessionStorage.getItem("game_setup_theme") || "theme";
-            showSetupStatus(t("setup_building", { theme }));
-            renderThemeProgress();
+            navigateTo("/waiting");
         });
 
         socket.on("theme_word_accepted", (data) => {
@@ -1027,6 +1033,10 @@
                 console.log("[DEBUG] Ohitetaan duplikaatti ask_for_word. lastPair=", lastPair, "incoming=", data.pair);
                 return;
             }
+            if (myName !== data.player) {
+                showSetupStatus(t("setup_manual", { name: data.player || "" }));
+                return;
+            }
             if (myName === data.player) {
                 let sana = prompt(t("prompt_word", { pair: data.pair }));
                 console.log("[DEBUG] Annettiin sana:", sana);
@@ -1070,6 +1080,10 @@
             if (!data) return;
             console.log("[DEBUG] Käsitellään pending_ask pelisivulla:", data);
             if (sessionStorage.getItem("words_given")) return; // jos jo merkitty valmiiksi
+            if (myName !== data.player) {
+                showSetupStatus(t("setup_manual", { name: data.player || "" }));
+                return;
+            }
             if (myName === data.player) {
                 let sana = prompt(t("prompt_word", { pair: data.pair }));
                 console.log("[DEBUG] (pending) Annettiin sana:", sana);
