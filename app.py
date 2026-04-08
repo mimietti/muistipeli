@@ -29,7 +29,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "180")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.0.3 (2026-04-08)"
+APP_VERSION = "Beta v0.0.4 (2026-04-08)"
 
 
 class PixabayConfigError(RuntimeError):
@@ -67,6 +67,9 @@ spanish_generation_in_progress = False
 theme_generation_in_progress = False
 # Ensure two-card selections come from the same player/turn
 current_click_sid = None
+theme_words_cache = {}
+translation_cache = {}
+pixabay_cache = {}
 
 SPANISH_TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
 ABSTRACT_THEME_WORDS = {
@@ -356,7 +359,7 @@ def append_selected_spanish_pair(word, pair_index):
         print(f"[INFO] Espanjan kaannos ei kelpaa sanalle '{word}', haetaan korvaaja")
         return False
 
-    finnish_word = translate_word_to_finnish(word) or word
+    finnish_word = word
     print(f"[INFO] Kokeillaan espanjapariksi '{word}' -> '{spanish_word}' parille {pair_index + 1}")
     image_paths = fetch_and_save_pixabay_images(word, pair_index, required_count=1)
     if not image_paths:
@@ -442,19 +445,23 @@ def fetch_theme_words(theme, max_results=60, require_noun=False, exclude_proper=
     theme = str(theme or "").strip()
     if not theme:
         return []
+    cache_key = (theme.lower(), int(max_results), bool(require_noun), bool(exclude_proper))
+    cached = theme_words_cache.get(cache_key)
+    if cached is not None:
+        debug(f"[DEBUG] Datamuse-cache osuma teemalle '{theme}'")
+        return list(cached)
 
     print(f"[INFO] Haetaan Datamusesta teemasanat teemalle '{theme}'")
     all_words = []
     seen = set()
     # Request part-of-speech tags (md=p) so we can filter nouns and proper nouns.
-    query_variants = [
-        {"ml": theme, "max": max_results, "md": "p"},
-        {"topics": theme, "max": max_results, "md": "p"},
-    ]
+    query_variants = [{"ml": theme, "max": max_results, "md": "p"}]
+    fallback_variant = {"topics": theme, "max": max_results, "md": "p"}
+    target_min = min(max_results, 32)
 
-    for params in query_variants:
+    for index, params in enumerate(query_variants):
         try:
-            response = requests.get("https://api.datamuse.com/words", params=params, timeout=10)
+            response = requests.get("https://api.datamuse.com/words", params=params, timeout=6)
             response.raise_for_status()
             payload = response.json()
         except requests.RequestException as e:
@@ -483,8 +490,12 @@ def fetch_theme_words(theme, max_results=60, require_noun=False, exclude_proper=
             seen.add(word)
             all_words.append(word)
 
+        if index == 0 and len(all_words) < target_min:
+            query_variants.append(fallback_variant)
+
     preview = ", ".join(all_words[:12]) if all_words else "(ei sanoja)"
     print(f"[INFO] Datamuse ehdotti teemalle '{theme}' {len(all_words)} sanaa: {preview}")
+    theme_words_cache[cache_key] = list(all_words)
     return all_words
 
 
@@ -492,17 +503,21 @@ def translate_word(word, source_lang, target_lang):
     normalized_word = normalize_candidate_word(word)
     if not normalized_word:
         return None
+    cache_key = (normalized_word, source_lang, target_lang)
+    if cache_key in translation_cache:
+        return translation_cache[cache_key]
 
     try:
         response = requests.get(
             SPANISH_TRANSLATION_API_URL,
             params={"q": normalized_word, "langpair": f"{source_lang}|{target_lang}"},
-            timeout=10
+            timeout=5
         )
         response.raise_for_status()
         payload = response.json()
     except (requests.RequestException, ValueError) as e:
         print(f"[WARNING] Kaannos epÃ¤onnistui sanalle '{normalized_word}' ({source_lang}->{target_lang}): {e}")
+        translation_cache[cache_key] = None
         return None
 
     translated_text = (
@@ -511,16 +526,20 @@ def translate_word(word, source_lang, target_lang):
     )
     translated_text = re.sub(r"\s*\(.*?\)\s*", " ", translated_text).strip()
     if any(separator in translated_text for separator in [",", ";", "/", "|"]):
+        translation_cache[cache_key] = None
         return None
 
     normalized_translation = normalize_spanish_word(translated_text)
     if not normalized_translation:
+        translation_cache[cache_key] = None
         return None
     if (
         target_lang != "es"
         and normalize_candidate_word(normalized_translation) == normalized_word
     ):
+        translation_cache[cache_key] = None
         return None
+    translation_cache[cache_key] = normalized_translation
     return normalized_translation
 
 
@@ -783,7 +802,7 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
             theme_rejected_words.add(english_word)
             continue
 
-        finnish_word = translate_word_to_finnish(english_word) or english_word
+        finnish_word = english_word
 
         if not spanish_setup_still_active(theme):
             print("[INFO] Espanjapelin generointi keskeytettiin, koska pelitila muuttui")
@@ -1493,26 +1512,33 @@ def fetch_and_save_pixabay_images(word, pair_index, required_count=2):
         "q": word,
         "image_type": "photo",
         "orientation": "horizontal",
-        "per_page": 8,
+        "per_page": 6,
         "safesearch": "true"
     }
-    try:
-        response = requests.get(url, params=params, timeout=15)
-        if response.status_code in {400, 401, 403}:
-            raise PixabayConfigError("Pixabay rejected the request. Check PIXABAY_API_KEY in Render and .env.")
-        response.raise_for_status()
-    except requests.RequestException as e:
-        print(f"[ERROR] Pixabay-pyyntÃ¶ epÃ¤onnistui: {e}")
-        return None
-    debug(f"[DEBUG] Pixabay HTTP status: {response.status_code}")
+    cache_key = normalize_candidate_word(word) or str(word or "").strip().lower()
+    hits = pixabay_cache.get(cache_key)
+    if hits is None:
+        try:
+            response = requests.get(url, params=params, timeout=8)
+            if response.status_code in {400, 401, 403}:
+                raise PixabayConfigError("Pixabay rejected the request. Check PIXABAY_API_KEY in Render and .env.")
+            response.raise_for_status()
+        except requests.RequestException as e:
+            print(f"[ERROR] Pixabay-pyyntÃ¶ epÃ¤onnistui: {e}")
+            return None
+        debug(f"[DEBUG] Pixabay HTTP status: {response.status_code}")
 
-    try:
-        data = response.json()
-    except Exception as e:
-        print(f"[ERROR] Pixabay JSON decode error: {e}")
-        return None
+        try:
+            data = response.json()
+        except Exception as e:
+            print(f"[ERROR] Pixabay JSON decode error: {e}")
+            return None
 
-    hits = data.get("hits") or []
+        hits = data.get("hits") or []
+        pixabay_cache[cache_key] = list(hits)
+    else:
+        debug(f"[DEBUG] Pixabay-cache osuma sanalle: {word}")
+
     selected_hits = []
     skipped_duplicates = 0
     local_ids = set()
