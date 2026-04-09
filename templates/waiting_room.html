@@ -495,7 +495,16 @@
 
         function t(key, vars = {}) {
             const lang = getLanguage();
-            let value = (translations[lang] && translations[lang][key]) || translations.en[key] || key;
+            const langTable = translations[lang] || {};
+            const enTable = translations.en || {};
+            let value;
+            if (Object.prototype.hasOwnProperty.call(langTable, key)) {
+                value = langTable[key];
+            } else if (Object.prototype.hasOwnProperty.call(enTable, key)) {
+                value = enTable[key];
+            } else {
+                value = key;
+            }
             Object.entries(vars).forEach(([name, replacement]) => {
                 value = value.replaceAll(`{${name}}`, String(replacement));
             });
@@ -838,7 +847,7 @@
                 selectedLabel.className = "theme-section-label";
                 selectedLabel.textContent = t("theme_selection_selected_label");
                 selectedWordsEl.appendChild(selectedLabel);
-                const selectedSubtitleText = t("theme_selection_selected_subtitle");
+                const selectedSubtitleText = state.theme || t("theme_selection_selected_subtitle");
                 if (selectedSubtitleText) {
                     const selectedSubtitle = document.createElement("div");
                     selectedSubtitle.className = "theme-section-subtitle";
@@ -856,7 +865,7 @@
                         const button = document.createElement("button");
                         button.type = "button";
                         button.className = "selected-word-chip";
-                        button.textContent = item.word;
+                        button.textContent = item.display_word || item.word;
                         if (selectedReplacementWord === item.word) {
                             button.classList.add("active");
                         }
@@ -882,14 +891,18 @@
                     themeCandidatesEl.appendChild(candidatesSubtitle);
                     const candidatesPanel = document.createElement("div");
                     candidatesPanel.className = "theme-selection-panel";
-                    (state.candidates || []).forEach((word) => {
+                    const candidateWords = Array.isArray(state.candidate_words) && state.candidate_words.length
+                        ? state.candidate_words
+                        : (state.candidates || []).map((word) => ({ word, display_word: word }));
+                    candidateWords.forEach((candidate) => {
+                        const word = candidate.word;
                         if (selectedSet.has(word)) {
                             return;
                         }
                         const button = document.createElement("button");
                         button.type = "button";
                         button.className = "theme-word-chip available";
-                        button.textContent = word;
+                        button.textContent = candidate.display_word || word;
                         if (rejectedWords.has(word)) {
                             button.classList.add("rejected");
                             button.disabled = true;
@@ -913,15 +926,20 @@
                     themeCandidatesEl.style.display = "none";
                 }
 
-                themeReadyBtn.textContent = myReady ? t("theme_selection_unready") : t("theme_selection_ready");
-                themeReadyBtn.classList.toggle("ready", myReady);
-                themeReadyBtn.onclick = () => {
-                    socket.emit("set_theme_ready", {
-                        ready: !myReady,
-                        username: myNameNow,
-                        reconnect_token: getReconnectToken()
-                    });
-                };
+                if (myReady) {
+                    themeReadyBtn.style.display = "none";
+                } else {
+                    themeReadyBtn.style.display = "inline-flex";
+                    themeReadyBtn.textContent = t("theme_selection_ready");
+                    themeReadyBtn.classList.remove("ready");
+                    themeReadyBtn.onclick = () => {
+                        socket.emit("set_theme_ready", {
+                            ready: true,
+                            username: myNameNow,
+                            reconnect_token: getReconnectToken()
+                        });
+                    };
+                }
             }
 
             renderSetupStatus(window.currentSetupState || { active: false });

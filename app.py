@@ -32,6 +32,7 @@ RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "180"
 PAGE_TRANSITION_GRACE_SECONDS = 5
 APP_VERSION = "Beta v0.0.4 (2026-04-08)"
 BOT_USERNAME = "Muistibotti"
+current_ui_language = "en"
 
 
 class PixabayConfigError(RuntimeError):
@@ -104,7 +105,7 @@ ABSTRACT_THEME_WORDS = {
 
 
 def reset_pending_state():
-    global current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, theme_selection_state, used_pixabay_image_ids, spanish_generation_in_progress, theme_generation_in_progress, current_click_sid, bot_turn_scheduled
+    global current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, theme_selection_state, used_pixabay_image_ids, spanish_generation_in_progress, theme_generation_in_progress, current_click_sid, bot_turn_scheduled, current_ui_language
     globals().pop('pending_pair', None)
     globals().pop('pending_words', None)
     globals().pop('pending_player', None)
@@ -119,6 +120,7 @@ def reset_pending_state():
     theme_generation_in_progress = False
     current_click_sid = None
     bot_turn_scheduled = False
+    current_ui_language = "en"
 
 
 def is_bot_player(player_or_name):
@@ -359,9 +361,17 @@ def build_theme_selection_payload(message=None):
         "selected_words": [
             {
                 "word": item.get("word"),
+                "display_word": item.get("display_word", item.get("word")),
                 "chosen_by": item.get("chosen_by")
             }
             for item in theme_selection_state.get("selected_words", [])
+        ],
+        "candidate_words": [
+            {
+                "word": word,
+                "display_word": theme_selection_state.get("candidate_labels", {}).get(word, word)
+            }
+            for word in theme_selection_state.get("candidates", [])
         ],
         "rejected_words": list(theme_selection_state.get("rejected_words", [])),
         "counts": dict(theme_selection_state.get("counts", {})),
@@ -385,6 +395,28 @@ def deactivate_theme_selection():
     theme_selection_state = {}
     theme_generation_in_progress = False
     spanish_generation_in_progress = False
+
+
+def get_theme_display_word(word, entry=None):
+    base_word = str(word or "").strip()
+    if not base_word:
+        return ""
+    if current_ui_language != "fi":
+        return base_word
+    if entry and entry.get("type") == "spanish":
+        pair = entry.get("pair") or {}
+        finnish_word = (pair.get("finnish_word") or "").strip()
+        if finnish_word:
+            return finnish_word
+    translated = translate_word_to_finnish(base_word)
+    return translated or base_word
+
+
+def build_candidate_labels(words):
+    labels = {}
+    for word in words or []:
+        labels[word] = get_theme_display_word(word)
+    return labels
 
 
 def build_theme_candidate_list(search_theme, candidate_count=24):
@@ -445,6 +477,7 @@ def prepare_theme_selection(starter_name):
             continue
         selected_words.append({
             "word": word,
+            "display_word": get_theme_display_word(word, pair_entry),
             "chosen_by": "System",
             "entry": pair_entry
         })
@@ -463,6 +496,7 @@ def prepare_theme_selection(starter_name):
         "search_theme": search_theme,
         "starter_name": starter_name,
         "candidates": remaining_candidates,
+        "candidate_labels": build_candidate_labels(remaining_candidates),
         "selected_words": selected_words,
         "rejected_words": rejected_words,
         "counts": counts,
@@ -486,7 +520,7 @@ def append_selected_spanish_pair(word, pair_index):
         print(f"[INFO] Espanjan kaannos ei kelpaa sanalle '{word}', haetaan korvaaja")
         return False
 
-    finnish_word = word
+    finnish_word = translate_word_to_finnish(word) or word
     print(f"[INFO] Kokeillaan espanjapariksi '{word}' -> '{spanish_word}' parille {pair_index + 1}")
     image_paths = fetch_and_save_pixabay_images(word, pair_index, required_count=1)
     if not image_paths:
@@ -1367,7 +1401,7 @@ def on_disconnect():
 
 @socketio.on("start_custom_game")
 def handle_start_custom_game(data=None):
-    global pending_words, pending_player, pending_pair, grid_data, player_order, current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words
+    global pending_words, pending_player, pending_pair, grid_data, player_order, current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, current_ui_language
     data = data or {}
     print(f"[INFO] Uusi erÃ¤ kÃ¤ynnistetÃ¤Ã¤n. Tila: mode={data.get('mode', 'manual')}, players={get_effective_player_count()}")
     # Jos peli on jo kÃ¤ynnissÃ¤, mutta pelaajien reconnect_tokenit ovat vaihtuneet, nollaa peli
@@ -1395,6 +1429,7 @@ def handle_start_custom_game(data=None):
     ui_language = str(data.get("ui_language", "")).strip().lower()
     if mode not in {"manual", "theme", "spanish"}:
         mode = "manual"
+    current_ui_language = ui_language if ui_language in {"fi", "en"} else "en"
     if mode in {"theme", "spanish"} and not theme:
         emit("game_setup_error", {"reason": "Teema puuttuu."}, broadcast=True)
         return
@@ -1550,15 +1585,20 @@ def handle_select_theme_word(data):
     previous_word = previous_item.get("word")
     selected_words[selected_index] = {
         "word": word,
+        "display_word": get_theme_display_word(word, selection_ok),
         "chosen_by": username,
         "entry": selection_ok
     }
     counts[username] = counts.get(username, 0) + 1
     for player_name in list(ready.keys()):
-        ready[player_name] = False
+        ready[player_name] = is_bot_player(player_name)
     theme_selection_state["candidates"] = [candidate for candidate in candidates if candidate != word]
     if previous_word and previous_word not in rejected_words and previous_word not in theme_selection_state["candidates"]:
         theme_selection_state["candidates"].append(previous_word)
+    candidate_labels = theme_selection_state.setdefault("candidate_labels", {})
+    candidate_labels.pop(word, None)
+    if previous_word and previous_word not in rejected_words:
+        candidate_labels[previous_word] = previous_item.get("display_word") or get_theme_display_word(previous_word, previous_item.get("entry"))
     emit_theme_selection_state(message=f"word_swapped:{previous_word}:{word}")
 
 
