@@ -925,6 +925,13 @@
         socket.on("game_setup_error", (data) => {
             const reason = localizeServerMessage((data && data.reason) || t("game_setup_failed"));
             console.error("[DEBUG] game_setup_error:", reason);
+            const failedMode = sessionStorage.getItem("game_setup_mode");
+            const failedTheme = sessionStorage.getItem("game_setup_theme") || "";
+            if (failedMode === "theme" || failedMode === "spanish") {
+                try {
+                    sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: failedMode, theme: failedTheme }));
+                } catch (e) {}
+            }
             try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
             try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
             hideSetupStatus();

@@ -928,6 +928,7 @@
             renderThemeSelection(window.currentThemeSelectionState || { active: false });
 
             function updateLobbyFromPayload(payload) {
+                window.latestLobbyPayload = payload || {};
                 const players = (payload && payload.players) || [];
                 const playersInfo = (payload && payload.players_info) || [];
                 const lastJoinedToken = payload && payload.last_joined_token;
@@ -949,6 +950,13 @@
                     && (!window.currentSetupState || !window.currentSetupState.active)) {
                     document.getElementById("startOptions").style.display = "none";
                 }
+            }
+
+            function canCurrentPlayerStartRound() {
+                const payload = window.latestLobbyPayload || {};
+                const myToken = getReconnectToken();
+                const lastJoinedToken = payload && payload.last_joined_token;
+                return Boolean(myToken && lastJoinedToken && myToken === lastJoinedToken);
             }
 
             function emitJoin() {
@@ -1162,12 +1170,24 @@
             socket.on("game_setup_error", (data) => {
                 const reason = localizeServerMessage((data && data.reason) || t("setup_failed"));
                 console.error("[DEBUG] game_setup_error:", reason);
+                const failedMode = sessionStorage.getItem("game_setup_mode");
+                const failedTheme = sessionStorage.getItem("game_setup_theme") || "";
                 try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
                 try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 renderSetupStatus({ active: false });
                 window.currentThemeSelectionState = { active: false };
                 renderThemeSelection(window.currentThemeSelectionState);
                 alert(reason);
+                updateLobbyFromPayload(window.latestLobbyPayload || {});
+                if (canCurrentPlayerStartRound() && (failedMode === "theme" || failedMode === "spanish")) {
+                    setTimeout(() => {
+                        if (failedMode === "theme") {
+                            startThemeRound(failedTheme);
+                        } else {
+                            startSpanishRound(failedTheme);
+                        }
+                    }, 0);
+                }
             });
             socket.on("game_aborted", (data) => {
                 const reason = localizeServerMessage((data && data.reason) || t("game_aborted"));

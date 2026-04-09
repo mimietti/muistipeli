@@ -70,8 +70,28 @@ current_click_sid = None
 theme_words_cache = {}
 translation_cache = {}
 pixabay_cache = {}
+theme_translation_cache = {}
 
 SPANISH_TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
+THEME_TRANSLATION_OVERRIDES = {
+    "ravintola": "restaurant",
+    "ruoka": "food",
+    "hedelmät": "fruits",
+    "hedelmat": "fruits",
+    "eläimet": "animals",
+    "elaimet": "animals",
+    "eläin": "animal",
+    "elain": "animal",
+    "urheilu": "sport",
+    "olut": "beer",
+    "juoma": "drink",
+    "juomat": "drinks",
+    "keittiö": "kitchen",
+    "keittio": "kitchen",
+}
+THEME_TRANSLATION_FIXES = {
+    "resturant": "restaurant",
+}
 ABSTRACT_THEME_WORDS = {
     "ability", "advice", "anger", "belief", "concept", "courage", "emotion", "faith",
     "freedom", "friendship", "future", "happiness", "hope", "idea", "justice",
@@ -555,8 +575,20 @@ def translate_theme_to_english(theme, ui_language):
     theme_text = str(theme or "").strip()
     if not theme_text:
         return None
+    theme_key = normalize_candidate_word(theme_text)
+    cache_key = (theme_key or theme_text.lower(), ui_language)
+    if cache_key in theme_translation_cache:
+        return theme_translation_cache[cache_key]
     if ui_language != "fi":
-        return theme_text
+        translated = THEME_TRANSLATION_FIXES.get(theme_text.lower(), theme_text)
+        theme_translation_cache[cache_key] = translated
+        return translated
+
+    if theme_key and theme_key in THEME_TRANSLATION_OVERRIDES:
+        translated = THEME_TRANSLATION_OVERRIDES[theme_key]
+        print(f"[INFO] Teema käännettiin paikallisella sanastolla: '{theme_text}' -> '{translated}'")
+        theme_translation_cache[cache_key] = translated
+        return translated
 
     try:
         response = requests.get(
@@ -568,15 +600,19 @@ def translate_theme_to_english(theme, ui_language):
         payload = response.json()
     except (requests.RequestException, ValueError) as e:
         print(f"[WARNING] Teeman kaanto suomesta englanniksi epÃ¤onnistui ('{theme_text}'): {e}")
+        theme_translation_cache[cache_key] = theme_text
         return theme_text
 
     translated_text = ((payload.get("responseData") or {}).get("translatedText") or "").strip()
     translated_text = re.sub(r"\s*\(.*?\)\s*", " ", translated_text).strip()
     translated_text = re.sub(r"\s+", " ", translated_text)
     if not translated_text or any(separator in translated_text for separator in [";", "/", "|"]):
+        theme_translation_cache[cache_key] = theme_text
         return theme_text
+    translated_text = THEME_TRANSLATION_FIXES.get(translated_text.lower(), translated_text)
 
     print(f"[INFO] Teema kaannettiin suomesta englanniksi: '{theme_text}' -> '{translated_text}'")
+    theme_translation_cache[cache_key] = translated_text
     return translated_text
 
 
