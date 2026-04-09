@@ -63,15 +63,42 @@
         }
         #languagePicker {
             margin-bottom: 28px;
-            color: #ddd;
-            font-size: 16px;
+            display: flex;
+            justify-content: center;
         }
-        #languagePicker select {
-            margin-left: 8px;
-            font-size: 15px;
-            padding: 6px 10px;
-            border-radius: 6px;
-            border: none;
+        .flag-toggle {
+            display: inline-flex;
+            gap: 10px;
+            padding: 6px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .flag-btn {
+            width: 48px;
+            height: 36px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+        }
+        .flag-btn:hover {
+            transform: translateY(-1px);
+            background: rgba(255,255,255,0.05);
+        }
+        .flag-btn.is-active {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.16);
+        }
+        .flag-svg {
+            width: 26px;
+            height: 18px;
+            display: block;
         }
         #lobbyStatus {
             min-height: 82px;
@@ -115,11 +142,24 @@
 <body>
     <div class="hero">
         <div id="languagePicker">
-            <label for="languageSelect" id="languageLabel">Language</label>
-            <select id="languageSelect">
-                <option value="en">English</option>
-                <option value="fi">Suomi</option>
-            </select>
+            <div class="flag-toggle" role="group" aria-label="Language selection">
+                <button type="button" class="flag-btn" data-lang="fi" aria-label="Suomi" title="Suomi">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="18" height="11" fill="#fff"/>
+                        <rect x="5" width="3" height="11" fill="#003580"/>
+                        <rect y="4" width="18" height="3" fill="#003580"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="en" aria-label="English" title="English">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="18" height="11" fill="#012169"/>
+                        <path d="M0 0l18 11M18 0L0 11" stroke="#fff" stroke-width="2.4"/>
+                        <path d="M0 0l18 11M18 0L0 11" stroke="#C8102E" stroke-width="1.2"/>
+                        <path d="M9 0v11M0 5.5h18" stroke="#fff" stroke-width="3.6"/>
+                        <path d="M9 0v11M0 5.5h18" stroke="#C8102E" stroke-width="2"/>
+                    </svg>
+                </button>
+            </div>
         </div>
         <h1 id="pageTitle">Welcome to Memory Game!!!</h1>
         <p id="introText"></p>
@@ -188,13 +228,16 @@
 
         function applyTranslations() {
             document.title = t("page_title");
-            document.getElementById("languageLabel").textContent = t("language");
             document.getElementById("pageTitle").textContent = t("page_title");
             document.getElementById("introText").textContent = t("intro_text");
             document.getElementById("joinBtn").textContent = t("join");
             document.getElementById("joinBotBtn").textContent = t("join_bot");
             document.getElementById("nameInput").placeholder = t("name_placeholder");
-            document.getElementById("languageSelect").value = getLanguage();
+            document.querySelectorAll(".flag-btn").forEach((button) => {
+                const active = button.dataset.lang === getLanguage();
+                button.classList.toggle("is-active", active);
+                button.setAttribute("aria-pressed", active ? "true" : "false");
+            });
             document.querySelector(".footer-credit").textContent = `© Michael Miettinen • ${APP_VERSION}`;
             renderLobbyStatus(window.currentLobbyPlayers || []);
         }
@@ -265,9 +308,11 @@
             window.location.href = path;
         }
 
-        document.getElementById("languageSelect").addEventListener("change", (event) => {
-            setLanguage(event.target.value);
-            applyTranslations();
+        document.querySelectorAll(".flag-btn").forEach((button) => {
+            button.addEventListener("click", () => {
+                setLanguage(button.dataset.lang);
+                applyTranslations();
+            });
         });
 
         function joinGame(vsBot = false) {

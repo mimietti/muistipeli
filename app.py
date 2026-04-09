@@ -414,6 +414,10 @@ def get_theme_display_word(word, entry=None):
     return translated or base_word
 
 
+def normalize_display_label(word):
+    return normalize_candidate_word(str(word or "").strip())
+
+
 def build_candidate_labels(words):
     labels = {}
     for word in words or []:
@@ -464,6 +468,7 @@ def prepare_theme_selection(starter_name):
         "progress_count": pending_pair,
         "total_pairs": 8
     })
+    socketio.sleep(0)
 
     for word in candidates:
         if len(selected_words) >= 8:
@@ -479,12 +484,25 @@ def prepare_theme_selection(starter_name):
             rejected_words.append(word)
             theme_rejected_words.add(word)
             continue
+        display_word = get_theme_display_word(word, pair_entry)
+        display_key = normalize_display_label(display_word)
+        if display_key and any(normalize_display_label(item.get("display_word", item.get("word"))) == display_key for item in selected_words):
+            remaining_candidates.append(word)
+            continue
         selected_words.append({
             "word": word,
-            "display_word": get_theme_display_word(word, pair_entry),
+            "display_word": display_word,
             "chosen_by": "System",
             "entry": pair_entry
         })
+        socketio.emit("theme_word_accepted", {
+            "theme": pending_theme,
+            "word": word,
+            "pair": len(selected_words),
+            "total_pairs": 8,
+            "mode": current_game_mode
+        })
+        socketio.sleep(0)
 
     if len(selected_words) < 8:
         message = f"Teemasta '{pending_theme}' ei lÃƒÂ¶ytynyt tarpeeksi kÃƒÂ¤yttÃƒÂ¶kelpoisia sanoja. Kokeile toista teemaa."
@@ -950,6 +968,7 @@ def generate_theme_pair():
                 "pair": pair_index + 1,
                 "total_pairs": 8
             })
+            socketio.sleep(0)
             pending_pair += 1
             # Allow next pair generation
             theme_generation_in_progress = False
@@ -1037,6 +1056,7 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
             "total_pairs": target_pairs,
             "mode": "spanish"
         })
+        socketio.sleep(0)
         pending_pair += 1
 
     if not spanish_setup_still_active(theme):
@@ -1217,6 +1237,7 @@ def handle_grid_request():
                         },
                         broadcast=True
                     )
+                    socketio.sleep(0)
                     return
                 if len(player_order) < 1:
                     # Fallback jÃ¤rjestys
@@ -1476,6 +1497,7 @@ def handle_start_custom_game(data=None):
             "progress_count": pending_pair,
             "total_pairs": 8
         })
+        socketio.sleep(0)
         prepare_theme_selection(starter_name)
         return
     ask_next_word()
@@ -1513,6 +1535,7 @@ def ask_next_word():
             "progress_count": pending_pair,
             "total_pairs": 8
         })
+        socketio.sleep(0)
         global theme_generation_in_progress
         if theme_generation_in_progress:
             debug("[DEBUG] Teemagenerointi on jo kaynnissa, ei kaynnisteta toista taustatehtavaa")
@@ -1534,6 +1557,7 @@ def ask_next_word():
             "progress_count": pending_pair,
             "total_pairs": 8
         })
+        socketio.sleep(0)
         global spanish_generation_in_progress
         if spanish_generation_in_progress:
             debug("[DEBUG] Espanjan generointi on jo kaynnissa, ei kaynnisteta toista taustatehtavaa")
@@ -1610,9 +1634,17 @@ def handle_select_theme_word(data):
 
     previous_item = selected_words[selected_index]
     previous_word = previous_item.get("word")
+    next_display_word = get_theme_display_word(word, selection_ok)
+    next_display_key = normalize_display_label(next_display_word)
+    for index, item in enumerate(selected_words):
+        if index == selected_index:
+            continue
+        if normalize_display_label(item.get("display_word", item.get("word"))) == next_display_key:
+            emit("theme_selection_failed", {"reason": "word_unavailable"})
+            return
     selected_words[selected_index] = {
         "word": word,
-        "display_word": get_theme_display_word(word, selection_ok),
+        "display_word": next_display_word,
         "chosen_by": username,
         "entry": selection_ok
     }
@@ -1628,6 +1660,9 @@ def handle_select_theme_word(data):
     if previous_word and previous_word not in rejected_words:
         candidate_labels[previous_word] = previous_item.get("display_word") or get_theme_display_word(previous_word, previous_item.get("entry"))
     emit_theme_selection_state(message=f"word_swapped:{previous_word}:{word}")
+    if player_order and all(ready.get(name, False) for name in player_order):
+        print(f"[INFO] Kaikki pelaajat valmiina vaihdon jälkeen – aloitetaan {current_game_mode}-erä teemalla '{pending_theme}'")
+        finalize_theme_selection()
 
 
 @socketio.on("set_theme_ready")
