@@ -359,10 +359,11 @@
                 page_title: "Waiting Room",
                 language: "Language",
                 intro_text: "The game starts from the waiting room once two players are connected. The second player can choose whether the round uses your own words, a theme-based word set, or Spanish study pairs.",
-                first_player: "You are player 1.",
-                second_player: "You are player 2.",
-                spectator_player: "You are waiting for an open player slot.",
-                hint: "Tip: only the second player to join can start the game.",
+                welcome_player: "Welcome, {name}!",
+                spectator_player: "Welcome, {name}!",
+                status_waiting_for_player: "Status: waiting for another player.",
+                status_choose_round: "Status: choose how the next round starts.",
+                status_room_full: "Status: both player slots are full.",
                 start_options: "Choose how words are provided for this round.",
                 enter_words: "Enter your own words",
                 enter_theme: "Enter theme",
@@ -420,10 +421,11 @@
                 page_title: "Odotushuone",
                 language: "Kieli",
                 intro_text: "Peli alkaa odotushuoneesta, kun kaksi pelaajaa on paikalla. Toisena liittynyt pelaaja voi valita, käytetäänkö erässä omia sanoja, teemaan perustuvia sanoja vai espanjan opiskelupareja.",
-                first_player: "Olet pelaaja 1.",
-                second_player: "Olet pelaaja 2.",
-                spectator_player: "Odotat vapaata pelaajapaikkaa.",
-                hint: "Vinkki: vain toisena liittynyt voi aloittaa pelin.",
+                welcome_player: "Tervetuloa, {name}!",
+                spectator_player: "Tervetuloa, {name}!",
+                status_waiting_for_player: "Status: odotetaan toista pelaajaa.",
+                status_choose_round: "Status: valitse, miten seuraava erä alkaa.",
+                status_room_full: "Status: molemmat pelaajapaikat ovat varattuina.",
                 start_options: "Valitse miten sanat annetaan tähän erään.",
                 enter_words: "Syötä omat sanat",
                 enter_theme: "Syötä teema",
@@ -516,20 +518,29 @@
         function renderPlayerRole(playersInfo) {
             window.latestPlayersInfo = Array.isArray(playersInfo) ? playersInfo : [];
             const roleDiv = document.getElementById("playerRole");
+            const hintDiv = document.getElementById("hint");
             if (!roleDiv) return;
             const myToken = getReconnectToken();
+            const myName = (localStorage.getItem("username") || "").trim();
             const myIndex = window.latestPlayersInfo.findIndex((player) => (
                 player && player.reconnect_token === myToken
             ));
             if (myIndex === 0) {
-                roleDiv.textContent = t("first_player");
+                roleDiv.textContent = t("welcome_player", { name: myName || "Player" });
+                if (hintDiv) hintDiv.textContent = t("status_waiting_for_player");
                 return;
             }
             if (myIndex === 1) {
-                roleDiv.textContent = t("second_player");
+                roleDiv.textContent = t("welcome_player", { name: myName || "Player" });
+                if (hintDiv) hintDiv.textContent = t("status_choose_round");
                 return;
             }
-            roleDiv.textContent = window.latestPlayersInfo.length >= 2 ? t("spectator_player") : "";
+            roleDiv.textContent = t("spectator_player", { name: myName || "Player" });
+            if (hintDiv) {
+                hintDiv.textContent = window.latestPlayersInfo.length >= 2
+                    ? t("status_room_full")
+                    : t("status_waiting_for_player");
+            }
         }
 
         function applyTranslations() {
@@ -539,7 +550,6 @@
             document.getElementById("languageSelect").value = getLanguage();
             document.getElementById("pageTitle").textContent = t("page_title");
             document.getElementById("introText").textContent = t("intro_text");
-            document.getElementById("hint").textContent = t("hint");
             document.getElementById("startOptionsText").textContent = t("start_options");
             document.getElementById("manualStartBtn").textContent = t("enter_words");
             document.getElementById("themeStartBtn").textContent = t("enter_theme");
