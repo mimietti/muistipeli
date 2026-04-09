@@ -12,6 +12,7 @@ import os
 import re
 import time
 import requests
+import uuid
 from dotenv import load_dotenv   # <-- TÃ„MÃ„
 from collections import defaultdict
 load_dotenv()                   # <--
@@ -30,6 +31,7 @@ VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "y
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "180")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 APP_VERSION = "Beta v0.0.4 (2026-04-08)"
+BOT_USERNAME = "Muistibotti"
 
 
 class PixabayConfigError(RuntimeError):
@@ -71,6 +73,7 @@ theme_words_cache = {}
 translation_cache = {}
 pixabay_cache = {}
 theme_translation_cache = {}
+bot_turn_scheduled = False
 
 SPANISH_TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
 THEME_TRANSLATION_OVERRIDES = {
@@ -101,7 +104,7 @@ ABSTRACT_THEME_WORDS = {
 
 
 def reset_pending_state():
-    global current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, theme_selection_state, used_pixabay_image_ids, spanish_generation_in_progress, theme_generation_in_progress, current_click_sid
+    global current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, theme_selection_state, used_pixabay_image_ids, spanish_generation_in_progress, theme_generation_in_progress, current_click_sid, bot_turn_scheduled
     globals().pop('pending_pair', None)
     globals().pop('pending_words', None)
     globals().pop('pending_player', None)
@@ -115,6 +118,107 @@ def reset_pending_state():
     spanish_generation_in_progress = False
     theme_generation_in_progress = False
     current_click_sid = None
+    bot_turn_scheduled = False
+
+
+def is_bot_player(player_or_name):
+    if isinstance(player_or_name, dict):
+        return bool(player_or_name.get("is_bot"))
+    if isinstance(player_or_name, str):
+        return any(
+            info.get("username") == player_or_name and info.get("is_bot")
+            for info in players.values()
+        )
+    return False
+
+
+def get_human_player_items():
+    return [(sid, data) for sid, data in players.items() if not is_bot_player(data)]
+
+
+def get_effective_human_player_items():
+    return [(sid, data) for sid, data in get_effective_player_items() if not is_bot_player(data)]
+
+
+def remove_bot_players():
+    removed = False
+    for sid, info in list(players.items()):
+        if is_bot_player(info):
+            del players[sid]
+            removed = True
+    return removed
+
+
+def ensure_bot_opponent():
+    if any(is_bot_player(info) for info in players.values()):
+        return
+    bot_sid = f"bot:{uuid.uuid4()}"
+    bot_token = f"bot-{uuid.uuid4()}"
+    players[bot_sid] = {
+        "username": BOT_USERNAME,
+        "reconnect_token": bot_token,
+        "connected": True,
+        "disconnected_at": None,
+        "is_bot": True
+    }
+    print(f"[INFO] {BOT_USERNAME} lisättiin bot-vastustajaksi.")
+
+
+def get_first_human_player_name():
+    for player in get_effective_players_ordered():
+        if not is_bot_player(player):
+            return player.get("username")
+    return player_order[0] if player_order else None
+
+
+def get_active_bot_identity():
+    for sid, info in get_effective_player_items():
+        if is_bot_player(info):
+            return sid, info
+    return None, None
+
+
+def schedule_bot_turn_if_needed(delay=0.9):
+    global bot_turn_scheduled
+    if bot_turn_scheduled:
+        return
+    if not grid_data or len(grid_data) < 2:
+        return
+    if not player_order or turn >= len(player_order):
+        return
+    if not is_bot_player(player_order[turn]):
+        return
+    bot_sid, bot_info = get_active_bot_identity()
+    if not bot_info:
+        return
+
+    bot_turn_scheduled = True
+
+    def bot_take_turn():
+        global bot_turn_scheduled
+        try:
+            socketio.sleep(delay)
+            if not grid_data or not player_order or turn >= len(player_order):
+                return
+            if not is_bot_player(player_order[turn]):
+                return
+            available_indices = [
+                index for index in range(len(grid_data))
+                if index not in matched_indices and index not in revealed_cards
+            ]
+            if len(available_indices) < 2:
+                return
+            first_index, second_index = random.sample(available_indices, 2)
+            process_card_click(first_index, bot_sid, bot_info)
+            socketio.sleep(0.5)
+            if grid_data and player_order and turn < len(player_order) and is_bot_player(player_order[turn]):
+                process_card_click(second_index, bot_sid, bot_info)
+        finally:
+            bot_turn_scheduled = False
+            if grid_data and player_order and turn < len(player_order) and is_bot_player(player_order[turn]):
+                schedule_bot_turn_if_needed(delay=1.0)
+
+    socketio.start_background_task(bot_take_turn)
 
 
 def get_active_player_items():
@@ -312,7 +416,7 @@ def prepare_theme_selection(starter_name):
         return
 
     counts = {name: 0 for name in player_order}
-    ready = {name: False for name in player_order}
+    ready = {name: is_bot_player(name) for name in player_order}
     selected_words = []
     rejected_words = []
     remaining_candidates = []
@@ -371,6 +475,9 @@ def prepare_theme_selection(starter_name):
     }
     print(f"[INFO] Teeman '{pending_theme}' sanavalinta aloitettu tilassa '{current_game_mode}'. Ehdokkaita: {len(candidates)}")
     emit_theme_selection_state()
+    if player_order and all(ready.get(name, False) for name in player_order):
+        print(f"[INFO] Kaikki pelaajat valmiina â€“ aloitetaan {current_game_mode}-erÃ¤ teemalla '{pending_theme}'")
+        finalize_theme_selection()
 
 
 def append_selected_spanish_pair(word, pair_index):
@@ -713,10 +820,11 @@ def launch_grid_round():
         "turn": player_order[0] if player_order else None,
         "players": player_order
     })
+    schedule_bot_turn_if_needed()
 
 
 def conclude_round(winner_label, surrendered_by=None):
-    global turn, player_points, current_click_sid
+    global turn, player_points, current_click_sid, bot_turn_scheduled
     points_payload = {name: player_points.get(name, 0) for name in player_order}
     if isinstance(winner_label, str) and winner_label not in {"Tasapeli", "Tie"} and winner_label in player_order:
         round_win[winner_label] += 1
@@ -739,6 +847,7 @@ def conclude_round(winner_label, surrendered_by=None):
         pass
     turn = 0
     current_click_sid = None
+    bot_turn_scheduled = False
     player_points = {}
     reset_pending_state()
 
@@ -933,6 +1042,7 @@ def on_join(data):
     username = data["username"]
     sid = request.sid
     reconnect_token = data.get("reconnect_token")
+    wants_bot = bool((data or {}).get("bot_mode"))
     if not reconnect_token:
         print(f"[WARNING] HYLÃ„TTY join ilman reconnect_tokenia: {username}, SID: {sid}")
         return
@@ -940,6 +1050,8 @@ def on_join(data):
     for k, v in list(players.items()):
         if v.get("reconnect_token") == reconnect_token:
             del players[k]
+    if wants_bot and not get_effective_human_player_items():
+        ensure_bot_opponent()
     if get_active_player_count() < max_players:
         players[sid] = {
             "username": username,
@@ -981,6 +1093,9 @@ def handle_leave_game(data=None):
     payload = build_lobby_payload()
     payload["username"] = username
     socketio.emit("player_joined", payload)
+
+    if not get_effective_human_player_items():
+        remove_bot_players()
 
     if get_effective_player_count() < 2 and (theme_selection_active() or grid_data or 'pending_pair' in globals()):
         print("[INFO] Pelaaja poistui pelistÃ¤ kesken erÃ¤n â€“ keskeytetÃ¤Ã¤n nykyinen pelitila")
@@ -1069,6 +1184,7 @@ def handle_grid_request():
         "turn": current_turn_name,
         "players": player_order
     })
+    schedule_bot_turn_if_needed()
 
 @socketio.on("ready_for_game")
 def handle_ready_for_game():
@@ -1112,13 +1228,8 @@ def generate_grid():
            
 
 
-@socketio.on("card_clicked")
-def handle_card_click(data):
+def process_card_click(index, resolved_sid, clicker):
     global revealed_cards, turn, matched_indices, player_order, player_points, current_click_sid
-
-    index = data["index"]
-    # Enforce server-side turn ownership to prevent cross-client double-clicks
-    resolved_sid, clicker = resolve_player_for_event(data)
     clicker_name = (clicker or {}).get("username")
     current_player_name = player_order[turn] if player_order and 0 <= turn < len(player_order) else None
     if not clicker_name or clicker_name != current_player_name:
@@ -1194,6 +1305,14 @@ def handle_card_click(data):
         next_turn_name = player_order[turn] if player_order else None
         debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")
         socketio.emit("update_turn", {"turn": next_turn_name})
+        schedule_bot_turn_if_needed()
+
+
+@socketio.on("card_clicked")
+def handle_card_click(data):
+    index = data["index"]
+    resolved_sid, clicker = resolve_player_for_event(data)
+    process_card_click(index, resolved_sid, clicker)
 
 @socketio.on("disconnect")
 def on_disconnect():
@@ -1218,6 +1337,8 @@ def on_disconnect():
                     return
                 print(f"[INFO] {username} poistetaan pelaajalistasta (ei reconnectia)")
                 del players[sid_to_remove]
+                if not get_effective_human_player_items():
+                    remove_bot_players()
                 payload = build_lobby_payload()
                 payload["username"] = username
                 socketio.emit("player_joined", payload)
@@ -1317,8 +1438,8 @@ def ask_next_word():
         print("[WARNING] Pelaajia liian vÃ¤hÃ¤n, peli keskeytetÃ¤Ã¤n")
         socketio.emit("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."})
         return
-    # Kysy aina ekalta pelaajalta (player_order[0])
-    first_player = player_order[0]
+    # Bot-tiputuksessa pyydetään sanat aina ensimmäiseltä ihmispelaajalta.
+    first_player = get_first_human_player_name() or (player_order[0] if player_order else None)
     pending_player = first_player
     if current_game_mode == "theme":
         if theme_selection_active():

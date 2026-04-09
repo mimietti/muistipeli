@@ -543,7 +543,11 @@
             try { localStorage.removeItem("reconnect_token"); } catch (_) {}
         }
         // Liity peliin reconnect_tokenin kanssa
-        const joinPayload = { username: myName, reconnect_token: reconnectToken };
+        const joinPayload = {
+            username: myName,
+            reconnect_token: reconnectToken,
+            bot_mode: localStorage.getItem("bot_mode") === "1"
+        };
         console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
         socket.emit("join", joinPayload);
 

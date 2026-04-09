@@ -46,6 +46,16 @@
         button:hover {
             background-color: green;
         }
+        .button-row {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+        .button-row button {
+            margin-top: 0;
+        }
 
         #error {
             color: red;
@@ -115,7 +125,10 @@
         <p id="introText"></p>
         <input type="text" id="nameInput" placeholder="Your name" />
         <br>
-        <button id="joinBtn" onclick="joinGame()">Join game</button>
+        <div class="button-row">
+            <button id="joinBtn" onclick="joinGame(false)">Join game</button>
+            <button id="joinBotBtn" onclick="joinGame(true)">Play against bot</button>
+        </div>
         <div id="lobbyStatus" class="is-empty"></div>
         <div id="error"></div>
         <div class="footer-credit">© Michael Miettinen</div>
@@ -128,6 +141,7 @@
                 page_title: "Welcome to Memory Game!!!",
                 intro_text: "The game is similar to a traditional memory game where you turn over two cards at a time. In this version, you need to figure out which cards form a pair. Depending on the game type, a pair can be two different pictures connected by the same word, or a combination of a picture card and a word card.",
                 join: "Join game",
+                join_bot: "Play against bot",
                 name_placeholder: "Your name",
                 language: "Language",
                 enter_name_first: "Enter your name first.",
@@ -140,6 +154,7 @@
                 page_title: "Tervetuloa muistipeliin!!!",
                 intro_text: "Peli muistuttaa perinteistä muistipeliä, jossa käännetään kaksi korttia kerrallaan. Tässä pelissä pitää päätellä, mitkä kortit muodostavat parin. Pelityypistä riippuen pari voi olla kaksi eri kuvaa, joita yhdistää sama sana, tai kuva- ja sanakortin yhdistelmä.",
                 join: "Liity peliin",
+                join_bot: "Pelaa bottia vastaan",
                 name_placeholder: "Nimesi",
                 language: "Kieli",
                 enter_name_first: "Syötä nimi ensin.",
@@ -177,6 +192,7 @@
             document.getElementById("pageTitle").textContent = t("page_title");
             document.getElementById("introText").textContent = t("intro_text");
             document.getElementById("joinBtn").textContent = t("join");
+            document.getElementById("joinBotBtn").textContent = t("join_bot");
             document.getElementById("nameInput").placeholder = t("name_placeholder");
             document.getElementById("languageSelect").value = getLanguage();
             document.querySelector(".footer-credit").textContent = `© Michael Miettinen • ${APP_VERSION}`;
@@ -254,7 +270,7 @@
             applyTranslations();
         });
 
-        function joinGame() {
+        function joinGame(vsBot = false) {
             const username = document.getElementById("nameInput").value.trim();
             if (!username) {
                 document.getElementById("error").textContent = t("enter_name_first");
@@ -267,6 +283,7 @@
                 return;
             }
             localStorage.setItem("username", username);
+            localStorage.setItem("bot_mode", vsBot ? "1" : "0");
             navigateTo("/waiting");
         }
 
