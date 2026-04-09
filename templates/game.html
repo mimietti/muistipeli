@@ -719,7 +719,7 @@
             if (!card || card.card_type !== "word") return null;
             const spanish = card.spanish_word || card.text;
             const english = card.word || "";
-            const finnish = card.finnish_word || english;
+            const finnish = (card.finnish_word && String(card.finnish_word).trim()) ? card.finnish_word : "--";
             if (!spanish || !english) return null;
             return { spanish, finnish, english };
         }

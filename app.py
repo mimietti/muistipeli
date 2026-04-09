@@ -32,6 +32,8 @@ RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "180"
 PAGE_TRANSITION_GRACE_SECONDS = 5
 APP_VERSION = "Beta v0.0.4 (2026-04-08)"
 BOT_USERNAME = "Muistibotti"
+BOT_FIRST_FLIP_DELAY_SECONDS = 1.0
+BOT_SECOND_FLIP_DELAY_SECONDS = 1.4
 current_ui_language = "en"
 
 
@@ -180,7 +182,7 @@ def get_active_bot_identity():
     return None, None
 
 
-def schedule_bot_turn_if_needed(delay=0.9):
+def schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS):
     global bot_turn_scheduled
     if bot_turn_scheduled:
         return
@@ -212,13 +214,13 @@ def schedule_bot_turn_if_needed(delay=0.9):
                 return
             first_index, second_index = random.sample(available_indices, 2)
             process_card_click(first_index, bot_sid, bot_info)
-            socketio.sleep(0.5)
+            socketio.sleep(BOT_SECOND_FLIP_DELAY_SECONDS)
             if grid_data and player_order and turn < len(player_order) and is_bot_player(player_order[turn]):
                 process_card_click(second_index, bot_sid, bot_info)
         finally:
             bot_turn_scheduled = False
             if grid_data and player_order and turn < len(player_order) and is_bot_player(player_order[turn]):
-                schedule_bot_turn_if_needed(delay=1.0)
+                schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS)
 
     socketio.start_background_task(bot_take_turn)
 
@@ -520,7 +522,7 @@ def append_selected_spanish_pair(word, pair_index):
         print(f"[INFO] Espanjan kaannos ei kelpaa sanalle '{word}', haetaan korvaaja")
         return False
 
-    finnish_word = translate_word_to_finnish(word) or word
+    finnish_word = translate_word_to_finnish(word)
     print(f"[INFO] Kokeillaan espanjapariksi '{word}' -> '{spanish_word}' parille {pair_index + 1}")
     image_paths = fetch_and_save_pixabay_images(word, pair_index, required_count=1)
     if not image_paths:
@@ -981,7 +983,7 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
             theme_rejected_words.add(english_word)
             continue
 
-        finnish_word = english_word
+        finnish_word = translate_word_to_finnish(english_word)
 
         if not spanish_setup_still_active(theme):
             print("[INFO] Espanjapelin generointi keskeytettiin, koska pelitila muuttui")
