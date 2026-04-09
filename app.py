@@ -32,8 +32,8 @@ RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "180"
 PAGE_TRANSITION_GRACE_SECONDS = 5
 APP_VERSION = "Beta v0.0.4 (2026-04-08)"
 BOT_USERNAME = "Muistibotti"
-BOT_FIRST_FLIP_DELAY_SECONDS = 1.0
-BOT_SECOND_FLIP_DELAY_SECONDS = 1.4
+BOT_FIRST_FLIP_DELAY_SECONDS = 1.5
+BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
 current_ui_language = "en"
 
 
@@ -378,7 +378,7 @@ def build_theme_selection_payload(message=None):
         "rejected_words": list(theme_selection_state.get("rejected_words", [])),
         "counts": dict(theme_selection_state.get("counts", {})),
         "ready": dict(theme_selection_state.get("ready", {})),
-        "swap_limit": int(theme_selection_state.get("swap_limit", 4)),
+        "swap_limit": int(theme_selection_state.get("swap_limit", 1)),
         "players": list(player_order),
         "message": message
     }
@@ -460,7 +460,9 @@ def prepare_theme_selection(starter_name):
         "pair": pending_pair + 1,
         "mode": current_game_mode,
         "starter_name": starter_name,
-        "phase": "drawing_cards"
+        "phase": "drawing_cards",
+        "progress_count": pending_pair,
+        "total_pairs": 8
     })
 
     for word in candidates:
@@ -507,7 +509,7 @@ def prepare_theme_selection(starter_name):
             player["username"]: player.get("reconnect_token")
             for player in get_effective_players_ordered()
         },
-        "swap_limit": 4,
+        "swap_limit": 1,
     }
     print(f"[INFO] Teeman '{pending_theme}' sanavalinta aloitettu tilassa '{current_game_mode}'. Ehdokkaita: {len(candidates)}")
     emit_theme_selection_state()
@@ -714,6 +716,16 @@ def translate_word_to_finnish(word):
     return translate_word(word, "en", "fi")
 
 
+def translate_word_to_english(word, source_lang="fi"):
+    normalized = normalize_candidate_word(word)
+    if not normalized:
+        return None
+    if source_lang == "en":
+        return normalized
+    translated = translate_word(normalized, source_lang, "en")
+    return normalize_candidate_word(translated) or normalized
+
+
 def translate_theme_to_english(theme, ui_language):
     theme_text = str(theme or "").strip()
     if not theme_text:
@@ -769,7 +781,12 @@ def image_source_for_card(image_ref):
 
 def append_word_images_to_grid(word, pair_index):
     global grid_data
-    result = fetch_and_save_pixabay_images(word, pair_index)
+    search_word = word
+    if current_game_mode == "manual":
+        search_word = translate_word_to_english(word, "fi" if current_ui_language == "fi" else "en") or word
+        if normalize_candidate_word(search_word) != normalize_candidate_word(word):
+            print(f"[INFO] Manual-pelin Pixabay-haku englanniksi: '{word}' -> '{search_word}'")
+    result = fetch_and_save_pixabay_images(search_word, pair_index)
     if not result:
         print(f"[INFO] Pixabay-haku epaonnistui sanalle '{word}'")
         return False
@@ -1194,7 +1211,9 @@ def handle_grid_request():
                             "theme": pending_theme,
                             "pair": pending_pair + 1,
                             "mode": current_game_mode,
-                            "starter_name": pending_player or (player_order[0] if player_order else None)
+                            "starter_name": pending_player or (player_order[0] if player_order else None),
+                            "progress_count": pending_pair,
+                            "total_pairs": 8
                         },
                         broadcast=True
                     )
@@ -1453,7 +1472,9 @@ def handle_start_custom_game(data=None):
             "pair": pending_pair + 1,
             "mode": current_game_mode,
             "starter_name": starter_name,
-            "phase": "finding_words"
+            "phase": "finding_words",
+            "progress_count": pending_pair,
+            "total_pairs": 8
         })
         prepare_theme_selection(starter_name)
         return
@@ -1488,7 +1509,9 @@ def ask_next_word():
             "pair": pending_pair + 1,
             "mode": "theme",
             "starter_name": first_player,
-            "phase": "drawing_cards"
+            "phase": "drawing_cards",
+            "progress_count": pending_pair,
+            "total_pairs": 8
         })
         global theme_generation_in_progress
         if theme_generation_in_progress:
@@ -1507,7 +1530,9 @@ def ask_next_word():
             "pair": pending_pair + 1,
             "mode": "spanish",
             "starter_name": first_player,
-            "phase": "drawing_cards"
+            "phase": "drawing_cards",
+            "progress_count": pending_pair,
+            "total_pairs": 8
         })
         global spanish_generation_in_progress
         if spanish_generation_in_progress:
@@ -1594,6 +1619,7 @@ def handle_select_theme_word(data):
     counts[username] = counts.get(username, 0) + 1
     for player_name in list(ready.keys()):
         ready[player_name] = is_bot_player(player_name)
+    ready[username] = True
     theme_selection_state["candidates"] = [candidate for candidate in candidates if candidate != word]
     if previous_word and previous_word not in rejected_words and previous_word not in theme_selection_state["candidates"]:
         theme_selection_state["candidates"].append(previous_word)

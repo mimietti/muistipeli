@@ -818,7 +818,7 @@
                 setupStatusTextEl.textContent = chosenText ? `${chosenText} ${loadingText}` : loadingText;
                 const totalPairs = Number(state.total_pairs || 8);
                 const progressCount = Number(state.progress_count || 0);
-                const showProgress = phase === "drawing_cards" && totalPairs > 0;
+                const showProgress = totalPairs > 0 && (state.mode === "theme" || state.mode === "spanish");
                 setupProgressEl.style.display = showProgress ? "block" : "none";
                 if (showProgress) {
                     const safeCount = Math.max(0, Math.min(progressCount, totalPairs));
