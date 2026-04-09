@@ -1125,14 +1125,19 @@ def on_join(data):
             del players[k]
     if wants_bot and not get_effective_human_player_items():
         ensure_bot_opponent()
-    if get_active_player_count() < max_players:
-        players[sid] = {
-            "username": username,
-            "reconnect_token": reconnect_token,
-            "connected": True,
-            "disconnected_at": None
-        }
-        print(f"[INFO] {username} liittyi peliin.")
+    if get_effective_player_count() >= max_players:
+        print(f"[INFO] Hylätty liittyminen, peli on täynnä: {username}")
+        emit("join_rejected", {
+            "reason": "Peli on täynnä. Odota seuraavaa erää tai avaa uusi peli."
+        })
+        return
+    players[sid] = {
+        "username": username,
+        "reconnect_token": reconnect_token,
+        "connected": True,
+        "disconnected_at": None
+    }
+    print(f"[INFO] {username} liittyi peliin.")
     payload = build_lobby_payload()
     payload["username"] = username
     socketio.emit("player_joined", payload)

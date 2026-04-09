@@ -448,6 +448,7 @@
                 setup_failed: "Game setup failed.",
                 disconnect_alert: "Connection to the server was lost. Trying again...",
                 game_aborted: "The round was cancelled because the other player left.",
+                game_full: "The game is full. Wait for the next round or open a new game.",
                 theme_missing: "Theme is missing.",
                 pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
@@ -511,6 +512,7 @@
                 setup_failed: "Pelin alustus epäonnistui.",
                 disconnect_alert: "Yhteys katkesi palvelimeen. Yritetään uudelleen...",
                 game_aborted: "Erä keskeytettiin, koska toinen pelaaja poistui.",
+                game_full: "Peli on täynnä. Odota seuraavaa erää tai avaa uusi peli.",
                 theme_missing: "Teema puuttuu.",
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
@@ -593,6 +595,7 @@
                 || message.match(/Not enough usable words were found for theme "(.+)". Try another theme\./);
             if (themed) return t("theme_not_enough").replace("{theme}", themed[1]);
             if (message === "Toinen pelaaja poistui. Peli keskeytetty.") return t("game_aborted");
+            if (message === "Peli on täynnä. Odota seuraavaa erää tai avaa uusi peli.") return t("game_full");
             return message;
         }
 
@@ -1325,6 +1328,11 @@
                 window.currentThemeSelectionState = { active: false };
                 renderThemeSelection(window.currentThemeSelectionState);
                 alert(reason);
+            });
+            socket.on("join_rejected", (data) => {
+                const reason = localizeServerMessage((data && data.reason) || t("game_full"));
+                alert(reason);
+                navigateTo("/");
             });
 
             // Yhteyden katkeamisen ja uudelleenliittymisen käsittely
