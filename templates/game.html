@@ -1122,8 +1122,8 @@
                     hideCardElement(card);
                 }
             });
-            if (isSoloMode) {
-                soloMistakes++;
+            if (isSoloMode && data.solo_mistakes != null) {
+                soloMistakes = data.solo_mistakes;
                 soloMistakesEl.textContent = String(soloMistakes);
             }
             clearTranslationHint(data.indices || []);

@@ -85,6 +85,7 @@ class RoomState:
     last_tokens: set = field(default_factory=set)
     solo_start_time: float = 0.0
     solo_mistakes: int = 0
+    solo_seen_cards: set = field(default_factory=set)
 
 
 # --- Global indexes (not game state) ---
@@ -1020,6 +1021,7 @@ def launch_grid_round(room):
     if is_solo(room):
         room.solo_start_time = time.time()
         room.solo_mistakes = 0
+        room.solo_seen_cards = set()
     random.shuffle(room.grid_data)
     room.status = "playing"
     emit_to_room("init_grid", {
@@ -1256,14 +1258,21 @@ def process_card_click(index, resolved_sid, clicker, room):
         else:
             debug(f"[DEBUG] Ei paria: {word1} vs {word2}")
             if is_solo(room):
-                room.solo_mistakes += 1
+                # Mistake only if both cards have been seen before
+                if idx1 in room.solo_seen_cards and idx2 in room.solo_seen_cards:
+                    room.solo_mistakes += 1
+                room.solo_seen_cards.add(idx1)
+                room.solo_seen_cards.add(idx2)
             indices_to_hide = list(room.revealed_cards)
             room.revealed_cards = []
             room.current_click_sid = None
 
             def hide_later():
                 socketio.sleep(2)
-                emit_to_room("hide_cards", {"indices": indices_to_hide}, room_id=room.room_id)
+                emit_to_room("hide_cards", {
+                    "indices": indices_to_hide,
+                    "solo_mistakes": room.solo_mistakes if is_solo(room) else None
+                }, room_id=room.room_id)
 
             socketio.start_background_task(hide_later)
             if room.player_order:
