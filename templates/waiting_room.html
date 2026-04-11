@@ -1135,15 +1135,22 @@
                     });
                 }
 
-                if (players.length === 2) {
-                    const myToken = getReconnectToken();
-                    const canStart = myToken && lastJoinedToken && myToken === lastJoinedToken;
+                const isSolo = localStorage.getItem("play_mode") === "solo";
+                const canStart = isSolo
+                    ? players.length >= 1
+                    : (() => {
+                        const myToken = getReconnectToken();
+                        return Boolean(myToken && lastJoinedToken && myToken === lastJoinedToken);
+                    })();
+                if (players.length >= 2 || isSolo) {
                     if ((!window.currentThemeSelectionState || !window.currentThemeSelectionState.active)
                         && (!window.currentSetupState || !window.currentSetupState.active)) {
                         document.getElementById("startOptions").style.display = canStart ? "block" : "none";
                     }
-                    console.log("[DEBUG] canStart=", canStart, ", myToken=", myToken, ", lastJoined=", lastJoinedToken);
-                    maybeStartQueuedNextRound(canStart);
+                    if (!isSolo) {
+                        console.log("[DEBUG] canStart=", canStart, ", myToken=", getReconnectToken(), ", lastJoined=", lastJoinedToken);
+                        maybeStartQueuedNextRound(canStart);
+                    }
                 } else if ((!window.currentThemeSelectionState || !window.currentThemeSelectionState.active)
                     && (!window.currentSetupState || !window.currentSetupState.active)) {
                     document.getElementById("startOptions").style.display = "none";
@@ -1246,10 +1253,12 @@
                     location.reload();
                     return;
                 }
+                const isSolo = localStorage.getItem("play_mode") === "solo";
                 const joinPayload = {
                     username: myName,
                     reconnect_token: reconnectToken,
-                    bot_mode: localStorage.getItem("bot_mode") === "1"
+                    bot_mode: localStorage.getItem("bot_mode") === "1",
+                    solo_mode: isSolo
                 };
                 console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
                 socket.emit("join", joinPayload);

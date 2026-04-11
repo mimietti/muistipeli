@@ -57,7 +57,7 @@ class RoomState:
     room_id: str
     status: str = "waiting"          # waiting | setup | playing | results
     game_mode: str = "manual"        # manual | theme | spanish
-    play_mode: str = "local"         # local | bot | queue
+    play_mode: str = "local"         # local | bot | queue | solo
     ui_language: str = "en"
     native_language: str = "fi"
     target_language: str = "es"
@@ -83,6 +83,8 @@ class RoomState:
     bot_turn_scheduled: bool = False
     current_click_sid: str | None = None
     last_tokens: set = field(default_factory=set)
+    solo_start_time: float = 0.0
+    solo_mistakes: int = 0
 
 
 # --- Global indexes (not game state) ---
@@ -229,6 +231,15 @@ def get_effective_players_ordered(room):
 
 def get_effective_player_count(room):
     return len(get_effective_player_items(room))
+
+
+def is_solo(room):
+    return room.play_mode == "solo"
+
+
+def solo_or_enough_players(room):
+    """True if the game can proceed: solo mode OR 2+ players."""
+    return is_solo(room) or get_effective_player_count(room) >= 2
 
 
 def get_human_player_items(room):
@@ -648,7 +659,7 @@ def spanish_setup_still_active(theme, room):
         return False
     if room.pending_theme != theme:
         return False
-    if get_effective_player_count(room) < 2:
+    if not solo_or_enough_players(room):
         return False
     return True
 
@@ -1006,12 +1017,16 @@ def launch_grid_round(room):
     room.revealed_cards = []
     room.turn = 0
     room.player_points = {name: 0 for name in room.player_order}
+    if is_solo(room):
+        room.solo_start_time = time.time()
+        room.solo_mistakes = 0
     random.shuffle(room.grid_data)
     room.status = "playing"
     emit_to_room("init_grid", {
         "cards": room.grid_data,
         "turn": room.player_order[0] if room.player_order else None,
-        "players": room.player_order
+        "players": room.player_order,
+        "solo": is_solo(room)
     }, room_id=room.room_id)
     schedule_bot_turn_if_needed(room)
 
@@ -1026,11 +1041,14 @@ def conclude_round(winner_label, room, surrendered_by=None):
     else:
         print(f"[INFO] Kierros päättyi. Tulos: {winner_label}")
 
+    solo_time = round(time.time() - room.solo_start_time) if is_solo(room) and room.solo_start_time else None
     emit_to_room("game_over", {
         "winner": winner_label,
         "points": points_payload,
         "round_win": dict(room.round_win),
-        "surrendered_by": surrendered_by
+        "surrendered_by": surrendered_by,
+        "solo_time": solo_time,
+        "solo_mistakes": room.solo_mistakes if is_solo(room) else None
     }, room_id=room.room_id)
 
     try:
@@ -1237,6 +1255,8 @@ def process_card_click(index, resolved_sid, clicker, room):
                     print("[ERROR] Ei voittajaa, player_points on tyhjää.")
         else:
             debug(f"[DEBUG] Ei paria: {word1} vs {word2}")
+            if is_solo(room):
+                room.solo_mistakes += 1
             indices_to_hide = list(room.revealed_cards)
             room.revealed_cards = []
             room.current_click_sid = None
@@ -1435,6 +1455,7 @@ def on_join(data):
     sid = request.sid
     reconnect_token = data.get("reconnect_token")
     wants_bot = bool((data or {}).get("bot_mode"))
+    wants_solo = bool((data or {}).get("solo_mode"))
 
     if not reconnect_token:
         print(f"[WARNING] HYLÄTTY join ilman reconnect_tokenia: {username}")
@@ -1449,7 +1470,9 @@ def on_join(data):
             _sid_to_room_id.pop(k, None)
             del room.players[k]
 
-    if wants_bot and not get_effective_human_player_items(room):
+    if wants_solo:
+        room.play_mode = "solo"
+    elif wants_bot and not get_effective_human_player_items(room):
         ensure_bot_opponent(room)
 
     if get_effective_player_count(room) >= MAX_PLAYERS:
@@ -1513,7 +1536,7 @@ def handle_leave_game(data=None):
     if not get_effective_human_player_items(room):
         remove_bot_players(room)
 
-    if get_effective_player_count(room) < 2 and (
+    if not is_solo(room) and get_effective_player_count(room) < 2 and (
             theme_selection_active(room) or room.grid_data or room.pending_pair > 0):
         print("[INFO] Pelaaja poistui kesken erän – keskeytetään")
         emit_to_room("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."}, room_id=room.room_id)
@@ -1551,7 +1574,7 @@ def handle_grid_request():
     room = get_room_for_sid(request.sid)
     debug("[DEBUG] request_grid vastaanotettu")
 
-    if get_effective_player_count(room) < 2:
+    if not solo_or_enough_players(room):
         print("[WARNING] Ei tarpeeksi pelaajia ruudukon palauttamiseen.")
         emit("no_grid", {"reason": "Pelaajia liian vähän"})
         return
@@ -1865,7 +1888,7 @@ def handle_card_click(data):
 @socketio.on("surrender_round")
 def handle_surrender_round(data=None):
     room = get_room_for_sid(request.sid)
-    if not room.grid_data or get_effective_player_count(room) < 2:
+    if not room.grid_data or not solo_or_enough_players(room):
         emit("round_surrender_failed", {"reason": "round_not_active"})
         return
 

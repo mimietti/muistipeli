@@ -168,6 +168,7 @@
         <div class="button-row">
             <button id="joinBtn" onclick="joinGame(false)">Play with another player</button>
             <button id="joinBotBtn" onclick="joinGame(true)">Play against bot</button>
+            <button id="joinSoloBtn" onclick="joinGame('solo')" style="background:#5b9bd5; color:#fff;">Play solo</button>
         </div>
         <div id="lobbyStatus" class="is-empty"></div>
         <div id="error"></div>
@@ -182,6 +183,7 @@
                 intro_text: "The game is similar to a traditional memory game where you turn over two cards at a time. In this version, you need to figure out which cards form a pair. Depending on the game type, a pair can be two different pictures connected by the same word, or a combination of a picture card and a word card.",
                 join: "Play with another player",
                 join_bot: "Play against bot",
+                join_solo: "Play solo",
                 name_placeholder: "Your name",
                 language: "Language",
                 enter_name_first: "Enter your name first.",
@@ -195,6 +197,7 @@
                 intro_text: "Peli muistuttaa perinteistä muistipeliä, jossa käännetään kaksi korttia kerrallaan. Tässä pelissä pitää päätellä, mitkä kortit muodostavat parin. Pelityypistä riippuen pari voi olla kaksi eri kuvaa, joita yhdistää sama sana, tai kuva- ja sanakortin yhdistelmä.",
                 join: "Pelaa toisen kanssa",
                 join_bot: "Pelaa bottia vastaan",
+                join_solo: "Pelaa yksin",
                 name_placeholder: "Nimesi",
                 language: "Kieli",
                 enter_name_first: "Syötä nimi ensin.",
@@ -232,6 +235,7 @@
             document.getElementById("introText").textContent = t("intro_text");
             document.getElementById("joinBtn").textContent = t("join");
             document.getElementById("joinBotBtn").textContent = t("join_bot");
+            document.getElementById("joinSoloBtn").textContent = t("join_solo");
             document.getElementById("nameInput").placeholder = t("name_placeholder");
             document.querySelectorAll(".flag-btn").forEach((button) => {
                 const active = button.dataset.lang === getLanguage();
@@ -315,7 +319,7 @@
             });
         });
 
-        function joinGame(vsBot = false) {
+        function joinGame(mode = false) {
             const username = document.getElementById("nameInput").value.trim();
             if (!username) {
                 document.getElementById("error").textContent = t("enter_name_first");
@@ -328,8 +332,16 @@
                 return;
             }
             localStorage.setItem("username", username);
-            localStorage.setItem("bot_mode", vsBot ? "1" : "0");
-            localStorage.setItem("play_mode", vsBot ? "bot" : "queue");
+            if (mode === "solo") {
+                localStorage.setItem("bot_mode", "0");
+                localStorage.setItem("play_mode", "solo");
+            } else if (mode === true) {
+                localStorage.setItem("bot_mode", "1");
+                localStorage.setItem("play_mode", "bot");
+            } else {
+                localStorage.setItem("bot_mode", "0");
+                localStorage.setItem("play_mode", "queue");
+            }
             navigateTo("/waiting");
         }
 

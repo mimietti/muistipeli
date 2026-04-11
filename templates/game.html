@@ -327,10 +327,45 @@
             font-size: 12px;
             letter-spacing: 0.04em;
         }
+        #solo-stats {
+            display: none;
+            justify-content: center;
+            gap: 24px;
+            margin: 4px 0 6px;
+            font-size: 15px;
+            color: #b0c8b0;
+        }
+        #solo-stats.active { display: flex; }
+        .solo-stat {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .solo-stat-label {
+            color: #7a9e7a;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .solo-stat-value {
+            font-weight: 700;
+            font-size: 17px;
+            color: #e8f5e8;
+        }
     </style>
 </head>
 <body>
     <h1 id="pageTitle">Memory Game</h1>
+    <div id="solo-stats">
+        <div class="solo-stat">
+            <span class="solo-stat-label" id="soloTimeLabel">Aika</span>
+            <span class="solo-stat-value" id="soloTimerDisplay">0:00</span>
+        </div>
+        <div class="solo-stat">
+            <span class="solo-stat-label" id="soloMistakesLabel">Virheet</span>
+            <span class="solo-stat-value" id="soloMistakesDisplay">0</span>
+        </div>
+    </div>
     <div id="players"></div>
     <div id="roundActions">
         <button id="surrenderRoundBtn" class="round-action-btn surrender" style="display:none;">Surrender this round</button>
@@ -389,6 +424,9 @@
                 found_word: "Pair found: {word}",
                 pair_found_label: "Pair found",
                 pair_found_word_label: "Word",
+                solo_time_label: "Time",
+                solo_mistakes_label: "Mistakes",
+                solo_result: "Done! Time: {time} • Mistakes: {mistakes}",
                 study_spanish: "Study Spanish",
                 theme_missing: "Theme is missing.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
@@ -431,6 +469,9 @@
                 found_word: "Pari löytyi: {word}",
                 pair_found_label: "Pari löytyi",
                 pair_found_word_label: "Sana",
+                solo_time_label: "Aika",
+                solo_mistakes_label: "Virheet",
+                solo_result: "Valmis! Aika: {time} • Virheet: {mistakes}",
                 study_spanish: "Opiskele espanjaa",
                 theme_missing: "Teema puuttuu.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
@@ -538,6 +579,41 @@
         let matched = new Set();
         let currentTurn = null;
         let currentTranslationHint = null;
+        let isSoloMode = false;
+        let soloMistakes = 0;
+        let soloTimerInterval = null;
+        let soloElapsed = 0;
+
+        const soloStatsEl = document.getElementById("solo-stats");
+        const soloTimerEl = document.getElementById("soloTimerDisplay");
+        const soloMistakesEl = document.getElementById("soloMistakesDisplay");
+        document.getElementById("soloTimeLabel").textContent = t("solo_time_label");
+        document.getElementById("soloMistakesLabel").textContent = t("solo_mistakes_label");
+
+        function startSoloTimer() {
+            soloElapsed = 0;
+            soloMistakes = 0;
+            soloTimerEl.textContent = "0:00";
+            soloMistakesEl.textContent = "0";
+            soloStatsEl.classList.add("active");
+            if (soloTimerInterval) clearInterval(soloTimerInterval);
+            soloTimerInterval = setInterval(() => {
+                soloElapsed++;
+                const m = Math.floor(soloElapsed / 60);
+                const s = soloElapsed % 60;
+                soloTimerEl.textContent = `${m}:${s.toString().padStart(2, "0")}`;
+            }, 1000);
+        }
+
+        function stopSoloTimer() {
+            if (soloTimerInterval) { clearInterval(soloTimerInterval); soloTimerInterval = null; }
+        }
+
+        function formatSoloTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m}:${s.toString().padStart(2, "0")}`;
+        }
         // Varmista että uusi erä voi kysyä sanoja tällä sivulla
         try { sessionStorage.removeItem("words_given"); } catch (e) {}
         let myName = localStorage.getItem("username");
@@ -914,6 +990,11 @@
             sessionStorage.setItem("players", JSON.stringify(data.players));
             matched = data.matched ? new Set(data.matched) : new Set();
             currentTranslationHint = null;
+            isSoloMode = Boolean(data.solo);
+            if (isSoloMode) {
+                startSoloTimer();
+                document.getElementById("players").style.display = "none";
+            }
             drawGrid();
             matched.forEach(i => {
                 const card = document.getElementById(`card-${i}`);
@@ -923,7 +1004,7 @@
                 const card = document.getElementById(`card-${i}`);
                 if (card && cards[i]) revealCardElement(card, cards[i]);
             });
-            updatePlayers();
+            if (!isSoloMode) updatePlayers();
             renderTranslationHint();
         });
 
@@ -1041,6 +1122,10 @@
                     hideCardElement(card);
                 }
             });
+            if (isSoloMode) {
+                soloMistakes++;
+                soloMistakesEl.textContent = String(soloMistakes);
+            }
             clearTranslationHint(data.indices || []);
         });
 
@@ -1066,6 +1151,8 @@
             }
             gameOverShown = true;
             console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
+            stopSoloTimer();
+            soloStatsEl.classList.remove("active");
             persistSummary(data);
             clearTranslationHint();
             document.getElementById("grid").style.display = "none";
@@ -1080,6 +1167,31 @@
 
             const points = data.points || {};
             const wins = data.round_win || {};
+
+            // Solo mode: show time + mistakes result
+            if (isSoloMode) {
+                const soloDoneSecs = data.solo_time != null ? data.solo_time : soloElapsed;
+                const soloMistakesFinal = data.solo_mistakes != null ? data.solo_mistakes : soloMistakes;
+                results.innerHTML = `
+                    <div class="results-section">
+                        <div class="results-heading">${t("solo_result", { time: formatSoloTime(soloDoneSecs), mistakes: soloMistakesFinal })}</div>
+                    </div>
+                    <br>
+                    <div class="results-actions">
+                        <button id="restart-manual-btn" class="results-btn mode">${t("enter_words")}</button>
+                        <button id="restart-theme-btn" class="results-btn mode">${t("enter_theme")}</button>
+                        <button id="restart-spanish-btn" class="results-btn mode">${t("study_spanish")}</button>
+                    </div>
+                    <div class="results-actions">
+                        <button id="end-game-btn" class="results-btn end">${t("exit_game")}</button>
+                    </div>`;
+                document.body.appendChild(results);
+                document.getElementById("end-game-btn").addEventListener("click", () => navigateTo("/summary"));
+                document.getElementById("restart-manual-btn").addEventListener("click", () => { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "manual" })); } catch (_) {} navigateTo("/waiting"); });
+                document.getElementById("restart-theme-btn").addEventListener("click", () => { const theme = prompt(t("prompt_theme"), ""); if (theme) { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "theme", theme })); } catch (_) {} navigateTo("/waiting"); } });
+                document.getElementById("restart-spanish-btn").addEventListener("click", () => { const theme = prompt(t("prompt_spanish_theme"), ""); if (theme) { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "spanish", theme })); } catch (_) {} navigateTo("/waiting"); } });
+                return;
+            }
 
             const canChooseNextRound = canQueueNextRound();
             const surrenderedBy = data.surrendered_by;
