@@ -562,6 +562,13 @@ def prepare_theme_selection(starter_name, room):
             "chosen_by": starter_name,
             "entry": pair_entry
         })
+        emit_to_room("theme_word_accepted", {
+            "theme": room.pending_theme,
+            "word": word,
+            "pair": len(selected_words),
+            "total_pairs": 8
+        }, room_id=room.room_id)
+        socketio.sleep(0)
 
     if len(selected_words) < 8:
         message = f"Teemasta '{room.pending_theme}' ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa."
@@ -1369,6 +1376,7 @@ def try_match_from_queue():
         "room_id": room_id,
         "players": [p1["username"], p2["username"]]
     }, room_id=room_id)
+    emit_to_room("lobby", build_lobby_payload(room), room_id=room_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1967,6 +1975,7 @@ def handle_join_queue(data=None):
         return
     username = player_info["username"]
     reconnect_token = player_info.get("reconnect_token", "")
+    emit("queue_joined", {"username": username})
     join_matchmaking_queue(sid, username, reconnect_token)
 
 

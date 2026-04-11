@@ -840,9 +840,17 @@
             console.log("[DEBUG] cards:", cards);
             currentTurn = data.turn;
             sessionStorage.setItem("players", JSON.stringify(data.players));
-            matched = new Set();
+            matched = data.matched ? new Set(data.matched) : new Set();
             currentTranslationHint = null;
             drawGrid();
+            matched.forEach(i => {
+                const card = document.getElementById(`card-${i}`);
+                if (card) removeMatchedCardElement(card);
+            });
+            (data.revealed || []).forEach(i => {
+                const card = document.getElementById(`card-${i}`);
+                if (card && cards[i]) revealCardElement(card, cards[i]);
+            });
             updatePlayers();
             renderTranslationHint();
         });
