@@ -356,6 +356,56 @@
             color: #ddd;
             cursor: not-allowed;
         }
+        #playModeSelect {
+            display: none;
+            margin-top: 28px;
+        }
+        #playModeText {
+            color: #d4ddd4;
+            font-size: 17px;
+            margin-bottom: 18px;
+        }
+        .play-mode-btn {
+            display: block;
+            width: 100%;
+            max-width: 340px;
+            margin: 0 auto 14px;
+            padding: 18px 20px;
+            border-radius: 16px;
+            border: none;
+            font-size: 19px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: filter 0.15s;
+        }
+        .play-mode-btn.bot-btn {
+            background: linear-gradient(180deg, #7cf58a, #47d45c);
+            color: #0d2211;
+        }
+        .play-mode-btn.human-btn {
+            background: linear-gradient(180deg, #7ab8f5, #4a8fd4);
+            color: #0a1a2e;
+        }
+        .play-mode-btn:hover { filter: brightness(1.05); }
+        #queueStatus {
+            display: none;
+            margin-top: 32px;
+            text-align: center;
+        }
+        .queue-spinner {
+            width: 44px; height: 44px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top-color: #7cf58a;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #queueText {
+            font-size: 18px;
+            color: #d4ddd4;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -383,6 +433,16 @@
         <h1 id="pageTitle">Waiting Room</h1>
         <p id="introText"></p>
         <div id="players"></div>
+        <div id="playModeSelect">
+            <p id="playModeText"></p>
+            <button class="play-mode-btn bot-btn" id="botModeBtn"></button>
+            <button class="play-mode-btn human-btn" id="humanModeBtn"></button>
+        </div>
+        <div id="queueStatus">
+            <div class="queue-spinner"></div>
+            <div id="queueText"></div>
+            <button class="secondaryBtn" id="leaveQueueBtn"></button>
+        </div>
         <div id="playerRole"></div>
         <div id="hint" style="margin:10px 0; color:#ccc; font-size:14px;">
             Tip: only the second player to join can start the game.
@@ -487,7 +547,13 @@
                 theme_selection_ready_state: "{name}: ready",
                 theme_selection_not_ready_state: "{name}: editing",
                 theme_selection_ready_badge_ready: "{name} is ready",
-                theme_selection_ready_badge_waiting: "{name} is still editing"
+                theme_selection_ready_badge_waiting: "{name} is still editing",
+                play_mode_prompt: "How do you want to play?",
+                play_vs_bot: "Play against bot",
+                find_opponent: "Find a human opponent",
+                queue_searching: "Searching for an opponent...",
+                queue_leave: "Leave queue",
+                match_found_msg: "Opponent found! Starting game..."
             },
             fi: {
                 page_title: "Odotushuone",
@@ -551,7 +617,13 @@
                 theme_selection_ready_state: "{name}: valmis",
                 theme_selection_not_ready_state: "{name}: muokkaa",
                 theme_selection_ready_badge_ready: "{name} on valmis",
-                theme_selection_ready_badge_waiting: "{name} muokkaa vielä"
+                theme_selection_ready_badge_waiting: "{name} muokkaa vielä",
+                play_mode_prompt: "Miten haluat pelata?",
+                play_vs_bot: "Pelaa bottia vastaan",
+                find_opponent: "Etsi ihmispelaaja",
+                queue_searching: "Etsitään vastustajaa...",
+                queue_leave: "Poistu jonosta",
+                match_found_msg: "Vastustaja löytyi! Peli alkaa..."
             }
         };
 
@@ -802,6 +874,8 @@
                     try { sessionStorage.removeItem(key); } catch (_) {}
                 });
                 try { localStorage.removeItem("reconnect_token"); } catch (_) {}
+                try { localStorage.removeItem("play_mode"); } catch (_) {}
+                try { localStorage.removeItem("bot_mode"); } catch (_) {}
             }
 
             function exitGame() {
@@ -1053,6 +1127,14 @@
                 playersDiv.textContent = players.join(" & ");
                 renderPlayerRole(playersInfo);
 
+                // If player chose queue mode and hasn't joined queue yet, do it now
+                if (localStorage.getItem("play_mode") === "queue" && !queueJoined && players.length < 2) {
+                    socket.emit("join_queue", {
+                        username: myName,
+                        reconnect_token: reconnectToken
+                    });
+                }
+
                 if (players.length === 2) {
                     const myToken = getReconnectToken();
                     const canStart = myToken && lastJoinedToken && myToken === lastJoinedToken;
@@ -1074,6 +1156,87 @@
                 const lastJoinedToken = payload && payload.last_joined_token;
                 return Boolean(myToken && lastJoinedToken && myToken === lastJoinedToken);
             }
+
+            // --- Play mode selection ---
+            let queueJoined = false;
+            const playModeSelectEl = document.getElementById("playModeSelect");
+            const queueStatusEl = document.getElementById("queueStatus");
+            const queueTextEl = document.getElementById("queueText");
+
+            function showPlayModeSelect() {
+                document.getElementById("playModeText").textContent = t("play_mode_prompt");
+                document.getElementById("botModeBtn").textContent = t("play_vs_bot");
+                document.getElementById("humanModeBtn").textContent = t("find_opponent");
+                document.getElementById("leaveQueueBtn").textContent = t("queue_leave");
+                playModeSelectEl.style.display = "block";
+                queueStatusEl.style.display = "none";
+            }
+
+            function hidePlayModeSelect() {
+                playModeSelectEl.style.display = "none";
+            }
+
+            function showQueueStatus(text) {
+                queueStatusEl.style.display = "block";
+                playModeSelectEl.style.display = "none";
+                queueTextEl.textContent = text || t("queue_searching");
+            }
+
+            function hideQueueStatus() {
+                queueStatusEl.style.display = "none";
+            }
+
+            document.getElementById("botModeBtn").addEventListener("click", () => {
+                localStorage.setItem("bot_mode", "1");
+                localStorage.setItem("play_mode", "bot");
+                hidePlayModeSelect();
+                if (!hasJoined) { emitJoin(); hasJoined = true; }
+            });
+
+            document.getElementById("humanModeBtn").addEventListener("click", () => {
+                localStorage.setItem("bot_mode", "0");
+                localStorage.setItem("play_mode", "queue");
+                hidePlayModeSelect();
+                if (!hasJoined) { emitJoin(); hasJoined = true; }
+                // join_queue emitted after first lobby event confirms player is registered
+            });
+
+            document.getElementById("leaveQueueBtn").addEventListener("click", () => {
+                socket.emit("leave_queue", {});
+                queueJoined = false;
+            });
+
+            socket.on("queue_joined", () => {
+                queueJoined = true;
+                showQueueStatus(t("queue_searching"));
+            });
+
+            socket.on("queue_status", (data) => {
+                if (!queueJoined) return;
+                showQueueStatus(t("queue_searching"));
+            });
+
+            socket.on("match_found", (data) => {
+                queueJoined = false;
+                localStorage.removeItem("play_mode");
+                hideQueueStatus();
+                queueTextEl.textContent = t("match_found_msg");
+                queueStatusEl.style.display = "block";
+                setTimeout(() => { queueStatusEl.style.display = "none"; }, 2000);
+            });
+
+            socket.on("queue_left", () => {
+                queueJoined = false;
+                hideQueueStatus();
+                showPlayModeSelect();
+            });
+
+            socket.on("queue_error", () => {
+                queueJoined = false;
+                hideQueueStatus();
+                showPlayModeSelect();
+            });
+            // --- End play mode selection ---
 
             function emitJoin() {
                 // Tarkista reconnect_tokenin arvo ja tyyppi ennen emitointia
@@ -1112,8 +1275,12 @@
                     localStorage.setItem("username", name);
                     myName = name;
                     if (!hasJoined) {
-                        emitJoin();
-                        hasJoined = true;
+                        if (!localStorage.getItem("play_mode")) {
+                            showPlayModeSelect();
+                        } else {
+                            emitJoin();
+                            hasJoined = true;
+                        }
                     }
                 } else {
                     askName();
@@ -1358,8 +1525,12 @@
                 console.error("[DEBUG] Socket.IO reconnect error:", err);
             });
 
+            const storedPlayMode = localStorage.getItem("play_mode");
             if (!myName || myName.trim().length === 0) {
                 askName();
+            } else if (!storedPlayMode) {
+                // First visit: show mode selection, don't join yet
+                showPlayModeSelect();
             } else {
                 emitJoin();
                 hasJoined = true;
