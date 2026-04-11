@@ -6,7 +6,7 @@ import eventlet
 eventlet.monkey_patch()
 
 from flask import Flask, render_template, request
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
 import os
 import re
@@ -33,7 +33,7 @@ RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300"
 PAGE_TRANSITION_GRACE_SECONDS = 5
 APP_VERSION = "Beta v0.0.4 (2026-04-08)"
 BOT_USERNAME = "Muistibotti"
-BOT_FIRST_FLIP_DELAY_SECONDS = 1.5
+BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
 current_ui_language = "en"
 DEFAULT_ROOM_ID = "default"
@@ -179,6 +179,10 @@ def get_default_room():
     return get_room(DEFAULT_ROOM_ID)
 
 
+def emit_to_room(event_name, payload=None, room_id=DEFAULT_ROOM_ID):
+    socketio.emit(event_name, payload or {}, to=room_id)
+
+
 def get_room_for_request():
     sid = request.sid
     player_info = players.get(sid)
@@ -298,13 +302,13 @@ def is_bot_player(player_or_name):
     return False
 
 
-def get_human_player_items():
-    room = get_default_room()
+def get_human_player_items(room=None):
+    room = room or get_default_room()
     return [(sid, data) for sid, data in room.players.items() if not is_bot_player(data)]
 
 
-def get_effective_human_player_items():
-    return [(sid, data) for sid, data in get_effective_player_items() if not is_bot_player(data)]
+def get_effective_human_player_items(room=None):
+    return [(sid, data) for sid, data in get_effective_player_items(room=room) if not is_bot_player(data)]
 
 
 def remove_bot_players():
@@ -319,8 +323,9 @@ def remove_bot_players():
     return removed
 
 
-def ensure_bot_opponent():
-    if any(is_bot_player(info) for info in players.values()):
+def ensure_bot_opponent(room_id=DEFAULT_ROOM_ID):
+    room = get_room(room_id)
+    if any(is_bot_player(info) for info in room.players.values()):
         return
     bot_sid = f"bot:{uuid.uuid4()}"
     bot_token = f"bot-{uuid.uuid4()}"
@@ -330,30 +335,34 @@ def ensure_bot_opponent():
         "connected": True,
         "disconnected_at": None,
         "is_bot": True,
-        "room_id": DEFAULT_ROOM_ID
+        "room_id": room_id
     }
-    assign_reconnect_token_to_room(bot_token, DEFAULT_ROOM_ID)
+    room.players = players
+    assign_reconnect_token_to_room(bot_token, room_id)
     sync_default_room_from_globals()
     print(f"[INFO] {BOT_USERNAME} lisättiin bot-vastustajaksi.")
 
 
-def get_first_human_player_name():
-    for player in get_effective_players_ordered():
+def get_first_human_player_name(room=None):
+    for player in get_effective_players_ordered(room=room):
         if not is_bot_player(player):
             return player.get("username")
     return player_order[0] if player_order else None
 
 
-def get_active_bot_identity():
-    for sid, info in get_effective_player_items():
+def get_active_bot_identity(room=None):
+    for sid, info in get_effective_player_items(room=room):
         if is_bot_player(info):
             return sid, info
     return None, None
 
 
-def schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS):
+def schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS, room_id=DEFAULT_ROOM_ID):
     global bot_turn_scheduled
+    if room_id != DEFAULT_ROOM_ID:
+        return
     sync_globals_from_default_room()
+    room = get_room(room_id)
     if bot_turn_scheduled:
         return
     if not grid_data or len(grid_data) < 2:
@@ -362,7 +371,7 @@ def schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS):
         return
     if not is_bot_player(player_order[turn]):
         return
-    bot_sid, bot_info = get_active_bot_identity()
+    bot_sid, bot_info = get_active_bot_identity(room=room)
     if not bot_info:
         return
 
@@ -394,22 +403,22 @@ def schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS):
             bot_turn_scheduled = False
             sync_default_room_from_globals()
             if grid_data and player_order and turn < len(player_order) and is_bot_player(player_order[turn]):
-                schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS)
+                schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS, room_id=room_id)
 
     socketio.start_background_task(bot_take_turn)
 
 
-def get_active_player_items():
-    room = get_default_room()
+def get_active_player_items(room=None):
+    room = room or get_default_room()
     return [(sid, data) for sid, data in room.players.items() if data.get("connected", True)]
 
 
-def get_active_players_ordered():
-    return [data for _, data in get_active_player_items()]
+def get_active_players_ordered(room=None):
+    return [data for _, data in get_active_player_items(room=room)]
 
 
-def get_active_player_count():
-    return len(get_active_player_items())
+def get_active_player_count(room=None):
+    return len(get_active_player_items(room=room))
 
 
 def is_effectively_present(player_data):
@@ -421,17 +430,17 @@ def is_effectively_present(player_data):
     return (time.monotonic() - disconnected_at) < PAGE_TRANSITION_GRACE_SECONDS
 
 
-def get_effective_player_items():
-    room = get_default_room()
+def get_effective_player_items(room=None):
+    room = room or get_default_room()
     return [(sid, data) for sid, data in room.players.items() if is_effectively_present(data)]
 
 
-def get_effective_players_ordered():
-    return [data for _, data in get_effective_player_items()]
+def get_effective_players_ordered(room=None):
+    return [data for _, data in get_effective_player_items(room=room)]
 
 
-def get_effective_player_count():
-    return len(get_effective_player_items())
+def get_effective_player_count(room=None):
+    return len(get_effective_player_items(room=room))
 
 
 def resolve_player_for_event(data=None):
@@ -569,7 +578,7 @@ def emit_theme_selection_state(message=None, sid=None):
     if sid:
         socketio.emit("theme_selection_updated", payload, to=sid)
         return
-    socketio.emit("theme_selection_updated", payload)
+    emit_to_room("theme_selection_updated", payload)
 
 
 def deactivate_theme_selection():
@@ -633,7 +642,7 @@ def prepare_theme_selection(starter_name):
         print(f"[WARNING] {message}")
         grid_data.clear()
         reset_pending_state()
-        socketio.emit("game_setup_error", {"reason": message})
+        emit_to_room("game_setup_error", {"reason": message})
         return
 
     counts = {name: 0 for name in player_order}
@@ -642,7 +651,7 @@ def prepare_theme_selection(starter_name):
     rejected_words = []
     remaining_candidates = []
 
-    socketio.emit("theme_generation_started", {
+    emit_to_room("theme_generation_started", {
         "theme": pending_theme,
         "pair": pending_pair + 1,
         "mode": current_game_mode,
@@ -678,7 +687,7 @@ def prepare_theme_selection(starter_name):
             "chosen_by": "System",
             "entry": pair_entry
         })
-        socketio.emit("theme_word_accepted", {
+        emit_to_room("theme_word_accepted", {
             "theme": pending_theme,
             "word": word,
             "pair": len(selected_words),
@@ -692,7 +701,7 @@ def prepare_theme_selection(starter_name):
         print(f"[WARNING] {message}")
         grid_data.clear()
         reset_pending_state()
-        socketio.emit("game_setup_error", {"reason": message})
+        emit_to_room("game_setup_error", {"reason": message})
         return
 
     theme_selection_state = {
@@ -747,7 +756,7 @@ def abort_round_due_to_pixabay_error(message):
     print(f"[ERROR] {message}")
     grid_data.clear()
     reset_pending_state()
-    socketio.emit("game_setup_error", {"reason": message})
+    emit_to_room("game_setup_error", {"reason": message})
 
 
 def next_theme_picker_name(current_name):
@@ -1074,12 +1083,12 @@ def launch_grid_round():
     room = get_default_room()
     room.status = "playing"
     sync_default_room_from_globals()
-    socketio.emit("init_grid", {
+    emit_to_room("init_grid", {
         "cards": grid_data,
         "turn": player_order[0] if player_order else None,
         "players": player_order
     })
-    schedule_bot_turn_if_needed()
+    schedule_bot_turn_if_needed(room_id=DEFAULT_ROOM_ID)
 
 
 def conclude_round(winner_label, surrendered_by=None):
@@ -1092,7 +1101,7 @@ def conclude_round(winner_label, surrendered_by=None):
     else:
         print(f"[INFO] Kierros pÃ¤Ã¤ttyi. Tulos: {winner_label}")
 
-    socketio.emit("game_over", {
+    emit_to_room("game_over", {
         "winner": winner_label,
         "points": points_payload,
         "round_win": dict(round_win),
@@ -1160,7 +1169,7 @@ def generate_theme_pair():
             abort_round_due_to_pixabay_error(str(e))
             return
         if selection_ok:
-            socketio.emit("theme_word_accepted", {
+            emit_to_room("theme_word_accepted", {
                 "theme": pending_theme,
                 "word": word,
                 "pair": pair_index + 1,
@@ -1182,7 +1191,7 @@ def generate_theme_pair():
     print(f"[WARNING] {message}")
     grid_data.clear()
     reset_pending_state()
-    socketio.emit("game_setup_error", {"reason": message})
+    emit_to_room("game_setup_error", {"reason": message})
 
 
 def generate_spanish_learning_pairs(theme, target_pairs=8):
@@ -1249,7 +1258,7 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
         }
         append_spanish_learning_pair_to_grid(pair)
         existing_words.add(english_word)
-        socketio.emit("theme_word_accepted", {
+        emit_to_room("theme_word_accepted", {
             "theme": pending_theme,
             "word": english_word,
             "pair": pending_pair + 1,
@@ -1277,7 +1286,7 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
     print(f"[WARNING] {message}")
     grid_data.clear()
     reset_pending_state()
-    socketio.emit("game_setup_error", {"reason": message})
+    emit_to_room("game_setup_error", {"reason": message})
 
 
 @app.route("/")
@@ -1315,12 +1324,12 @@ def build_lobby_payload():
 @socketio.on("join")
 def on_join(data):
     global players
-    room = get_default_room()
     username = data["username"]
     sid = request.sid
     reconnect_token = data.get("reconnect_token")
     wants_bot = bool((data or {}).get("bot_mode"))
     room_id = get_room_id_for_reconnect_token(reconnect_token)
+    room = get_room(room_id)
     if not reconnect_token:
         print(f"[WARNING] HYLÃ„TTY join ilman reconnect_tokenia: {username}, SID: {sid}")
         return
@@ -1328,9 +1337,9 @@ def on_join(data):
     for k, v in list(players.items()):
         if v.get("reconnect_token") == reconnect_token:
             del players[k]
-    if wants_bot and not get_effective_human_player_items():
-        ensure_bot_opponent()
-    if get_effective_player_count() >= max_players:
+    if wants_bot and not get_effective_human_player_items(room=room):
+        ensure_bot_opponent(room_id=room_id)
+    if get_effective_player_count(room=room) >= max_players:
         print(f"[INFO] Hylätty liittyminen, peli on täynnä: {username}")
         emit("join_rejected", {
             "reason": "Peli on täynnä. Odota seuraavaa erää tai avaa uusi peli."
@@ -1344,12 +1353,13 @@ def on_join(data):
         "room_id": room_id
     }
     room.players = players
+    join_room(room_id)
     assign_reconnect_token_to_room(reconnect_token, room_id)
     sync_default_room_from_globals()
     print(f"[INFO] {username} liittyi peliin.")
     payload = build_lobby_payload()
     payload["username"] = username
-    socketio.emit("player_joined", payload)
+    emit_to_room("player_joined", payload, room_id=room_id)
     if theme_selection_active():
         emit_theme_selection_state()
 
@@ -1378,19 +1388,23 @@ def handle_leave_game(data=None):
             clear_reconnect_token_room(info.get("reconnect_token"))
             del players[existing_sid]
     room.players = players
+    try:
+        leave_room(room.room_id)
+    except Exception:
+        pass
 
     print(f"[INFO] {username} poistui pelistÃ¤ kÃ¤yttÃ¤jÃ¤n pyynnÃ¶stÃ¤.")
     sync_default_room_from_globals()
     payload = build_lobby_payload()
     payload["username"] = username
-    socketio.emit("player_joined", payload)
+    emit_to_room("player_joined", payload, room_id=room.room_id)
 
     if not get_effective_human_player_items():
         remove_bot_players()
 
     if get_effective_player_count() < 2 and (theme_selection_active() or grid_data or 'pending_pair' in globals()):
         print("[INFO] Pelaaja poistui pelistÃ¤ kesken erÃ¤n â€“ keskeytetÃ¤Ã¤n nykyinen pelitila")
-        socketio.emit("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."})
+        emit_to_room("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."}, room_id=room.room_id)
         grid_data.clear()
         revealed_cards.clear()
         matched_indices.clear()
@@ -1415,7 +1429,7 @@ def handle_start_game():
         print("[INFO] Molemmat pelaajat liittyneet, aloitetaan peli")
         # Luo pelidata jo tÃ¤ssÃ¤
         generate_grid()
-        emit("start_game", broadcast=True)
+        emit_to_room("start_game")
     else:
         print("[WARNING] Pelaajia ei ole tarpeeksi pelin aloittamiseen")
 
@@ -1444,7 +1458,7 @@ def handle_grid_request():
         if 'pending_pair' in globals():
             try:
                 if current_game_mode in {"theme", "spanish"}:
-                    emit(
+                    emit_to_room(
                         "theme_generation_started",
                         {
                             "theme": pending_theme,
@@ -1453,8 +1467,7 @@ def handle_grid_request():
                             "starter_name": pending_player or (player_order[0] if player_order else None),
                             "progress_count": pending_pair,
                             "total_pairs": 8
-                        },
-                        broadcast=True
+                        }
                     )
                     socketio.sleep(0)
                     return
@@ -1464,7 +1477,7 @@ def handle_grid_request():
                 target_player = pending_player or get_first_human_player_name() or (player_order[0] if player_order else None)
                 if target_player is not None and pending_pair < 8:
                     debug(f"[DEBUG] request_grid: toistetaan ask_for_word pelaajalle {target_player}, pari {pending_pair+1}")
-                    emit("ask_for_word", {"player": target_player, "pair": pending_pair + 1}, broadcast=True)
+                    emit_to_room("ask_for_word", {"player": target_player, "pair": pending_pair + 1})
             except Exception as e:
                 debug(f"[DEBUG] request_grid: ask_for_word toisto epÃ¤onnistui: {e}")
         return
@@ -1479,12 +1492,12 @@ def handle_grid_request():
         "turn": current_turn_name,
         "players": player_order
     })
-    schedule_bot_turn_if_needed()
+    schedule_bot_turn_if_needed(room_id=DEFAULT_ROOM_ID)
 
 @socketio.on("ready_for_game")
 def handle_ready_for_game():
     debug("[DEBUG] Client ilmoitti olevansa valmis peliin")
-    emit("start_game", broadcast=True)
+    emit_to_room("start_game")
 
 def generate_grid():
     global grid_data, revealed_cards, matched_indices, turn, player_points, player_order
@@ -1552,7 +1565,7 @@ def process_card_click(index, resolved_sid, clicker):
         return
     revealed_cards.append(index)
     sync_default_room_from_globals()
-    socketio.emit("reveal_card", {
+    emit_to_room("reveal_card", {
         "index": index,
         "card": grid_data[index]
     })
@@ -1567,7 +1580,7 @@ def process_card_click(index, resolved_sid, clicker):
         if match_key1 == match_key2:
             matched_indices.update(revealed_cards)
             debug(f"[DEBUG] Pari lÃ¶ytyi: {word1}")
-            socketio.emit("pair_found", {"indices": revealed_cards, "word": word1})
+            emit_to_room("pair_found", {"indices": revealed_cards, "word": word1})
             revealed_cards = []
             current_click_sid = None
             # Piste tÃ¤lle vuorossa olevalle pelaajalle
@@ -1602,7 +1615,7 @@ def process_card_click(index, resolved_sid, clicker):
 
             def hide_later():
                 socketio.sleep(2)  # Odota 2 sekuntia
-                socketio.emit("hide_cards", {"indices": indices_to_hide})
+                emit_to_room("hide_cards", {"indices": indices_to_hide})
             
             socketio.start_background_task(hide_later)
             # Vuoro vaihtuu vasta epÃ¤onnistuneen parin jÃ¤lkeen
@@ -1613,8 +1626,8 @@ def process_card_click(index, resolved_sid, clicker):
         # KÃ¤ytÃ¤ player_order vuoron nÃ¤yttÃ¤miseen
         next_turn_name = player_order[turn] if player_order else None
         debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")
-        socketio.emit("update_turn", {"turn": next_turn_name})
-        schedule_bot_turn_if_needed()
+        emit_to_room("update_turn", {"turn": next_turn_name})
+        schedule_bot_turn_if_needed(room_id=DEFAULT_ROOM_ID)
 
 
 @socketio.on("card_clicked")
@@ -1632,12 +1645,16 @@ def on_disconnect():
         username = players[sid]["username"]
         reconnect_token = players[sid].get("reconnect_token")
         players[sid]["connected"] = False
+        try:
+            leave_room(room.room_id)
+        except Exception:
+            pass
         print(f"[INFO] {username} poistui, odotetaan mahdollista reconnectia ({RECONNECT_GRACE_SECONDS} s)...")
         players[sid]["disconnected_at"] = time.monotonic()
         sync_default_room_from_globals()
         payload = build_lobby_payload()
         payload["username"] = username
-        socketio.emit("player_joined", payload)
+        emit_to_room("player_joined", payload, room_id=room.room_id)
         def remove_later(sid_to_remove, username, expected_token):
             global turn, player_points
             eventlet.sleep(RECONNECT_GRACE_SECONDS)
@@ -1655,10 +1672,10 @@ def on_disconnect():
                 sync_default_room_from_globals()
                 payload = build_lobby_payload()
                 payload["username"] = username
-                socketio.emit("player_joined", payload)
+                emit_to_room("player_joined", payload, room_id=room.room_id)
                 if get_effective_player_count() < 2 and (theme_selection_active() or grid_data or 'pending_pair' in globals()):
                     print("[INFO] Pelaajia liian vÃ¤hÃ¤n keskenerÃ¤iseen erÃ¤Ã¤n â€“ keskeytetÃ¤Ã¤n nykyinen pelitila")
-                    socketio.emit("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."})
+                    emit_to_room("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."}, room_id=room.room_id)
                     grid_data.clear()
                     revealed_cards.clear()
                     matched_indices.clear()
@@ -1714,7 +1731,7 @@ def handle_start_custom_game(data=None):
         mode = "manual"
     current_ui_language = ui_language if ui_language in {"fi", "en"} else "en"
     if mode in {"theme", "spanish"} and not theme:
-        emit("game_setup_error", {"reason": "Teema puuttuu."}, broadcast=True)
+        emit_to_room("game_setup_error", {"reason": "Teema puuttuu."}, room_id=room.room_id)
         return
 
     print("[INFO] Aloitetaan sanojen keruu")
@@ -1733,7 +1750,7 @@ def handle_start_custom_game(data=None):
     theme_rejected_words = set()
     if current_game_mode in {"theme", "spanish"}:
         starter_name = players.get(request.sid, {}).get("username")
-        socketio.emit("theme_generation_started", {
+        emit_to_room("theme_generation_started", {
             "theme": pending_theme,
             "pair": pending_pair + 1,
             "mode": current_game_mode,
@@ -1762,7 +1779,7 @@ def ask_next_word():
 
     if len(player_order) < 2:
         print("[WARNING] Pelaajia liian vÃ¤hÃ¤n, peli keskeytetÃ¤Ã¤n")
-        socketio.emit("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."})
+        emit_to_room("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."})
         return
     # Bot-tiputuksessa pyydetään sanat aina ensimmäiseltä ihmispelaajalta.
     first_player = get_first_human_player_name() or (player_order[0] if player_order else None)
@@ -1773,7 +1790,7 @@ def ask_next_word():
             emit_theme_selection_state()
             return
         print(f"[INFO] Generoidaan teemasanat teemalle '{pending_theme}'")
-        socketio.emit("theme_generation_started", {
+        emit_to_room("theme_generation_started", {
             "theme": pending_theme,
             "pair": pending_pair + 1,
             "mode": "theme",
@@ -1795,7 +1812,7 @@ def ask_next_word():
             emit_theme_selection_state()
             return
         print(f"[INFO] Generoidaan espanjan opiskelupeli teemalle '{pending_theme}'")
-        socketio.emit("theme_generation_started", {
+        emit_to_room("theme_generation_started", {
             "theme": pending_theme,
             "pair": pending_pair + 1,
             "mode": "spanish",
@@ -1813,7 +1830,7 @@ def ask_next_word():
         socketio.start_background_task(generate_spanish_learning_pairs, pending_theme)
         return
     print(f"[INFO] PyydetÃ¤Ã¤n sana pelaajalta {first_player}, pari {pending_pair+1}")
-    socketio.emit("ask_for_word", {
+    emit_to_room("ask_for_word", {
         "player": first_player,
         "pair": pending_pair + 1
     })
@@ -1874,7 +1891,7 @@ def handle_select_theme_word(data):
         print(f"[INFO] Sana '{word}' hylÃ¤ttiin tilassa '{current_game_mode}'")
         rejected_words.append(word)
         theme_rejected_words.add(word)
-        socketio.emit("theme_selection_updated", build_theme_selection_payload(
+        emit_to_room("theme_selection_updated", build_theme_selection_payload(
             message=f"word_rejected:{word}"
         ))
         emit("theme_selection_failed", {"reason": "image_missing", "word": word})
@@ -1951,10 +1968,10 @@ def handle_word_given(data):
     word = normalize_candidate_word(data["word"])
     if not word:
         print("[WARNING] KÃ¤yttÃ¤jÃ¤n sana ei kelpaa, pyydetÃ¤Ã¤n uusi sana")
-        emit("word_failed", {
+        emit_to_room("word_failed", {
             "player": expected_player,
             "pair": pending_pair + 1
-        }, broadcast=True)
+        })
         return
     pair_index = pending_pair
     print(f"[INFO] Vastaanotettu sana '{word}' parille {pair_index+1}")
@@ -1969,10 +1986,10 @@ def handle_word_given(data):
         ask_next_word()
     else:
         print(f"[WARNING] Pixabay ei lÃ¶ytÃ¤nyt kuvia sanalle '{word}', pyydetÃ¤Ã¤n uusi sana")
-        emit("word_failed", {
+        emit_to_room("word_failed", {
             "player": expected_player,
             "pair": pending_pair + 1
-        }, broadcast=True)
+        })
 
 
 @socketio.on("surrender_round")
@@ -2007,7 +2024,7 @@ def handle_client_request_ask_for_word(data):
     # Pieni viive, jotta mahdollinen alert/prompt ei tÃ¶rmÃ¤Ã¤ seuraavaan prompttiin
     socketio.sleep(0.3)
     try:
-        emit("ask_for_word", {"player": target_player, "pair": pair}, broadcast=True)
+        emit_to_room("ask_for_word", {"player": target_player, "pair": pair})
     except Exception as e:
         print(f"[ERROR] ask_for_word uudelleenlÃ¤hetys epÃ¤onnistui: {e}")
 
