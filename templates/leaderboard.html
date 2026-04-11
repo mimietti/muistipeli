@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Leaderboard</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0 0 40px;
+        }
+        .shell {
+            width: min(720px, calc(100% - 32px));
+            margin: 32px auto 0;
+        }
+        h1 { font-size: 32px; margin-bottom: 8px; }
+        .subtitle {
+            color: #8c928c;
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+        .section {
+            margin-bottom: 32px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            padding: 20px 16px;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff4a8;
+            margin-bottom: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+        }
+        th {
+            color: #7a9e7a;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 6px 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        tr:last-child td { border-bottom: none; }
+        .rank {
+            color: #7a9e7a;
+            font-weight: 700;
+            width: 36px;
+        }
+        .rank-1 { color: #ffd700; }
+        .rank-2 { color: #c0c0c0; }
+        .rank-3 { color: #cd7f32; }
+        .username { font-weight: 700; text-align: left; }
+        .time-val { color: #7cf58a; font-weight: 700; font-size: 17px; }
+        .mistakes-val { color: #ffb84d; }
+        .empty { color: #5a6a5a; font-size: 14px; padding: 20px 0; }
+        .back-btn {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 10px 24px;
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.13); }
+        .footer-credit {
+            margin-top: 28px;
+            color: #8c928c;
+            font-size: 12px;
+        }
+        .lang-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+        .lang-tab {
+            padding: 8px 20px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.04);
+            color: #ccc;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        .lang-tab.active {
+            background: rgba(124,245,138,0.15);
+            border-color: rgba(124,245,138,0.4);
+            color: #7cf58a;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <h1 id="pageTitle">Leaderboard</h1>
+        <p class="subtitle" id="pageSubtitle">Top results</p>
+
+        <div class="lang-tabs">
+            <button class="lang-tab active" id="tabFi" onclick="setLang('fi')">🇫🇮 Suomi</button>
+            <button class="lang-tab" id="tabEn" onclick="setLang('en')">🇬🇧 English</button>
+        </div>
+
+        {% if not db_available %}
+        <div class="section">
+            <div class="empty" id="noDbText">Leaderboard not available — database not configured.</div>
+        </div>
+        {% else %}
+
+        <!-- Solo -->
+        <div class="section">
+            <div class="section-title" id="soloTitle">Solo — fastest</div>
+            {% set solo_rows = solo_fi %}
+            {% if solo_rows %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th id="thName">Player</th>
+                        <th id="thMode">Mode</th>
+                        <th id="thTime">Time</th>
+                        <th id="thMistakes">Mistakes</th>
+                        <th id="thPairs">Pairs</th>
+                    </tr>
+                </thead>
+                <tbody id="soloBody">
+                    {% for row in solo_rows %}
+                    <tr>
+                        <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+                        <td class="username">{{ row[0] }}</td>
+                        <td>{{ row[1] }}</td>
+                        <td class="time-val">{{ (row[2] // 60)|string + ":" + "%02d"|format(row[2] % 60) }}</td>
+                        <td class="mistakes-val">{{ row[3] if row[3] is not none else "–" }}</td>
+                        <td>{{ row[4] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty" id="soloEmpty">No solo results yet.</div>
+            {% endif %}
+        </div>
+
+        <!-- Multiplayer -->
+        <div class="section">
+            <div class="section-title" id="multiTitle">Multiplayer — most pairs</div>
+            {% if multi %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th id="thNameM">Player</th>
+                        <th id="thGames">Games</th>
+                        <th id="thTotalPairs">Total pairs</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in multi %}
+                    <tr>
+                        <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+                        <td class="username">{{ row[0] }}</td>
+                        <td>{{ row[1] }}</td>
+                        <td class="time-val">{{ row[2] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty" id="multiEmpty">No multiplayer results yet.</div>
+            {% endif %}
+        </div>
+
+        {% endif %}
+
+        <a href="/" class="back-btn" id="backBtn">← Back</a>
+        <div class="footer-credit">© Michael Miettinen • {{ app_version }}</div>
+    </div>
+
+    <script>
+        const soloFiData = {{ solo_fi | tojson }};
+        const soloEnData = {{ solo_en | tojson }};
+
+        const translations = {
+            fi: {
+                title: "Tulostaulu",
+                subtitle: "Parhaat tulokset",
+                soloTitle: "Solo — nopein",
+                multiTitle: "Moninpeli — eniten pareja",
+                thName: "Pelaaja", thMode: "Moodi", thTime: "Aika",
+                thMistakes: "Virheet", thPairs: "Parit",
+                thNameM: "Pelaaja", thGames: "Pelit", thTotalPairs: "Pareja yhteensä",
+                soloEmpty: "Ei solo-tuloksia vielä.",
+                multiEmpty: "Ei moninpelituloksia vielä.",
+                noDb: "Tulostaulu ei käytössä – tietokantaa ei ole konfiguroitu.",
+                back: "← Takaisin"
+            },
+            en: {
+                title: "Leaderboard",
+                subtitle: "Top results",
+                soloTitle: "Solo — fastest",
+                multiTitle: "Multiplayer — most pairs",
+                thName: "Player", thMode: "Mode", thTime: "Time",
+                thMistakes: "Mistakes", thPairs: "Pairs",
+                thNameM: "Player", thGames: "Games", thTotalPairs: "Total pairs",
+                soloEmpty: "No solo results yet.",
+                multiEmpty: "No multiplayer results yet.",
+                noDb: "Leaderboard not available — database not configured.",
+                back: "← Back"
+            }
+        };
+
+        function getStoredLang() {
+            return (localStorage.getItem("ui_language") === "fi") ? "fi" : "en";
+        }
+
+        function formatTime(secs) {
+            if (secs == null) return "–";
+            const m = Math.floor(secs / 60);
+            const s = secs % 60;
+            return `${m}:${String(s).padStart(2, "0")}`;
+        }
+
+        function renderSoloTable(rows, lang) {
+            const tbody = document.getElementById("soloBody");
+            const emptyEl = document.getElementById("soloEmpty");
+            if (!tbody && !emptyEl) return;
+            if (!rows || rows.length === 0) {
+                if (tbody) tbody.closest("table").style.display = "none";
+                if (emptyEl) emptyEl.style.display = "";
+                return;
+            }
+            if (emptyEl) emptyEl.style.display = "none";
+            if (tbody) {
+                tbody.closest("table").style.display = "";
+                tbody.innerHTML = rows.map((row, i) => {
+                    const rankClass = i < 3 ? `rank-${i+1}` : "";
+                    return `<tr>
+                        <td class="rank ${rankClass}">${i+1}</td>
+                        <td class="username">${row[0]}</td>
+                        <td>${row[1]}</td>
+                        <td class="time-val">${formatTime(row[2])}</td>
+                        <td class="mistakes-val">${row[3] != null ? row[3] : "–"}</td>
+                        <td>${row[4]}</td>
+                    </tr>`;
+                }).join("");
+            }
+        }
+
+        function applyTranslations(lang) {
+            const T = translations[lang];
+            document.getElementById("pageTitle").textContent = T.title;
+            document.getElementById("pageSubtitle").textContent = T.subtitle;
+            document.getElementById("soloTitle").textContent = T.soloTitle;
+            const multiTitleEl = document.getElementById("multiTitle");
+            if (multiTitleEl) multiTitleEl.textContent = T.multiTitle;
+            const ids = ["thName","thMode","thTime","thMistakes","thPairs","thNameM","thGames","thTotalPairs","soloEmpty","multiEmpty","noDbText"];
+            ids.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = T[id] || el.textContent; });
+            document.getElementById("backBtn").textContent = T.back;
+            document.title = T.title;
+        }
+
+        function setLang(lang) {
+            localStorage.setItem("ui_language", lang);
+            document.getElementById("tabFi").classList.toggle("active", lang === "fi");
+            document.getElementById("tabEn").classList.toggle("active", lang === "en");
+            applyTranslations(lang);
+            renderSoloTable(lang === "fi" ? soloFiData : soloEnData, lang);
+        }
+
+        setLang(getStoredLang());
+    </script>
+</body>
+</html>

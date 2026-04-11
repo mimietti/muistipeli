@@ -5,7 +5,7 @@ warnings.filterwarnings("ignore", message=".*Eventlet is deprecated.*")
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify  # noqa: F401
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
 import os
@@ -17,6 +17,71 @@ from dataclasses import dataclass, field
 from dotenv import load_dotenv
 from collections import defaultdict
 load_dotenv()
+
+# ---------------------------------------------------------------------------
+# Database (PostgreSQL via psycopg2, optional — skipped if DATABASE_URL unset)
+# ---------------------------------------------------------------------------
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None  # type: ignore
+
+_db_url = os.getenv("DATABASE_URL", "").strip()
+
+def _get_db():
+    """Return a new psycopg2 connection, or None if DB not configured."""
+    if not _db_url or psycopg2 is None:
+        return None
+    try:
+        return psycopg2.connect(_db_url)
+    except Exception as e:
+        print(f"[DB] Yhteysvirhe: {e}")
+        return None
+
+def _init_db():
+    conn = _get_db()
+    if not conn:
+        print("[DB] DATABASE_URL ei asetettu – leaderboard ei käytössä.")
+        return
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS results (
+                        id          SERIAL PRIMARY KEY,
+                        username    TEXT NOT NULL,
+                        play_mode   TEXT NOT NULL,
+                        game_mode   TEXT NOT NULL,
+                        pairs_found INT NOT NULL DEFAULT 0,
+                        time_secs   INT,
+                        mistakes    INT,
+                        created_at  TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+        print("[DB] Tietokanta alustettu.")
+    except Exception as e:
+        print(f"[DB] Alustusvirhe: {e}")
+    finally:
+        conn.close()
+
+_init_db()
+
+def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None):
+    conn = _get_db()
+    if not conn:
+        return
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes)
+                       VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes)
+                )
+    except Exception as e:
+        print(f"[DB] Tallennusvirhe: {e}")
+    finally:
+        conn.close()
 
 app = Flask(__name__)
 socketio = SocketIO(
@@ -1044,6 +1109,30 @@ def conclude_round(winner_label, room, surrendered_by=None):
         print(f"[INFO] Kierros päättyi. Tulos: {winner_label}")
 
     solo_time = round(time.time() - room.solo_start_time) if is_solo(room) and room.solo_start_time else None
+
+    # --- Save to leaderboard ---
+    if not surrendered_by:
+        if is_solo(room) and room.player_order:
+            save_result(
+                username=room.player_order[0],
+                play_mode="solo",
+                game_mode=room.game_mode,
+                pairs_found=room.player_points.get(room.player_order[0], 0),
+                time_secs=solo_time,
+                mistakes=room.solo_mistakes
+            )
+        else:
+            for name in room.player_order:
+                play_mode = "bot" if any(
+                    info.get("is_bot") for info in room.players.values()
+                ) else "multiplayer"
+                save_result(
+                    username=name,
+                    play_mode=play_mode,
+                    game_mode=room.game_mode,
+                    pairs_found=room.player_points.get(name, 0)
+                )
+
     emit_to_room("game_over", {
         "winner": winner_label,
         "points": points_payload,
@@ -1452,6 +1541,49 @@ def game():
 @app.route("/summary")
 def summary():
     return render_template("summary.html")
+
+
+@app.route("/leaderboard")
+def leaderboard():
+    conn = _get_db()
+    solo_fi, solo_en, multi = [], [], []
+    if conn:
+        try:
+            with conn.cursor() as cur:
+                # Solo: top 10 fastest per game_mode (fi=suomi/spanish, en=theme/manual)
+                cur.execute("""
+                    SELECT username, game_mode, time_secs, mistakes, pairs_found, created_at
+                    FROM results
+                    WHERE play_mode = 'solo' AND time_secs IS NOT NULL
+                    ORDER BY time_secs ASC, mistakes ASC
+                    LIMIT 50
+                """)
+                solo_rows = cur.fetchall()
+                solo_fi = [r for r in solo_rows if r[1] == "spanish"][:10]
+                solo_en = [r for r in solo_rows if r[1] in ("theme", "manual")][:10]
+
+                # Multiplayer: most round wins (pair count sum)
+                cur.execute("""
+                    SELECT username,
+                           COUNT(*) AS games,
+                           SUM(pairs_found) AS total_pairs
+                    FROM results
+                    WHERE play_mode IN ('multiplayer', 'bot')
+                    GROUP BY username
+                    ORDER BY total_pairs DESC
+                    LIMIT 10
+                """)
+                multi = cur.fetchall()
+        except Exception as e:
+            print(f"[DB] Leaderboard query error: {e}")
+        finally:
+            conn.close()
+
+    return render_template("leaderboard.html",
+                           solo_fi=solo_fi,
+                           solo_en=solo_en,
+                           multi=multi,
+                           db_available=bool(conn))
 
 
 # ---------------------------------------------------------------------------
