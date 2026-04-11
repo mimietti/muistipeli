@@ -74,6 +74,23 @@
             background: rgba(255,255,255,0.04);
             border: 1px solid rgba(255,255,255,0.08);
             border-radius: 18px;
+            transition: border-color 0.3s, background 0.3s;
+        }
+        #translation-hint.pair-found {
+            background: rgba(71, 212, 92, 0.08);
+            border-color: rgba(71, 212, 92, 0.4);
+        }
+        #translation-hint-label {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #7cf58a;
+            margin-bottom: 8px;
+            display: none;
+        }
+        #translation-hint.pair-found #translation-hint-label {
+            display: block;
         }
         #translation-hint-grid {
             display: grid;
@@ -326,6 +343,7 @@
     </div>
     <div id="grid"></div>
     <div id="translation-hint" style="display:none;">
+        <div id="translation-hint-label"></div>
         <div id="translation-hint-grid"></div>
     </div>
     <div id="winner-message" style="display: none; margin-top: 20px; color: gold; font-size: 24px;"></div>
@@ -369,6 +387,8 @@
                 prompt_spanish_theme: "Enter theme in English:",
                 pixabay_retry: "Pixabay could not find an image for that word. Try another word.",
                 found_word: "Pair found: {word}",
+                pair_found_label: "Pair found",
+                pair_found_word_label: "Word",
                 study_spanish: "Study Spanish",
                 theme_missing: "Theme is missing.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
@@ -409,6 +429,8 @@
                 prompt_spanish_theme: "Anna teema englanniksi:",
                 pixabay_retry: "Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.",
                 found_word: "Pari löytyi: {word}",
+                pair_found_label: "Pari löytyi",
+                pair_found_word_label: "Sana",
                 study_spanish: "Opiskele espanjaa",
                 theme_missing: "Teema puuttuu.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
@@ -511,6 +533,7 @@
         const themeProgressList = document.getElementById("theme-progress-list");
         const translationHintContainer = document.getElementById("translation-hint");
         const translationHintGrid = document.getElementById("translation-hint-grid");
+        const translationHintLabel = document.getElementById("translation-hint-label");
         let cards = [];
         let matched = new Set();
         let currentTurn = null;
@@ -732,6 +755,8 @@
         function renderTranslationHint() {
             if (!currentTranslationHint) {
                 translationHintContainer.style.display = "none";
+                translationHintContainer.classList.remove("pair-found");
+                translationHintLabel.textContent = "";
                 translationHintGrid.replaceChildren();
                 return;
             }
@@ -762,7 +787,54 @@
                 return cell;
             });
             translationHintGrid.replaceChildren(...items);
+            translationHintContainer.classList.remove("pair-found");
+            translationHintLabel.textContent = "";
             translationHintContainer.style.display = "block";
+        }
+
+        function showPairFoundInHint(indices, word) {
+            // Find translation data from matched cards
+            let hint = null;
+            for (const i of indices) {
+                const card = cards[i];
+                if (!card) continue;
+                const words = getTranslationHintWords(card);
+                if (words) { hint = words; break; }
+            }
+
+            translationHintContainer.classList.add("pair-found");
+            translationHintLabel.textContent = t("pair_found_label");
+
+            if (hint) {
+                // Spanish mode: show full translation columns
+                currentTranslationHint = { ...hint, index: -1 };
+                renderTranslationHint();
+                translationHintContainer.classList.add("pair-found");
+                translationHintLabel.textContent = t("pair_found_label");
+            } else {
+                // Theme / manual mode: just show the word
+                currentTranslationHint = null;
+                translationHintGrid.style.gridTemplateColumns = "1fr";
+                const cell = document.createElement("div");
+                cell.className = "translation-col";
+                const label = document.createElement("div");
+                label.className = "translation-col-label";
+                label.textContent = t("pair_found_word_label");
+                const value = document.createElement("div");
+                value.className = "translation-col-value";
+                value.textContent = word || "";
+                cell.appendChild(label);
+                cell.appendChild(value);
+                translationHintGrid.replaceChildren(cell);
+                translationHintContainer.style.display = "block";
+            }
+
+            // Auto-clear after cards are removed (3s highlight + small buffer)
+            clearTimeout(window._pairFoundHintTimer);
+            window._pairFoundHintTimer = setTimeout(() => {
+                currentTranslationHint = null;
+                renderTranslationHint();
+            }, 3500);
         }
 
         function showTranslationHintForCard(card, index) {
@@ -984,8 +1056,7 @@
                     }, 3000);
                 }
             });
-            showWordMessage(data.word);
-            clearTranslationHint(data.indices || []);
+            showPairFoundInHint(data.indices || [], data.word);
         });
 
         socket.on("game_over", (data) => {
