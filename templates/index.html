@@ -329,6 +329,7 @@
             }
             localStorage.setItem("username", username);
             localStorage.setItem("bot_mode", vsBot ? "1" : "0");
+            localStorage.setItem("play_mode", vsBot ? "bot" : "queue");
             navigateTo("/waiting");
         }
 
