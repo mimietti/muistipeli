@@ -557,7 +557,7 @@
         const joinPayload = {
             username: myName,
             reconnect_token: reconnectToken,
-            bot_mode: localStorage.getItem("bot_mode") === "1"
+            bot_mode: false
         };
         console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
         socket.emit("join", joinPayload);

@@ -29,7 +29,7 @@ socketio = SocketIO(
 )
 
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
-RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "180")))
+RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 APP_VERSION = "Beta v0.0.4 (2026-04-08)"
 BOT_USERNAME = "Muistibotti"
@@ -1461,10 +1461,10 @@ def handle_grid_request():
                 if len(player_order) < 1:
                     # Fallback jÃ¤rjestys
                     player_order[:] = [v["username"] for v in get_effective_players_ordered()]
-                first_player = player_order[0] if player_order else None
-                if first_player is not None and pending_pair < 8:
-                    debug(f"[DEBUG] request_grid: toistetaan ask_for_word pelaajalle {first_player}, pari {pending_pair+1}")
-                    emit("ask_for_word", {"player": first_player, "pair": pending_pair + 1}, broadcast=True)
+                target_player = pending_player or get_first_human_player_name() or (player_order[0] if player_order else None)
+                if target_player is not None and pending_pair < 8:
+                    debug(f"[DEBUG] request_grid: toistetaan ask_for_word pelaajalle {target_player}, pari {pending_pair+1}")
+                    emit("ask_for_word", {"player": target_player, "pair": pending_pair + 1}, broadcast=True)
             except Exception as e:
                 debug(f"[DEBUG] request_grid: ask_for_word toisto epÃ¤onnistui: {e}")
         return
