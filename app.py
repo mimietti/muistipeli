@@ -606,7 +606,7 @@ def append_selected_spanish_pair(word, pair_index, room):
         return False
     finnish_word = translate_word_to_finnish(word)
     print(f"[INFO] Kokeillaan espanjapariksi '{word}' -> '{spanish_word}' parille {pair_index + 1}")
-    image_paths = fetch_and_save_pixabay_images(word, pair_index, room, required_count=1)
+    image_paths = fetch_and_save_pixabay_images(word, room, required_count=1)
     if not image_paths:
         print(f"[INFO] Pixabay ei löytänyt espanjaparille '{word}' sopivaa kuvaa")
         return False
@@ -949,8 +949,8 @@ def append_spanish_learning_pair_to_grid(pair, room):
     })
 
 
-def build_theme_pair_entry(word, pair_index, room):
-    result = fetch_and_save_pixabay_images(word, pair_index, room)
+def build_theme_pair_entry(word, room):
+    result = fetch_and_save_pixabay_images(word, room)
     if not result:
         print(f"[INFO] Pixabay-haku epäonnistui sanalle '{word}'")
         return None
@@ -964,7 +964,7 @@ def build_theme_pair_entry(word, pair_index, room):
 
 def build_pair_entry_for_mode(word, pair_index, room):
     if room.game_mode == "theme":
-        return build_theme_pair_entry(word, pair_index, room)
+        return build_theme_pair_entry(word, room)
     if room.game_mode == "spanish":
         pair = append_selected_spanish_pair(word, pair_index, room)
         if not pair:
