@@ -13,6 +13,7 @@ import re
 import time
 import requests
 import uuid
+from dataclasses import dataclass, field
 from dotenv import load_dotenv   # <-- TÃ„MÃ„
 from collections import defaultdict
 load_dotenv()                   # <--
@@ -35,6 +36,7 @@ BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 1.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
 current_ui_language = "en"
+DEFAULT_ROOM_ID = "default"
 
 
 class PixabayConfigError(RuntimeError):
@@ -49,6 +51,39 @@ def debug(message):
 @app.context_processor
 def inject_app_version():
     return {"app_version": APP_VERSION}
+
+
+@dataclass
+class RoomState:
+    room_id: str
+    status: str = "waiting"
+    game_mode: str = "manual"
+    play_mode: str = "queue"
+    ui_language: str = "en"
+    native_language: str = "fi"
+    target_language: str = "es"
+    image_mode: str = "pixabay"
+    players: dict = field(default_factory=dict)
+    player_order: list = field(default_factory=list)
+    grid_data: list = field(default_factory=list)
+    revealed_cards: list = field(default_factory=list)
+    matched_indices: set = field(default_factory=set)
+    turn: int = 0
+    player_points: dict = field(default_factory=dict)
+    round_win: defaultdict = field(default_factory=lambda: defaultdict(int))
+    pending_pair: int = 0
+    pending_player: str | None = None
+    pending_theme: str | None = None
+    pending_search_theme: str | None = None
+    theme_candidates: list = field(default_factory=list)
+    theme_rejected_words: set = field(default_factory=set)
+    theme_selection_state: dict = field(default_factory=dict)
+    used_image_ids: set = field(default_factory=set)
+    spanish_generation_in_progress: bool = False
+    theme_generation_in_progress: bool = False
+    bot_turn_scheduled: bool = False
+    current_click_sid: str | None = None
+    last_tokens: set = field(default_factory=set)
 
 players = {}  # { sid: {"username": ..., "reconnect_token": ...} }
 max_players = 2
@@ -77,6 +112,8 @@ translation_cache = {}
 pixabay_cache = {}
 theme_translation_cache = {}
 bot_turn_scheduled = False
+rooms = {}
+player_room_index = {}
 
 SPANISH_TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
 THEME_TRANSLATION_OVERRIDES = {
@@ -106,6 +143,128 @@ ABSTRACT_THEME_WORDS = {
 }
 
 
+def create_room(room_id=DEFAULT_ROOM_ID):
+    room = RoomState(
+        room_id=room_id,
+        game_mode=current_game_mode,
+        ui_language=current_ui_language,
+        players=players,
+        player_order=player_order,
+        grid_data=grid_data,
+        revealed_cards=revealed_cards,
+        matched_indices=matched_indices,
+        turn=turn,
+        player_points=player_points,
+        round_win=round_win,
+        pending_theme=pending_theme,
+        pending_search_theme=pending_search_theme,
+        theme_candidates=theme_candidates,
+        theme_rejected_words=theme_rejected_words,
+        theme_selection_state=theme_selection_state,
+        used_image_ids=used_pixabay_image_ids,
+        spanish_generation_in_progress=spanish_generation_in_progress,
+        theme_generation_in_progress=theme_generation_in_progress,
+        bot_turn_scheduled=bot_turn_scheduled,
+        current_click_sid=current_click_sid,
+    )
+    rooms[room_id] = room
+    return room
+
+
+def get_room(room_id=DEFAULT_ROOM_ID):
+    return rooms.get(room_id) or create_room(room_id)
+
+
+def get_default_room():
+    return get_room(DEFAULT_ROOM_ID)
+
+
+def get_room_for_request():
+    sid = request.sid
+    player_info = players.get(sid)
+    if player_info and player_info.get("room_id"):
+        return get_room(player_info["room_id"])
+    reconnect_token = ((request.args or {}).get("reconnect_token") or "").strip()
+    return get_room(get_room_id_for_reconnect_token(reconnect_token))
+
+
+def sync_default_room_from_globals():
+    room = get_default_room()
+    room.status = "playing" if grid_data else ("setup" if ('pending_pair' in globals() or theme_selection_state) else "waiting")
+    room.game_mode = current_game_mode
+    room.ui_language = current_ui_language
+    room.players = players
+    room.player_order = player_order
+    room.grid_data = grid_data
+    room.revealed_cards = revealed_cards
+    room.matched_indices = matched_indices
+    room.turn = turn
+    room.player_points = player_points
+    room.round_win = round_win
+    room.pending_theme = pending_theme
+    room.pending_search_theme = pending_search_theme
+    room.theme_candidates = theme_candidates
+    room.theme_rejected_words = theme_rejected_words
+    room.theme_selection_state = theme_selection_state
+    room.used_image_ids = used_pixabay_image_ids
+    room.pending_pair = globals().get("pending_pair", 0)
+    room.pending_player = globals().get("pending_player")
+    room.spanish_generation_in_progress = spanish_generation_in_progress
+    room.theme_generation_in_progress = theme_generation_in_progress
+    room.bot_turn_scheduled = bot_turn_scheduled
+    room.current_click_sid = current_click_sid
+    room.last_tokens = set(getattr(handle_start_custom_game, "last_tokens", set()))
+    return room
+
+
+def sync_globals_from_default_room():
+    global current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words
+    global theme_selection_state, used_pixabay_image_ids, spanish_generation_in_progress, theme_generation_in_progress
+    global current_click_sid, bot_turn_scheduled, current_ui_language, player_order, grid_data, revealed_cards, players
+    global matched_indices, turn, player_points, round_win
+    room = get_default_room()
+    players = room.players
+    current_game_mode = room.game_mode
+    current_ui_language = room.ui_language
+    pending_theme = room.pending_theme
+    pending_search_theme = room.pending_search_theme
+    theme_candidates = room.theme_candidates
+    theme_rejected_words = room.theme_rejected_words
+    theme_selection_state = room.theme_selection_state
+    used_pixabay_image_ids = room.used_image_ids
+    spanish_generation_in_progress = room.spanish_generation_in_progress
+    theme_generation_in_progress = room.theme_generation_in_progress
+    current_click_sid = room.current_click_sid
+    bot_turn_scheduled = room.bot_turn_scheduled
+    player_order = room.player_order
+    grid_data = room.grid_data
+    revealed_cards = room.revealed_cards
+    matched_indices = room.matched_indices
+    turn = room.turn
+    player_points = room.player_points
+    round_win = room.round_win
+    globals()['pending_pair'] = room.pending_pair
+    if room.pending_player is None:
+        globals().pop('pending_player', None)
+    else:
+        globals()['pending_player'] = room.pending_player
+    return room
+
+
+def assign_reconnect_token_to_room(reconnect_token, room_id=DEFAULT_ROOM_ID):
+    if reconnect_token:
+        player_room_index[reconnect_token] = room_id
+
+
+def clear_reconnect_token_room(reconnect_token):
+    if reconnect_token:
+        player_room_index.pop(reconnect_token, None)
+
+
+def get_room_id_for_reconnect_token(reconnect_token):
+    return player_room_index.get(reconnect_token) or DEFAULT_ROOM_ID
+
+
 def reset_pending_state():
     global current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, theme_selection_state, used_pixabay_image_ids, spanish_generation_in_progress, theme_generation_in_progress, current_click_sid, bot_turn_scheduled, current_ui_language
     globals().pop('pending_pair', None)
@@ -123,21 +282,25 @@ def reset_pending_state():
     current_click_sid = None
     bot_turn_scheduled = False
     current_ui_language = "en"
+    room = sync_default_room_from_globals()
+    room.status = "waiting" if not grid_data else room.status
 
 
 def is_bot_player(player_or_name):
+    room = get_default_room()
     if isinstance(player_or_name, dict):
         return bool(player_or_name.get("is_bot"))
     if isinstance(player_or_name, str):
         return any(
             info.get("username") == player_or_name and info.get("is_bot")
-            for info in players.values()
+            for info in room.players.values()
         )
     return False
 
 
 def get_human_player_items():
-    return [(sid, data) for sid, data in players.items() if not is_bot_player(data)]
+    room = get_default_room()
+    return [(sid, data) for sid, data in room.players.items() if not is_bot_player(data)]
 
 
 def get_effective_human_player_items():
@@ -148,8 +311,11 @@ def remove_bot_players():
     removed = False
     for sid, info in list(players.items()):
         if is_bot_player(info):
+            clear_reconnect_token_room(info.get("reconnect_token"))
             del players[sid]
             removed = True
+    if removed:
+        sync_default_room_from_globals()
     return removed
 
 
@@ -163,8 +329,11 @@ def ensure_bot_opponent():
         "reconnect_token": bot_token,
         "connected": True,
         "disconnected_at": None,
-        "is_bot": True
+        "is_bot": True,
+        "room_id": DEFAULT_ROOM_ID
     }
+    assign_reconnect_token_to_room(bot_token, DEFAULT_ROOM_ID)
+    sync_default_room_from_globals()
     print(f"[INFO] {BOT_USERNAME} lisättiin bot-vastustajaksi.")
 
 
@@ -184,6 +353,7 @@ def get_active_bot_identity():
 
 def schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS):
     global bot_turn_scheduled
+    sync_globals_from_default_room()
     if bot_turn_scheduled:
         return
     if not grid_data or len(grid_data) < 2:
@@ -197,10 +367,12 @@ def schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS):
         return
 
     bot_turn_scheduled = True
+    sync_default_room_from_globals()
 
     def bot_take_turn():
         global bot_turn_scheduled
         try:
+            sync_globals_from_default_room()
             socketio.sleep(delay)
             if not grid_data or not player_order or turn >= len(player_order):
                 return
@@ -215,10 +387,12 @@ def schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS):
             first_index, second_index = random.sample(available_indices, 2)
             process_card_click(first_index, bot_sid, bot_info)
             socketio.sleep(BOT_SECOND_FLIP_DELAY_SECONDS)
+            sync_globals_from_default_room()
             if grid_data and player_order and turn < len(player_order) and is_bot_player(player_order[turn]):
                 process_card_click(second_index, bot_sid, bot_info)
         finally:
             bot_turn_scheduled = False
+            sync_default_room_from_globals()
             if grid_data and player_order and turn < len(player_order) and is_bot_player(player_order[turn]):
                 schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS)
 
@@ -226,7 +400,8 @@ def schedule_bot_turn_if_needed(delay=BOT_FIRST_FLIP_DELAY_SECONDS):
 
 
 def get_active_player_items():
-    return [(sid, data) for sid, data in players.items() if data.get("connected", True)]
+    room = get_default_room()
+    return [(sid, data) for sid, data in room.players.items() if data.get("connected", True)]
 
 
 def get_active_players_ordered():
@@ -247,7 +422,8 @@ def is_effectively_present(player_data):
 
 
 def get_effective_player_items():
-    return [(sid, data) for sid, data in players.items() if is_effectively_present(data)]
+    room = get_default_room()
+    return [(sid, data) for sid, data in room.players.items() if is_effectively_present(data)]
 
 
 def get_effective_players_ordered():
@@ -294,11 +470,13 @@ def resolve_player_for_event(data=None):
 
 
 def theme_selection_active():
+    sync_globals_from_default_room()
     return bool(theme_selection_state.get("active"))
 
 
 def sync_theme_selection_players():
     global player_order
+    sync_globals_from_default_room()
     if not theme_selection_active():
         return []
 
@@ -347,10 +525,12 @@ def sync_theme_selection_players():
     theme_selection_state["counts"] = new_counts
     theme_selection_state["ready"] = new_ready
     theme_selection_state["player_tokens"] = new_tokens
+    sync_default_room_from_globals()
     return current_players
 
 
 def build_theme_selection_payload(message=None):
+    sync_globals_from_default_room()
     if not theme_selection_active():
         return {"active": False}
     sync_theme_selection_players()
@@ -394,9 +574,11 @@ def emit_theme_selection_state(message=None, sid=None):
 
 def deactivate_theme_selection():
     global theme_selection_state, theme_generation_in_progress, spanish_generation_in_progress
+    sync_globals_from_default_room()
     theme_selection_state = {}
     theme_generation_in_progress = False
     spanish_generation_in_progress = False
+    sync_default_room_from_globals()
 
 
 def get_theme_display_word(word, entry=None):
@@ -443,6 +625,7 @@ def build_theme_candidate_list(search_theme, candidate_count=24):
 
 def prepare_theme_selection(starter_name):
     global theme_selection_state
+    sync_globals_from_default_room()
     search_theme = pending_search_theme or pending_theme
     candidates = build_theme_candidate_list(search_theme, candidate_count=24)
     if len(candidates) < 8:
@@ -530,6 +713,7 @@ def prepare_theme_selection(starter_name):
         "swap_limit": 1,
     }
     print(f"[INFO] Teeman '{pending_theme}' sanavalinta aloitettu tilassa '{current_game_mode}'. Ehdokkaita: {len(candidates)}")
+    sync_default_room_from_globals()
     emit_theme_selection_state()
     if player_order and all(ready.get(name, False) for name in player_order):
         print(f"[INFO] Kaikki pelaajat valmiina â€“ aloitetaan {current_game_mode}-erÃ¤ teemalla '{pending_theme}'")
@@ -881,11 +1065,15 @@ def append_pair_entry_to_grid(entry, pair_index):
 
 def launch_grid_round():
     global matched_indices, revealed_cards, turn, player_points
+    sync_globals_from_default_room()
     matched_indices = set()
     revealed_cards = []
     turn = 0
     player_points = {name: 0 for name in player_order}
     random.shuffle(grid_data)
+    room = get_default_room()
+    room.status = "playing"
+    sync_default_room_from_globals()
     socketio.emit("init_grid", {
         "cards": grid_data,
         "turn": player_order[0] if player_order else None,
@@ -896,6 +1084,7 @@ def launch_grid_round():
 
 def conclude_round(winner_label, surrendered_by=None):
     global turn, player_points, current_click_sid, bot_turn_scheduled
+    room = get_default_room()
     points_payload = {name: player_points.get(name, 0) for name in player_order}
     if isinstance(winner_label, str) and winner_label not in {"Tasapeli", "Tie"} and winner_label in player_order:
         round_win[winner_label] += 1
@@ -920,11 +1109,18 @@ def conclude_round(winner_label, surrendered_by=None):
     current_click_sid = None
     bot_turn_scheduled = False
     player_points = {}
+    room.grid_data = grid_data
+    room.revealed_cards = revealed_cards
+    room.matched_indices = matched_indices
+    room.turn = turn
+    room.player_points = player_points
+    room.status = "results"
     reset_pending_state()
 
 
 def finalize_theme_selection():
     global grid_data
+    sync_globals_from_default_room()
     sync_theme_selection_players()
     selected_words = list(theme_selection_state.get("selected_words", []))
     if len(selected_words) < 8:
@@ -935,11 +1131,13 @@ def finalize_theme_selection():
     deactivate_theme_selection()
     globals().pop('pending_player', None)
     globals().pop('pending_pair', None)
+    sync_default_room_from_globals()
     launch_grid_round()
 
 
 def generate_theme_pair():
     global pending_pair, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, theme_generation_in_progress
+    sync_globals_from_default_room()
     existing_words = {item["word"] for item in grid_data}
     attempts = 0
 
@@ -970,6 +1168,7 @@ def generate_theme_pair():
             })
             socketio.sleep(0)
             pending_pair += 1
+            sync_default_room_from_globals()
             # Allow next pair generation
             theme_generation_in_progress = False
             ask_next_word()
@@ -988,6 +1187,7 @@ def generate_theme_pair():
 
 def generate_spanish_learning_pairs(theme, target_pairs=8):
     global pending_pair, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words
+    sync_globals_from_default_room()
     existing_words = {item.get("word") for item in grid_data if item.get("word")}
     attempts = 0
     max_attempts = 160
@@ -1058,6 +1258,7 @@ def generate_spanish_learning_pairs(theme, target_pairs=8):
         })
         socketio.sleep(0)
         pending_pair += 1
+        sync_default_room_from_globals()
 
     if not spanish_setup_still_active(theme):
         print("[INFO] Espanjapelin generointi lopetettiin siististi keskeytyneen pelin vuoksi")
@@ -1098,12 +1299,14 @@ def summary():
 
 
 def build_lobby_payload():
+    room = sync_default_room_from_globals()
     players_ordered = get_active_players_ordered()
     usernames = [v["username"] for v in players_ordered]
     infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token")}
              for v in players_ordered]
     last_token = infos[-1]["reconnect_token"] if infos else None
     return {
+        "room_id": room.room_id,
         "players": usernames,
         "players_info": infos,
         "last_joined_token": last_token
@@ -1112,10 +1315,12 @@ def build_lobby_payload():
 @socketio.on("join")
 def on_join(data):
     global players
+    room = get_default_room()
     username = data["username"]
     sid = request.sid
     reconnect_token = data.get("reconnect_token")
     wants_bot = bool((data or {}).get("bot_mode"))
+    room_id = get_room_id_for_reconnect_token(reconnect_token)
     if not reconnect_token:
         print(f"[WARNING] HYLÃ„TTY join ilman reconnect_tokenia: {username}, SID: {sid}")
         return
@@ -1135,8 +1340,12 @@ def on_join(data):
         "username": username,
         "reconnect_token": reconnect_token,
         "connected": True,
-        "disconnected_at": None
+        "disconnected_at": None,
+        "room_id": room_id
     }
+    room.players = players
+    assign_reconnect_token_to_room(reconnect_token, room_id)
+    sync_default_room_from_globals()
     print(f"[INFO] {username} liittyi peliin.")
     payload = build_lobby_payload()
     payload["username"] = username
@@ -1155,6 +1364,7 @@ def handle_request_lobby_state():
 @socketio.on("leave_game")
 def handle_leave_game(data=None):
     global turn, player_points
+    room = get_default_room()
     data = data or {}
     sid, player_info = resolve_player_for_event(data)
     if not player_info:
@@ -1165,9 +1375,12 @@ def handle_leave_game(data=None):
 
     for existing_sid, info in list(players.items()):
         if existing_sid == sid or (reconnect_token and info.get("reconnect_token") == reconnect_token):
+            clear_reconnect_token_room(info.get("reconnect_token"))
             del players[existing_sid]
+    room.players = players
 
     print(f"[INFO] {username} poistui pelistÃ¤ kÃ¤yttÃ¤jÃ¤n pyynnÃ¶stÃ¤.")
+    sync_default_room_from_globals()
     payload = build_lobby_payload()
     payload["username"] = username
     socketio.emit("player_joined", payload)
@@ -1210,6 +1423,7 @@ def handle_start_game():
 @socketio.on("request_grid")
 def handle_grid_request():
     global player_order, turn
+    sync_globals_from_default_room()
     debug("[DEBUG] request_grid vastaanotettu â€“ tarkistetaan pelitila")
     debug(f"[DEBUG] Pelaajat: {players}")
     debug(f"[DEBUG] Grid sisÃ¤ltÃ¤Ã¤ {len(grid_data)} korttia")
@@ -1274,6 +1488,7 @@ def handle_ready_for_game():
 
 def generate_grid():
     global grid_data, revealed_cards, matched_indices, turn, player_points, player_order
+    room = get_default_room()
     print("[INFO] Peli kÃ¤ynnistyy â€“ luodaan ruudukko")
     images = []
     for filename in sorted(os.listdir("static/images")):
@@ -1303,6 +1518,14 @@ def generate_grid():
     player_order = [v["username"] for v in get_effective_players_ordered()]
     turn = 0
     player_points = {name: 0 for name in player_order}
+    room.grid_data = grid_data
+    room.revealed_cards = revealed_cards
+    room.matched_indices = matched_indices
+    room.player_order = player_order
+    room.turn = turn
+    room.player_points = player_points
+    room.status = "playing"
+    sync_default_room_from_globals()
     debug(f"[DEBUG] Kortteja yhteensÃ¤: {len(grid_data)}")
 
 
@@ -1311,6 +1534,7 @@ def generate_grid():
 
 def process_card_click(index, resolved_sid, clicker):
     global revealed_cards, turn, matched_indices, player_order, player_points, current_click_sid
+    sync_globals_from_default_room()
     clicker_name = (clicker or {}).get("username")
     current_player_name = player_order[turn] if player_order and 0 <= turn < len(player_order) else None
     if not clicker_name or clicker_name != current_player_name:
@@ -1327,6 +1551,7 @@ def process_card_click(index, resolved_sid, clicker):
         debug("[DEBUG] Hylattiin toisen kortin klikkaus eri asiakkaalta samalle parille")
         return
     revealed_cards.append(index)
+    sync_default_room_from_globals()
     socketio.emit("reveal_card", {
         "index": index,
         "card": grid_data[index]
@@ -1350,6 +1575,7 @@ def process_card_click(index, resolved_sid, clicker):
             if current_player_name is not None:
                 player_points[current_player_name] = player_points.get(current_player_name, 0) + 1
                 debug(f"[DEBUG] Piste {current_player_name} (+1). Pisteet nyt: {player_points}")
+            sync_default_room_from_globals()
 
             # Jos kaikki parit lÃ¶ytyneet, pÃ¤Ã¤tÃ¤ peli kerran
             if len(matched_indices) == len(grid_data):
@@ -1372,6 +1598,7 @@ def process_card_click(index, resolved_sid, clicker):
             indices_to_hide = list(revealed_cards)  # Tee kopio!
             revealed_cards = []
             current_click_sid = None
+            sync_default_room_from_globals()
 
             def hide_later():
                 socketio.sleep(2)  # Odota 2 sekuntia
@@ -1381,6 +1608,7 @@ def process_card_click(index, resolved_sid, clicker):
             # Vuoro vaihtuu vasta epÃ¤onnistuneen parin jÃ¤lkeen
             if player_order:
                 turn = (turn + 1) % len(player_order)
+            sync_default_room_from_globals()
         
         # KÃ¤ytÃ¤ player_order vuoron nÃ¤yttÃ¤miseen
         next_turn_name = player_order[turn] if player_order else None
@@ -1398,6 +1626,7 @@ def handle_card_click(data):
 @socketio.on("disconnect")
 def on_disconnect():
     global players
+    room = get_default_room()
     sid = request.sid
     if sid in players:
         username = players[sid]["username"]
@@ -1405,6 +1634,7 @@ def on_disconnect():
         players[sid]["connected"] = False
         print(f"[INFO] {username} poistui, odotetaan mahdollista reconnectia ({RECONNECT_GRACE_SECONDS} s)...")
         players[sid]["disconnected_at"] = time.monotonic()
+        sync_default_room_from_globals()
         payload = build_lobby_payload()
         payload["username"] = username
         socketio.emit("player_joined", payload)
@@ -1417,9 +1647,12 @@ def on_disconnect():
                     print(f"[INFO] {username} reconnectasi uudella SID:llÃ¤, vanhaa istuntoa ei poisteta")
                     return
                 print(f"[INFO] {username} poistetaan pelaajalistasta (ei reconnectia)")
+                clear_reconnect_token_room(players[sid_to_remove].get("reconnect_token"))
                 del players[sid_to_remove]
+                room.players = players
                 if not get_effective_human_player_items():
                     remove_bot_players()
+                sync_default_room_from_globals()
                 payload = build_lobby_payload()
                 payload["username"] = username
                 socketio.emit("player_joined", payload)
@@ -1449,7 +1682,9 @@ def on_disconnect():
 @socketio.on("start_custom_game")
 def handle_start_custom_game(data=None):
     global pending_words, pending_player, pending_pair, grid_data, player_order, current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words, current_ui_language
+    sync_globals_from_default_room()
     data = data or {}
+    room = get_default_room()
     print(f"[INFO] Uusi erÃ¤ kÃ¤ynnistetÃ¤Ã¤n. Tila: mode={data.get('mode', 'manual')}, players={get_effective_player_count()}")
     # Jos peli on jo kÃ¤ynnissÃ¤, mutta pelaajien reconnect_tokenit ovat vaihtuneet, nollaa peli
     current_tokens = set(v['reconnect_token'] for v in get_effective_players_ordered())
@@ -1467,6 +1702,7 @@ def handle_start_custom_game(data=None):
     handle_start_custom_game.last_tokens = set(v['reconnect_token'] for v in get_effective_players_ordered())
     # Tallenna pelaajien jÃ¤rjestys kun peli alkaa
     player_order = [v["username"] for v in get_effective_players_ordered()]
+    room.player_order = player_order
     if grid_data:  # Jos peli on jo kÃ¤ynnissÃ¤, Ã¤lÃ¤ aloita uutta
         print("[WARNING] Uuden erÃ¤n pyyntÃ¶ hylÃ¤tty: peli on jo kÃ¤ynnissÃ¤")
         return
@@ -1489,6 +1725,10 @@ def handle_start_custom_game(data=None):
     current_game_mode = mode
     pending_theme = theme if mode in {"theme", "spanish"} else None
     pending_search_theme = translate_theme_to_english(theme, ui_language) if mode in {"theme", "spanish"} else None
+    room.status = "setup"
+    room.game_mode = current_game_mode
+    room.ui_language = current_ui_language
+    sync_default_room_from_globals()
     theme_candidates = []
     theme_rejected_words = set()
     if current_game_mode in {"theme", "spanish"}:
@@ -1509,6 +1749,7 @@ def handle_start_custom_game(data=None):
 
 def ask_next_word():
     global pending_pair, pending_player, player_order, player_points, matched_indices, revealed_cards, turn, current_game_mode
+    sync_globals_from_default_room()
     debug(f"[DEBUG] ask_next_word kutsuttu! pending_pair: {pending_pair}, grid_data: {len(grid_data)}, mode: {current_game_mode}")
     # Jos kaikki 8 paria on annettu, lÃ¤hetÃ¤ ruudukko nÃ¤kyviin
     if pending_pair >= 8:
@@ -1526,6 +1767,7 @@ def ask_next_word():
     # Bot-tiputuksessa pyydetään sanat aina ensimmäiseltä ihmispelaajalta.
     first_player = get_first_human_player_name() or (player_order[0] if player_order else None)
     pending_player = first_player
+    sync_default_room_from_globals()
     if current_game_mode == "theme":
         if theme_selection_active():
             emit_theme_selection_state()
@@ -1579,6 +1821,7 @@ def ask_next_word():
 
 @socketio.on("select_theme_word")
 def handle_select_theme_word(data):
+    sync_globals_from_default_room()
     if current_game_mode not in {"theme", "spanish"} or not theme_selection_active():
         emit("theme_selection_failed", {"reason": "selection_inactive"})
         return
@@ -1664,6 +1907,7 @@ def handle_select_theme_word(data):
     candidate_labels.pop(word, None)
     if previous_word and previous_word not in rejected_words:
         candidate_labels[previous_word] = previous_item.get("display_word") or get_theme_display_word(previous_word, previous_item.get("entry"))
+    sync_default_room_from_globals()
     emit_theme_selection_state(message=f"word_swapped:{previous_word}:{word}")
     if player_order and all(ready.get(name, False) for name in player_order):
         print(f"[INFO] Kaikki pelaajat valmiina vaihdon jälkeen – aloitetaan {current_game_mode}-erä teemalla '{pending_theme}'")
@@ -1672,6 +1916,7 @@ def handle_select_theme_word(data):
 
 @socketio.on("set_theme_ready")
 def handle_set_theme_ready(data):
+    sync_globals_from_default_room()
     if current_game_mode not in {"theme", "spanish"} or not theme_selection_active():
         emit("theme_selection_failed", {"reason": "selection_inactive"})
         return
@@ -1685,6 +1930,7 @@ def handle_set_theme_ready(data):
     username = player_info["username"]
     ready = theme_selection_state.get("ready", {})
     ready[username] = bool((data or {}).get("ready", True))
+    sync_default_room_from_globals()
     emit_theme_selection_state(message=f"ready:{username}" if ready[username] else f"unready:{username}")
     if player_order and all(ready.get(name, False) for name in player_order):
         print(f"[INFO] Kaikki pelaajat valmiina â€“ aloitetaan {current_game_mode}-erÃ¤ teemalla '{pending_theme}'")
@@ -1693,6 +1939,7 @@ def handle_set_theme_ready(data):
 @socketio.on("word_given")
 def handle_word_given(data):
     global pending_pair, pending_player, grid_data
+    sync_globals_from_default_room()
     if pending_pair >= 8:
         debug(f"[DEBUG] word_given hylÃ¤tty, kaikki parit jo annettu (pending_pair={pending_pair})")
         return
@@ -1718,6 +1965,7 @@ def handle_word_given(data):
         return
     if image_append_ok:
         pending_pair += 1
+        sync_default_room_from_globals()
         ask_next_word()
     else:
         print(f"[WARNING] Pixabay ei lÃ¶ytÃ¤nyt kuvia sanalle '{word}', pyydetÃ¤Ã¤n uusi sana")
