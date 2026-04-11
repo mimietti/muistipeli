@@ -31,7 +31,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.0.4 (2026-04-08)"
+APP_VERSION = "Beta v0.0.4 (2026-04-11)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -144,29 +144,32 @@ ABSTRACT_THEME_WORDS = {
 
 
 def create_room(room_id=DEFAULT_ROOM_ID):
-    room = RoomState(
-        room_id=room_id,
-        game_mode=current_game_mode,
-        ui_language=current_ui_language,
-        players=players,
-        player_order=player_order,
-        grid_data=grid_data,
-        revealed_cards=revealed_cards,
-        matched_indices=matched_indices,
-        turn=turn,
-        player_points=player_points,
-        round_win=round_win,
-        pending_theme=pending_theme,
-        pending_search_theme=pending_search_theme,
-        theme_candidates=theme_candidates,
-        theme_rejected_words=theme_rejected_words,
-        theme_selection_state=theme_selection_state,
-        used_image_ids=used_pixabay_image_ids,
-        spanish_generation_in_progress=spanish_generation_in_progress,
-        theme_generation_in_progress=theme_generation_in_progress,
-        bot_turn_scheduled=bot_turn_scheduled,
-        current_click_sid=current_click_sid,
-    )
+    if room_id == DEFAULT_ROOM_ID:
+        room = RoomState(
+            room_id=room_id,
+            game_mode=current_game_mode,
+            ui_language=current_ui_language,
+            players=players,
+            player_order=player_order,
+            grid_data=grid_data,
+            revealed_cards=revealed_cards,
+            matched_indices=matched_indices,
+            turn=turn,
+            player_points=player_points,
+            round_win=round_win,
+            pending_theme=pending_theme,
+            pending_search_theme=pending_search_theme,
+            theme_candidates=theme_candidates,
+            theme_rejected_words=theme_rejected_words,
+            theme_selection_state=theme_selection_state,
+            used_image_ids=used_pixabay_image_ids,
+            spanish_generation_in_progress=spanish_generation_in_progress,
+            theme_generation_in_progress=theme_generation_in_progress,
+            bot_turn_scheduled=bot_turn_scheduled,
+            current_click_sid=current_click_sid,
+        )
+    else:
+        room = RoomState(room_id=room_id)
     rooms[room_id] = room
     return room
 
@@ -192,8 +195,8 @@ def get_room_for_request():
     return get_room(get_room_id_for_reconnect_token(reconnect_token))
 
 
-def sync_default_room_from_globals():
-    room = get_default_room()
+def sync_room_from_globals(room=None):
+    room = room or get_default_room()
     room.status = "playing" if grid_data else ("setup" if ('pending_pair' in globals() or theme_selection_state) else "waiting")
     room.game_mode = current_game_mode
     room.ui_language = current_ui_language
@@ -221,12 +224,16 @@ def sync_default_room_from_globals():
     return room
 
 
-def sync_globals_from_default_room():
+def sync_default_room_from_globals():
+    return sync_room_from_globals(get_default_room())
+
+
+def sync_globals_from_room(room=None):
     global current_game_mode, pending_theme, pending_search_theme, theme_candidates, theme_rejected_words
     global theme_selection_state, used_pixabay_image_ids, spanish_generation_in_progress, theme_generation_in_progress
     global current_click_sid, bot_turn_scheduled, current_ui_language, player_order, grid_data, revealed_cards, players
     global matched_indices, turn, player_points, round_win
-    room = get_default_room()
+    room = room or get_default_room()
     players = room.players
     current_game_mode = room.game_mode
     current_ui_language = room.ui_language
@@ -253,6 +260,10 @@ def sync_globals_from_default_room():
     else:
         globals()['pending_player'] = room.pending_player
     return room
+
+
+def sync_globals_from_default_room():
+    return sync_globals_from_room(get_default_room())
 
 
 def assign_reconnect_token_to_room(reconnect_token, room_id=DEFAULT_ROOM_ID):
@@ -476,6 +487,15 @@ def resolve_player_for_event(data=None):
     if matched_sid is not None and matched_sid != sid and matched_sid in players:
         del players[matched_sid]
     return sid, players[sid]
+
+
+def resolve_room_for_event(data=None, player_info=None):
+    if player_info and player_info.get("room_id"):
+        return get_room(player_info["room_id"])
+    reconnect_token = ((data or {}).get("reconnect_token") or "").strip()
+    if reconnect_token:
+        return get_room(get_room_id_for_reconnect_token(reconnect_token))
+    return get_room_for_request()
 
 
 def theme_selection_active():
@@ -1307,9 +1327,9 @@ def summary():
     return render_template("summary.html")
 
 
-def build_lobby_payload():
-    room = sync_default_room_from_globals()
-    players_ordered = get_active_players_ordered()
+def build_lobby_payload(room=None):
+    room = sync_room_from_globals(room)
+    players_ordered = get_active_players_ordered(room=room)
     usernames = [v["username"] for v in players_ordered]
     infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token")}
              for v in players_ordered]
@@ -1355,9 +1375,9 @@ def on_join(data):
     room.players = players
     join_room(room_id)
     assign_reconnect_token_to_room(reconnect_token, room_id)
-    sync_default_room_from_globals()
+    sync_room_from_globals(room)
     print(f"[INFO] {username} liittyi peliin.")
-    payload = build_lobby_payload()
+    payload = build_lobby_payload(room)
     payload["username"] = username
     emit_to_room("player_joined", payload, room_id=room_id)
     if theme_selection_active():
@@ -1366,7 +1386,8 @@ def on_join(data):
 
 @socketio.on("request_lobby_state")
 def handle_request_lobby_state():
-    emit("lobby_state", build_lobby_payload())
+    room = get_room_for_request()
+    emit("lobby_state", build_lobby_payload(room))
     if theme_selection_active():
         emit("theme_selection_updated", build_theme_selection_payload())
 
@@ -1374,11 +1395,11 @@ def handle_request_lobby_state():
 @socketio.on("leave_game")
 def handle_leave_game(data=None):
     global turn, player_points
-    room = get_default_room()
     data = data or {}
     sid, player_info = resolve_player_for_event(data)
     if not player_info:
         return {"ok": False}
+    room = resolve_room_for_event(data, player_info)
 
     username = player_info.get("username", "Unknown")
     reconnect_token = player_info.get("reconnect_token")
@@ -1394,8 +1415,8 @@ def handle_leave_game(data=None):
         pass
 
     print(f"[INFO] {username} poistui pelistÃ¤ kÃ¤yttÃ¤jÃ¤n pyynnÃ¶stÃ¤.")
-    sync_default_room_from_globals()
-    payload = build_lobby_payload()
+    sync_room_from_globals(room)
+    payload = build_lobby_payload(room)
     payload["username"] = username
     emit_to_room("player_joined", payload, room_id=room.room_id)
 
@@ -1639,11 +1660,11 @@ def handle_card_click(data):
 @socketio.on("disconnect")
 def on_disconnect():
     global players
-    room = get_default_room()
     sid = request.sid
     if sid in players:
         username = players[sid]["username"]
         reconnect_token = players[sid].get("reconnect_token")
+        room = resolve_room_for_event({"reconnect_token": reconnect_token}, players[sid])
         players[sid]["connected"] = False
         try:
             leave_room(room.room_id)
@@ -1651,8 +1672,8 @@ def on_disconnect():
             pass
         print(f"[INFO] {username} poistui, odotetaan mahdollista reconnectia ({RECONNECT_GRACE_SECONDS} s)...")
         players[sid]["disconnected_at"] = time.monotonic()
-        sync_default_room_from_globals()
-        payload = build_lobby_payload()
+        sync_room_from_globals(room)
+        payload = build_lobby_payload(room)
         payload["username"] = username
         emit_to_room("player_joined", payload, room_id=room.room_id)
         def remove_later(sid_to_remove, username, expected_token):
@@ -1669,8 +1690,8 @@ def on_disconnect():
                 room.players = players
                 if not get_effective_human_player_items():
                     remove_bot_players()
-                sync_default_room_from_globals()
-                payload = build_lobby_payload()
+                sync_room_from_globals(room)
+                payload = build_lobby_payload(room)
                 payload["username"] = username
                 emit_to_room("player_joined", payload, room_id=room.room_id)
                 if get_effective_player_count() < 2 and (theme_selection_active() or grid_data or 'pending_pair' in globals()):
