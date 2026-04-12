@@ -55,8 +55,13 @@ def _init_db():
                         pairs_found INT NOT NULL DEFAULT 0,
                         time_secs   INT,
                         mistakes    INT,
+                        total_time  INT,
                         created_at  TIMESTAMPTZ DEFAULT NOW()
                     )
+                """)
+                # Add total_time column if table existed without it
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS total_time INT
                 """)
         print("[DB] Tietokanta alustettu.")
     except Exception as e:
@@ -66,7 +71,12 @@ def _init_db():
 
 _init_db()
 
+SOLO_PENALTY_PER_MISTAKE = 3  # seconds
+
 def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None):
+    total_time = None
+    if time_secs is not None and mistakes is not None:
+        total_time = time_secs + mistakes * SOLO_PENALTY_PER_MISTAKE
     conn = _get_db()
     if not conn:
         return
@@ -74,9 +84,9 @@ def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mis
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes)
-                       VALUES (%s, %s, %s, %s, %s, %s)""",
-                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes)
+                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time)
                 )
     except Exception as e:
         print(f"[DB] Tallennusvirhe: {e}")
@@ -95,7 +105,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.0.4 (2026-04-11)"
+APP_VERSION = "Beta v0.0.4 (2026-04-12)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -1552,10 +1562,10 @@ def leaderboard():
             with conn.cursor() as cur:
                 # Solo: top 10 fastest per game_mode (fi=suomi/spanish, en=theme/manual)
                 cur.execute("""
-                    SELECT username, game_mode, time_secs, mistakes, pairs_found, created_at
+                    SELECT username, game_mode, time_secs, mistakes, pairs_found, total_time, created_at
                     FROM results
-                    WHERE play_mode = 'solo' AND time_secs IS NOT NULL
-                    ORDER BY time_secs ASC, mistakes ASC
+                    WHERE play_mode = 'solo' AND total_time IS NOT NULL
+                    ORDER BY total_time ASC
                     LIMIT 50
                 """)
                 solo_rows = cur.fetchall()

@@ -134,21 +134,18 @@
                     <tr>
                         <th>#</th>
                         <th id="thName">Player</th>
-                        <th id="thMode">Mode</th>
-                        <th id="thTime">Time</th>
+                        <th id="thTime">Total time</th>
                         <th id="thMistakes">Mistakes</th>
-                        <th id="thPairs">Pairs</th>
                     </tr>
                 </thead>
                 <tbody id="soloBody">
                     {% for row in solo_rows %}
+                    {% set total = row[5] if row[5] is not none else row[2] %}
                     <tr>
                         <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
                         <td class="username">{{ row[0] }}</td>
-                        <td>{{ row[1] }}</td>
-                        <td class="time-val">{{ (row[2] // 60)|string + ":" + "%02d"|format(row[2] % 60) }}</td>
+                        <td class="time-val">{{ (total // 60)|string + ":" + "%02d"|format(total % 60) }}</td>
                         <td class="mistakes-val">{{ row[3] if row[3] is not none else "–" }}</td>
-                        <td>{{ row[4] }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -203,8 +200,8 @@
                 subtitle: "Parhaat tulokset",
                 soloTitle: "Solo — nopein",
                 multiTitle: "Moninpeli — eniten pareja",
-                thName: "Pelaaja", thMode: "Moodi", thTime: "Aika",
-                thMistakes: "Virheet", thPairs: "Parit",
+                thName: "Pelaaja", thTime: "Kokonaisaika",
+                thMistakes: "Virheet",
                 thNameM: "Pelaaja", thGames: "Pelit", thTotalPairs: "Pareja yhteensä",
                 soloEmpty: "Ei solo-tuloksia vielä.",
                 multiEmpty: "Ei moninpelituloksia vielä.",
@@ -216,8 +213,8 @@
                 subtitle: "Top results",
                 soloTitle: "Solo — fastest",
                 multiTitle: "Multiplayer — most pairs",
-                thName: "Player", thMode: "Mode", thTime: "Time",
-                thMistakes: "Mistakes", thPairs: "Pairs",
+                thName: "Player", thTime: "Total time",
+                thMistakes: "Mistakes",
                 thNameM: "Player", thGames: "Games", thTotalPairs: "Total pairs",
                 soloEmpty: "No solo results yet.",
                 multiEmpty: "No multiplayer results yet.",
@@ -251,13 +248,12 @@
                 tbody.closest("table").style.display = "";
                 tbody.innerHTML = rows.map((row, i) => {
                     const rankClass = i < 3 ? `rank-${i+1}` : "";
+                    const total = row[5] != null ? row[5] : row[2];
                     return `<tr>
                         <td class="rank ${rankClass}">${i+1}</td>
                         <td class="username">${row[0]}</td>
-                        <td>${row[1]}</td>
-                        <td class="time-val">${formatTime(row[2])}</td>
+                        <td class="time-val">${formatTime(total)}</td>
                         <td class="mistakes-val">${row[3] != null ? row[3] : "–"}</td>
-                        <td>${row[4]}</td>
                     </tr>`;
                 }).join("");
             }

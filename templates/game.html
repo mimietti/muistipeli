@@ -427,6 +427,11 @@
                 solo_time_label: "Time",
                 solo_mistakes_label: "Mistakes",
                 solo_result: "Done! Time: {time} • Mistakes: {mistakes}",
+                solo_result_time: "Playing time",
+                solo_result_mistakes: "Mistakes",
+                solo_result_penalty: "Penalty (+{secs}s)",
+                solo_result_total: "Total time",
+                solo_mistake_explanation: "A mistake is counted when you flip a pair where both cards have already been seen before.",
                 study_spanish: "Study Spanish",
                 theme_missing: "Theme is missing.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
@@ -472,6 +477,11 @@
                 solo_time_label: "Aika",
                 solo_mistakes_label: "Virheet",
                 solo_result: "Valmis! Aika: {time} • Virheet: {mistakes}",
+                solo_result_time: "Peliaika",
+                solo_result_mistakes: "Virheet",
+                solo_result_penalty: "Aikasakko (+{secs}s)",
+                solo_result_total: "Kokonaisaika",
+                solo_mistake_explanation: "Virhe lasketaan, kun käännät parin jossa molemmat kortit on jo aiemmin nähty.",
                 study_spanish: "Opiskele espanjaa",
                 theme_missing: "Teema puuttuu.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
@@ -1168,13 +1178,35 @@
             const points = data.points || {};
             const wins = data.round_win || {};
 
-            // Solo mode: show time + mistakes result
+            // Solo mode: show time + mistakes + penalty + total
             if (isSoloMode) {
+                const PENALTY_PER_MISTAKE = 3;
                 const soloDoneSecs = data.solo_time != null ? data.solo_time : soloElapsed;
                 const soloMistakesFinal = data.solo_mistakes != null ? data.solo_mistakes : soloMistakes;
+                const penaltySecs = soloMistakesFinal * PENALTY_PER_MISTAKE;
+                const totalSecs = soloDoneSecs + penaltySecs;
                 results.innerHTML = `
                     <div class="results-section">
-                        <div class="results-heading">${t("solo_result", { time: formatSoloTime(soloDoneSecs), mistakes: soloMistakesFinal })}</div>
+                        <div class="results-heading" style="font-size:22px; margin-bottom:20px;">🏁 ${formatSoloTime(totalSecs)}</div>
+                        <table style="width:100%; max-width:320px; margin:0 auto; font-size:16px; border-collapse:collapse;">
+                            <tr>
+                                <td style="padding:8px 12px; color:#9ec4a0; text-align:left;">${t("solo_result_time")}</td>
+                                <td style="padding:8px 12px; font-weight:700; text-align:right;">${formatSoloTime(soloDoneSecs)}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 12px; color:#9ec4a0; text-align:left;">${t("solo_result_mistakes")}</td>
+                                <td style="padding:8px 12px; font-weight:700; text-align:right;">${soloMistakesFinal}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 12px; color:#ffb84d; text-align:left;">${t("solo_result_penalty", { secs: penaltySecs })}</td>
+                                <td style="padding:8px 12px; font-weight:700; color:#ffb84d; text-align:right;">+${formatSoloTime(penaltySecs)}</td>
+                            </tr>
+                            <tr style="border-top:1px solid rgba(255,255,255,0.12);">
+                                <td style="padding:10px 12px; font-weight:700; text-align:left;">${t("solo_result_total")}</td>
+                                <td style="padding:10px 12px; font-weight:700; font-size:20px; color:#7cf58a; text-align:right;">${formatSoloTime(totalSecs)}</td>
+                            </tr>
+                        </table>
+                        <p style="margin:16px 0 0; font-size:13px; color:#6a886a; line-height:1.5;">${t("solo_mistake_explanation")}</p>
                     </div>
                     <br>
                     <div class="results-actions">
