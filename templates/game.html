@@ -880,18 +880,10 @@
 
             const targetLangLabel = getTargetLanguageLabel();
             const nativeLangLabel = getNativeLanguageLabel();
-            const nativeLang = getLanguage();
-            // Show 3 columns when native ≠ English, 2 columns when native is English
-            const columns = nativeLang !== "en"
-                ? [
-                    { label: targetLangLabel, value: currentTranslationHint.target },
-                    { label: nativeLangLabel, value: currentTranslationHint.native },
-                    { label: t("translation_english"), value: currentTranslationHint.english }
-                ]
-                : [
-                    { label: targetLangLabel, value: currentTranslationHint.target },
-                    { label: t("translation_english"), value: currentTranslationHint.english }
-                ];
+            const columns = [
+                { label: targetLangLabel, value: currentTranslationHint.target },
+                { label: nativeLangLabel, value: currentTranslationHint.native },
+            ];
 
             translationHintGrid.style.gridTemplateColumns = `repeat(${columns.length}, minmax(0, 1fr))`;
             const items = columns.map((column) => {
