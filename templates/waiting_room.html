@@ -451,7 +451,14 @@
             <p id="startOptionsText">Choose how words are provided for this round.</p>
             <button id="manualStartBtn" class="modeBtn">Enter your own words</button>
             <button id="themeStartBtn" class="modeBtn">Enter theme</button>
-            <button id="spanishStartBtn" class="modeBtn">Study Spanish</button>
+            <div id="langBtns" style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:8px;">
+                <button class="modeBtn lang-start-btn" data-lang="es">🇪🇸 Spanish</button>
+                <button class="modeBtn lang-start-btn" data-lang="sv">🇸🇪 Swedish</button>
+                <button class="modeBtn lang-start-btn" data-lang="de">🇩🇪 German</button>
+                <button class="modeBtn lang-start-btn" data-lang="fr">🇫🇷 French</button>
+                <button class="modeBtn lang-start-btn" data-lang="it">🇮🇹 Italian</button>
+                <button class="modeBtn lang-start-btn" data-lang="pt">🇵🇹 Portuguese</button>
+            </div>
         </div>
         <div id="setupStatus">
             <div id="setupStatusTitle"></div>
@@ -504,7 +511,7 @@
                 prompt_name: "Enter your name:",
                 reconnect_empty_alert: "Reconnect token is missing or empty! Reloading the page.",
                 enter_theme_prompt: "Enter theme:",
-                enter_spanish_theme_prompt: "Enter theme:",
+                enter_lang_theme_prompt: "Enter theme (in English):",
                 setup_failed: "Game setup failed.",
                 disconnect_alert: "Connection to the server was lost. Trying again...",
                 game_aborted: "The round was cancelled because the other player left.",
@@ -699,6 +706,16 @@
             }
         }
 
+        const LANG_NAMES = {
+            es: { fi: "Espanja",   en: "Spanish"    },
+            sv: { fi: "Ruotsi",    en: "Swedish"    },
+            de: { fi: "Saksa",     en: "German"     },
+            fr: { fi: "Ranska",    en: "French"     },
+            it: { fi: "Italia",    en: "Italian"    },
+            pt: { fi: "Portugali", en: "Portuguese" },
+        };
+        const LANG_FLAGS = { es:"🇪🇸", sv:"🇸🇪", de:"🇩🇪", fr:"🇫🇷", it:"🇮🇹", pt:"🇵🇹" };
+
         function applyTranslations() {
             document.documentElement.lang = getLanguage();
             document.title = t("page_title");
@@ -707,12 +724,16 @@
                 button.classList.toggle("is-active", active);
                 button.setAttribute("aria-pressed", active ? "true" : "false");
             });
+            document.querySelectorAll(".lang-start-btn").forEach((btn) => {
+                const lc = btn.dataset.lang;
+                const name = (LANG_NAMES[lc] || {})[getLanguage()] || lc.toUpperCase();
+                btn.textContent = (LANG_FLAGS[lc] || "") + " " + name;
+            });
             document.getElementById("pageTitle").textContent = t("page_title");
             document.getElementById("introText").textContent = t("intro_text");
             document.getElementById("startOptionsText").textContent = t("start_options");
             document.getElementById("manualStartBtn").textContent = t("enter_words");
             document.getElementById("themeStartBtn").textContent = t("enter_theme");
-            document.getElementById("spanishStartBtn").textContent = t("study_spanish");
             document.getElementById("exitGameBtn").textContent = t("exit_game");
             document.getElementById("changeNameBtn").textContent = t("change_name");
             renderPlayerRole(window.latestPlayersInfo || []);
@@ -930,7 +951,7 @@
                 document.getElementById("startOptions").style.display = "none";
                 setupStatusTitleEl.textContent = t("setup_status_title");
                 const chosenText = starterName
-                    ? (mode === "spanish"
+                    ? (mode === "language" || mode === "spanish"
                         ? t("setup_status_chosen_spanish", { name: starterName, theme })
                         : t("setup_status_chosen_theme", { name: starterName, theme }))
                     : "";
@@ -940,7 +961,7 @@
                 setupStatusTextEl.textContent = chosenText ? `${chosenText} ${loadingText}` : loadingText;
                 const totalPairs = Number(state.total_pairs || 8);
                 const progressCount = Number(state.progress_count || 0);
-                const showProgress = totalPairs > 0 && (state.mode === "theme" || state.mode === "spanish");
+                const showProgress = totalPairs > 0 && (state.mode === "theme" || state.mode === "language" || state.mode === "spanish");
                 setupProgressEl.style.display = showProgress ? "block" : "none";
                 if (showProgress) {
                     const safeCount = Math.max(0, Math.min(progressCount, totalPairs));
@@ -1332,27 +1353,28 @@
                 socket.emit("start_custom_game", { mode: "theme", theme, ui_language: getLanguage() });
             }
 
-            function startSpanishRound(prefill = "") {
+            function startLanguageRound(targetLang, prefill = "") {
                 if (!myName || myName.trim().length === 0) {
                     askName();
                     return;
                 }
-                let theme = prompt(t("enter_spanish_theme_prompt"), prefill || "");
+                let theme = prompt(t("enter_lang_theme_prompt"), prefill || "");
                 while (theme !== null && theme.trim().length === 0) {
-                    theme = prompt(t("enter_spanish_theme_prompt"), prefill || "");
+                    theme = prompt(t("enter_lang_theme_prompt"), prefill || "");
                 }
                 if (theme === null) {
                     return;
                 }
                 theme = theme.trim();
-                console.log("[DEBUG] Aloitetaan espanjan opiskelupeli teemalla:", theme);
-                try { sessionStorage.setItem("game_setup_mode", "spanish"); } catch (e) {}
+                console.log("[DEBUG] Aloitetaan kielipeli, kieli:", targetLang, "teema:", theme);
+                try { sessionStorage.setItem("game_setup_mode", "language"); } catch (e) {}
+                try { sessionStorage.setItem("game_setup_lang", targetLang); } catch (e) {}
                 try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
-                renderSetupStatus({ active: true, mode: "spanish", theme });
-                socket.emit("start_custom_game", { mode: "spanish", theme, ui_language: getLanguage() });
+                renderSetupStatus({ active: true, mode: "language", theme });
+                socket.emit("start_custom_game", { mode: "language", target_language: targetLang, theme, ui_language: getLanguage() });
             }
 
             function maybeStartQueuedNextRound(canStart) {
@@ -1373,8 +1395,9 @@
                     startThemeRound(queued.theme || "");
                     return;
                 }
-                if (queued.mode === "spanish") {
-                    startSpanishRound(queued.theme || "");
+                if (queued.mode === "language" || queued.mode === "spanish") {
+                    const lang = queued.target_lang || sessionStorage.getItem("game_setup_lang") || "es";
+                    startLanguageRound(lang, queued.theme || "");
                 }
             }
 
@@ -1394,8 +1417,8 @@
                 startThemeRound();
             });
 
-            document.getElementById("spanishStartBtn").addEventListener("click", () => {
-                startSpanishRound();
+            document.querySelectorAll(".lang-start-btn").forEach(btn => {
+                btn.addEventListener("click", () => startLanguageRound(btn.dataset.lang));
             });
             document.getElementById("exitGameBtn").addEventListener("click", () => {
                 exitGame();
@@ -1488,12 +1511,13 @@
                 renderThemeSelection(window.currentThemeSelectionState);
                 alert(reason);
                 updateLobbyFromPayload(window.latestLobbyPayload || {});
-                if (canCurrentPlayerStartRound() && (failedMode === "theme" || failedMode === "spanish")) {
+                if (canCurrentPlayerStartRound() && (failedMode === "theme" || failedMode === "language" || failedMode === "spanish")) {
                     setTimeout(() => {
                         if (failedMode === "theme") {
                             startThemeRound(failedTheme);
                         } else {
-                            startSpanishRound(failedTheme);
+                            const lang = sessionStorage.getItem("game_setup_lang") || "es";
+                            startLanguageRound(lang, failedTheme);
                         }
                     }, 0);
                 }

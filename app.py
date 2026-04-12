@@ -131,7 +131,7 @@ def inject_app_version():
 class RoomState:
     room_id: str
     status: str = "waiting"          # waiting | setup | playing | results
-    game_mode: str = "manual"        # manual | theme | spanish
+    game_mode: str = "manual"        # manual | theme | language
     play_mode: str = "local"         # local | bot | queue | solo
     ui_language: str = "en"
     native_language: str = "fi"
@@ -153,7 +153,7 @@ class RoomState:
     theme_rejected_words: set = field(default_factory=set)
     theme_selection_state: dict = field(default_factory=dict)
     used_image_ids: set = field(default_factory=set)
-    spanish_generation_in_progress: bool = False
+    lang_generation_in_progress: bool = False
     theme_generation_in_progress: bool = False
     bot_turn_scheduled: bool = False
     current_click_sid: str | None = None
@@ -177,7 +177,15 @@ translation_cache: dict = {}
 pixabay_cache: dict = {}
 theme_translation_cache: dict = {}
 
-SPANISH_TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
+TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
+SUPPORTED_LANGUAGES = {
+    "es": {"fi": "Espanja",   "en": "Spanish",    "flag": "🇪🇸"},
+    "sv": {"fi": "Ruotsi",    "en": "Swedish",    "flag": "🇸🇪"},
+    "de": {"fi": "Saksa",     "en": "German",     "flag": "🇩🇪"},
+    "fr": {"fi": "Ranska",    "en": "French",     "flag": "🇫🇷"},
+    "it": {"fi": "Italia",    "en": "Italian",    "flag": "🇮🇹"},
+    "pt": {"fi": "Portugali", "en": "Portuguese", "flag": "🇵🇹"},
+}
 THEME_TRANSLATION_OVERRIDES = {
     "ravintola": "restaurant", "ruoka": "food", "hedelmät": "fruits",
     "hedelmat": "fruits", "eläimet": "animals", "elaimet": "animals",
@@ -248,7 +256,7 @@ def reset_pending_state(room):
     room.theme_rejected_words = set()
     room.theme_selection_state = {}
     room.used_image_ids = set()
-    room.spanish_generation_in_progress = False
+    room.lang_generation_in_progress = False
     room.theme_generation_in_progress = False
     room.current_click_sid = None
     room.bot_turn_scheduled = False
@@ -560,7 +568,7 @@ def emit_theme_selection_state(room, message=None, sid=None):
 def deactivate_theme_selection(room):
     room.theme_selection_state = {}
     room.theme_generation_in_progress = False
-    room.spanish_generation_in_progress = False
+    room.lang_generation_in_progress = False
 
 
 def normalize_display_label(word):
@@ -574,11 +582,11 @@ def get_theme_display_word(word, entry=None, room=None):
     ui_language = room.ui_language if room else "en"
     if ui_language != "fi":
         return base_word
-    if entry and entry.get("type") == "spanish":
+    if entry and entry.get("type") in {"language", "spanish"}:
         pair = entry.get("pair") or {}
-        finnish_word = (pair.get("finnish_word") or "").strip()
-        if finnish_word:
-            return finnish_word
+        native_word = (pair.get("native_word") or pair.get("finnish_word") or "").strip()
+        if native_word:
+            return native_word
     translated = translate_word_to_finnish(base_word)
     return translated or base_word
 
@@ -693,23 +701,25 @@ def prepare_theme_selection(starter_name, room):
 # Utility: Spanish pair
 # ---------------------------------------------------------------------------
 
-def append_selected_spanish_pair(word, pair_index, room):
-    spanish_word = translate_word_to_spanish(word)
-    if not spanish_word:
-        print(f"[INFO] Espanjan käännös ei kelpaa sanalle '{word}'")
+def append_selected_lang_pair(word, pair_index, room):
+    target_lang = room.target_language or "es"
+    target_word = translate_word(word, "en", target_lang)
+    if not target_word:
+        print(f"[INFO] Käännös ({target_lang}) ei kelpaa sanalle '{word}'")
         return False
-    finnish_word = translate_word_to_finnish(word)
-    print(f"[INFO] Kokeillaan espanjapariksi '{word}' -> '{spanish_word}' parille {pair_index + 1}")
+    native_lang = room.native_language or "fi"
+    native_word = translate_word(word, "en", native_lang) if native_lang != "en" else word
+    print(f"[INFO] Kokeillaan {target_lang}-pariksi '{word}' -> '{target_word}' parille {pair_index + 1}")
     image_paths = fetch_and_save_pixabay_images(word, room, required_count=1)
     if not image_paths:
-        print(f"[INFO] Pixabay ei löytänyt espanjaparille '{word}' sopivaa kuvaa")
+        print(f"[INFO] Pixabay ei löytänyt parille '{word}' sopivaa kuvaa")
         return False
     return {
         "pair_id": pair_index + 1,
         "english_word": word,
-        "spanish_word": spanish_word,
-        "finnish_word": finnish_word,
-        "image_url": image_source_for_card(image_paths[0])
+        "target_word": target_word,
+        "native_word": native_word,
+    "image_url": image_source_for_card(image_paths[0])
     }
 
 
@@ -728,10 +738,10 @@ def next_theme_picker_name(current_name, room):
     return room.player_order[0]
 
 
-def spanish_setup_still_active(theme, room):
+def lang_setup_still_active(theme, room):
     if room.pending_pair is None or room.pending_pair == 0 and not room.grid_data:
         return False
-    if room.game_mode != "spanish":
+    if room.game_mode not in {"language", "spanish"}:
         return False
     if room.pending_theme != theme:
         return False
@@ -751,11 +761,16 @@ def normalize_candidate_word(word):
     return cleaned
 
 
-def normalize_spanish_word(word):
+def normalize_translated_word(word):
     cleaned = str(word or "").strip().lower()
-    cleaned = re.sub(r"^[^a-záéíóúüñ]+|[^a-záéíóúüñ]+$", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"^(el|la|los|las|un|una|unos|unas)\s+", "", cleaned, flags=re.IGNORECASE)
-    if not re.fullmatch(r"[a-záéíóúüñ]{2,18}", cleaned, flags=re.IGNORECASE):
+    # Strip leading/trailing non-letter characters (unicode-aware)
+    cleaned = re.sub(r"^[^\w]+|[^\w]+$", "", cleaned)
+    # Strip common Spanish articles (harmless for other languages)
+    cleaned = re.sub(r"^(el|la|los|las|un|una|unos|unas|le|les|der|die|das|il|lo)\s+", "", cleaned, flags=re.IGNORECASE)
+    if not cleaned or len(cleaned) < 2 or len(cleaned) > 24:
+        return None
+    # Reject if it contains digits or looks like a phrase (space = multiple words)
+    if re.search(r"[0-9]", cleaned):
         return None
     return cleaned
 
@@ -838,7 +853,7 @@ def translate_word(word, source_lang, target_lang):
 
     try:
         response = requests.get(
-            SPANISH_TRANSLATION_API_URL,
+            TRANSLATION_API_URL,
             params={"q": normalized_word, "langpair": f"{source_lang}|{target_lang}"},
             timeout=5
         )
@@ -855,7 +870,7 @@ def translate_word(word, source_lang, target_lang):
         translation_cache[cache_key] = None
         return None
 
-    normalized_translation = normalize_spanish_word(translated_text)
+    normalized_translation = normalize_translated_word(translated_text)
     if not normalized_translation:
         translation_cache[cache_key] = None
         return None
@@ -903,7 +918,7 @@ def translate_theme_to_english(theme, ui_language):
         return translated
     try:
         response = requests.get(
-            SPANISH_TRANSLATION_API_URL,
+            TRANSLATION_API_URL,
             params={"q": theme_text, "langpair": "fi|en"},
             timeout=10
         )
@@ -1024,22 +1039,23 @@ def append_word_images_to_grid(word, room):
     return True
 
 
-def append_spanish_learning_pair_to_grid(pair, room):
+def append_lang_learning_pair_to_grid(pair, room):
+    common = {
+        "word": pair["english_word"],
+        "target_word": pair["target_word"],
+        "native_word": pair.get("native_word"),
+    }
     room.grid_data.append({
         "pair_id": pair["pair_id"],
         "card_type": "word",
-        "text": pair["spanish_word"],
-        "word": pair["english_word"],
-        "spanish_word": pair["spanish_word"],
-        "finnish_word": pair.get("finnish_word")
+        "text": pair["target_word"],
+        **common,
     })
     room.grid_data.append({
         "pair_id": pair["pair_id"],
         "card_type": "image",
         "image": pair["image_url"],
-        "word": pair["english_word"],
-        "spanish_word": pair["spanish_word"],
-        "finnish_word": pair.get("finnish_word")
+        **common,
     })
 
 
@@ -1059,11 +1075,11 @@ def build_theme_pair_entry(word, room):
 def build_pair_entry_for_mode(word, pair_index, room):
     if room.game_mode == "theme":
         return build_theme_pair_entry(word, room)
-    if room.game_mode == "spanish":
-        pair = append_selected_spanish_pair(word, pair_index, room)
+    if room.game_mode in {"language", "spanish"}:
+        pair = append_selected_lang_pair(word, pair_index, room)
         if not pair:
             return None
-        return {"type": "spanish", "pair": pair}
+        return {"type": "language", "pair": pair}
     return None
 
 
@@ -1078,10 +1094,10 @@ def append_pair_entry_to_grid(entry, pair_index, room):
                 "word": entry.get("word")
             })
         return
-    if entry.get("type") == "spanish":
+    if entry.get("type") in {"language", "spanish"}:
         pair = dict(entry.get("pair") or {})
         pair["pair_id"] = pair_index + 1
-        append_spanish_learning_pair_to_grid(pair, room)
+        append_lang_learning_pair_to_grid(pair, room)
 
 
 # ---------------------------------------------------------------------------
@@ -1103,7 +1119,9 @@ def launch_grid_round(room):
         "cards": room.grid_data,
         "turn": room.player_order[0] if room.player_order else None,
         "players": room.player_order,
-        "solo": is_solo(room)
+        "solo": is_solo(room),
+        "game_mode": room.game_mode,
+        "target_language": room.target_language,
     }, room_id=room.room_id)
     schedule_bot_turn_if_needed(room)
 
@@ -1236,7 +1254,7 @@ def generate_theme_pair(room):
     emit_to_room("game_setup_error", {"reason": message}, room_id=room.room_id)
 
 
-def generate_spanish_learning_pairs(theme, room, target_pairs=8):
+def generate_lang_learning_pairs(theme, room, target_pairs=8):
     existing_words = set()
     search_theme = room.pending_search_theme or theme
     candidates = fetch_theme_words(search_theme, max_results=60)
@@ -1246,13 +1264,13 @@ def generate_spanish_learning_pairs(theme, room, target_pairs=8):
         room.grid_data.clear()
         reset_pending_state(room)
         emit_to_room("game_setup_error", {"reason": message}, room_id=room.room_id)
-        room.spanish_generation_in_progress = False
+        room.lang_generation_in_progress = False
         return
 
     for word in candidates:
-        if not spanish_setup_still_active(theme, room):
-            print("[INFO] Espanjapelin generointi lopetettiin keskeytyneen pelin vuoksi")
-            room.spanish_generation_in_progress = False
+        if not lang_setup_still_active(theme, room):
+            print("[INFO] Kielipelin generointi lopetettiin keskeytyneen pelin vuoksi")
+            room.lang_generation_in_progress = False
             return
 
         if word in existing_words or word in room.theme_rejected_words:
@@ -1260,10 +1278,10 @@ def generate_spanish_learning_pairs(theme, room, target_pairs=8):
 
         pair_index = room.pending_pair
         try:
-            pair = append_selected_spanish_pair(word, pair_index, room)
+            pair = append_selected_lang_pair(word, pair_index, room)
         except PixabayConfigError as e:
             abort_round_due_to_pixabay_error(str(e), room)
-            room.spanish_generation_in_progress = False
+            room.lang_generation_in_progress = False
             return
 
         if not pair:
@@ -1271,31 +1289,31 @@ def generate_spanish_learning_pairs(theme, room, target_pairs=8):
             continue
 
         english_word = pair.get("english_word", word)
-        append_spanish_learning_pair_to_grid(pair, room)
+        append_lang_learning_pair_to_grid(pair, room)
         existing_words.add(english_word)
         emit_to_room("theme_word_accepted", {
             "theme": room.pending_theme,
             "word": english_word,
             "pair": room.pending_pair + 1,
             "total_pairs": target_pairs,
-            "mode": "spanish"
+            "mode": "language"
         }, room_id=room.room_id)
         socketio.sleep(0)
         room.pending_pair += 1
 
-        if not spanish_setup_still_active(theme, room):
-            print("[INFO] Espanjapelin generointi lopetettiin keskeytyneen pelin vuoksi")
-            room.spanish_generation_in_progress = False
+        if not lang_setup_still_active(theme, room):
+            print("[INFO] Kielipelin generointi lopetettiin keskeytyneen pelin vuoksi")
+            room.lang_generation_in_progress = False
             return
 
         if room.pending_pair >= target_pairs:
             try:
                 ask_next_word(room)
             finally:
-                room.spanish_generation_in_progress = False
+                room.lang_generation_in_progress = False
             return
 
-    room.spanish_generation_in_progress = False
+    room.lang_generation_in_progress = False
     message = f"Teemasta '{theme}' ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa."
     print(f"[WARNING] {message}")
     room.grid_data.clear()
@@ -1423,26 +1441,27 @@ def ask_next_word(room):
         socketio.start_background_task(generate_theme_pair, room)
         return
 
-    if room.game_mode == "spanish":
+    if room.game_mode in {"language", "spanish"}:
         if theme_selection_active(room):
             emit_theme_selection_state(room)
             return
-        print(f"[INFO] Generoidaan espanjan opiskelupeli teemalle '{room.pending_theme}'")
+        lang_name = (SUPPORTED_LANGUAGES.get(room.target_language) or {}).get("en", room.target_language)
+        print(f"[INFO] Generoidaan kielipeli ({lang_name}) teemalle '{room.pending_theme}'")
         emit_to_room("theme_generation_started", {
             "theme": room.pending_theme,
             "pair": room.pending_pair + 1,
-            "mode": "spanish",
+            "mode": "language",
             "starter_name": first_player,
             "phase": "drawing_cards",
             "progress_count": room.pending_pair,
             "total_pairs": 8
         }, room_id=room.room_id)
         socketio.sleep(0)
-        if room.spanish_generation_in_progress:
-            debug("[DEBUG] Espanjan generointi jo käynnissä")
+        if room.lang_generation_in_progress:
+            debug("[DEBUG] Kielipelin generointi jo käynnissä")
             return
-        room.spanish_generation_in_progress = True
-        socketio.start_background_task(generate_spanish_learning_pairs, room.pending_theme, room)
+        room.lang_generation_in_progress = True
+        socketio.start_background_task(generate_lang_learning_pairs, room.pending_theme, room)
         return
 
     print(f"[INFO] Pyydetään sana pelaajalta {first_player}, pari {room.pending_pair + 1}")
@@ -1569,7 +1588,7 @@ def leaderboard():
                     LIMIT 50
                 """)
                 solo_rows = cur.fetchall()
-                solo_fi = [r for r in solo_rows if r[1] == "spanish"][:10]
+                solo_fi = [r for r in solo_rows if r[1] in ("language", "spanish")][:10]
                 solo_en = [r for r in solo_rows if r[1] in ("theme", "manual")][:10]
 
                 # Multiplayer: most round wins (pair count sum)
@@ -1748,7 +1767,7 @@ def handle_grid_request():
             return
         if room.pending_pair > 0 or room.pending_player:
             try:
-                if room.game_mode in {"theme", "spanish"}:
+                if room.game_mode in {"theme", "language"}:
                     emit_to_room("theme_generation_started", {
                         "theme": room.pending_theme,
                         "pair": room.pending_pair + 1,
@@ -1778,7 +1797,10 @@ def handle_grid_request():
         "players": room.player_order,
         "matched": list(room.matched_indices),
         "revealed": room.revealed_cards,
-        "points": room.player_points
+        "points": room.player_points,
+        "solo": is_solo(room),
+        "game_mode": room.game_mode,
+        "target_language": room.target_language,
     })
     schedule_bot_turn_if_needed(room)
 
@@ -1793,7 +1815,9 @@ def handle_ready_for_game():
         emit("init_grid", {
             "cards": room.grid_data,
             "turn": current_player_name,
-            "players": room.player_order
+            "players": room.player_order,
+            "game_mode": room.game_mode,
+            "target_language": room.target_language,
         })
 
 
@@ -1827,10 +1851,17 @@ def handle_start_custom_game(data=None):
     mode = str(data.get("mode", "manual")).strip().lower()
     theme = str(data.get("theme", "")).strip()
     ui_language = str(data.get("ui_language", "")).strip().lower()
-    if mode not in {"manual", "theme", "spanish"}:
+    # "spanish" is a legacy alias for mode="language" with target_language="es"
+    if mode == "spanish":
+        mode = "language"
+        data.setdefault("target_language", "es")
+    if mode not in {"manual", "theme", "language"}:
         mode = "manual"
     room.ui_language = ui_language if ui_language in {"fi", "en"} else "en"
-    if mode in {"theme", "spanish"} and not theme:
+    if mode == "language":
+        tl = str(data.get("target_language", "es")).strip().lower()
+        room.target_language = tl if tl in SUPPORTED_LANGUAGES else "es"
+    if mode in {"theme", "language"} and not theme:
         emit_to_room("game_setup_error", {"reason": "Teema puuttuu."}, room_id=room.room_id)
         return
 
@@ -1839,13 +1870,13 @@ def handle_start_custom_game(data=None):
     room.pending_player = None
     room.grid_data.clear()
     room.game_mode = mode
-    room.pending_theme = theme if mode in {"theme", "spanish"} else None
-    room.pending_search_theme = translate_theme_to_english(theme, room.ui_language) if mode in {"theme", "spanish"} else None
+    room.pending_theme = theme if mode in {"theme", "language"} else None
+    room.pending_search_theme = translate_theme_to_english(theme, room.ui_language) if mode in {"theme", "language"} else None
     room.theme_candidates = []
     room.theme_rejected_words = set()
     room.status = "setup"
 
-    if room.game_mode in {"theme", "spanish"}:
+    if room.game_mode in {"theme", "language"}:
         starter_name = room.players.get(request.sid, {}).get("username")
         emit_to_room("theme_generation_started", {
             "theme": room.pending_theme,
@@ -1869,7 +1900,7 @@ def handle_start_custom_game(data=None):
 @socketio.on("select_theme_word")
 def handle_select_theme_word(data):
     room = get_room_for_sid(request.sid)
-    if room.game_mode not in {"theme", "spanish"} or not theme_selection_active(room):
+    if room.game_mode not in {"theme", "language"} or not theme_selection_active(room):
         emit("theme_selection_failed", {"reason": "selection_inactive"})
         return
 
@@ -1913,7 +1944,7 @@ def handle_select_theme_word(data):
         emit("theme_selection_failed", {"reason": "word_unavailable"})
         return
 
-    mode_label = "teemasanan" if room.game_mode == "theme" else "espanjapelin sanan"
+    mode_label = "teemasanan" if room.game_mode == "theme" else "kielipelin sanan"
     print(f"[INFO] {username} vaihtaa {mode_label}n '{replace_word}' -> '{word}'")
     try:
         selection_ok = build_pair_entry_for_mode(word, selected_index, room)
@@ -1967,7 +1998,7 @@ def handle_select_theme_word(data):
 @socketio.on("set_theme_ready")
 def handle_set_theme_ready(data):
     room = get_room_for_sid(request.sid)
-    if room.game_mode not in {"theme", "spanish"} or not theme_selection_active(room):
+    if room.game_mode not in {"theme", "language"} or not theme_selection_active(room):
         emit("theme_selection_failed", {"reason": "selection_inactive"})
         return
 

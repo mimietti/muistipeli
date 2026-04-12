@@ -395,8 +395,7 @@
                 setup_manual: '{name} is entering words for the next round...',
                 ready_label: "Ready:",
                 remaining_label: "Remaining:",
-                translation_spanish: "Spanish",
-                translation_finnish: "Finnish",
+                translation_native: "Finnish",
                 translation_english: "English",
                 game_setup_failed: "Game setup failed.",
                 game_over: "Game over! Winner: {winner}",
@@ -419,7 +418,7 @@
                 prompt_word: "Enter a word for pair {pair}/8 (describe the pair with a common word):",
                 prompt_word_retry: "Enter a new word for pair {pair}/8:",
                 prompt_theme: "Enter theme:",
-                prompt_spanish_theme: "Enter theme in English:",
+                prompt_lang_theme: "Enter theme in English:",
                 pixabay_retry: "Pixabay could not find an image for that word. Try another word.",
                 found_word: "Pair found: {word}",
                 pair_found_label: "Pair found",
@@ -432,7 +431,7 @@
                 solo_result_penalty: "Penalty (+{secs}s)",
                 solo_result_total: "Total time",
                 solo_mistake_explanation: "A mistake is counted when you flip a pair where both cards have already been seen before.",
-                study_spanish: "Study Spanish",
+                study_lang: "Study a language",
                 theme_missing: "Theme is missing.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
                 pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env."
@@ -445,8 +444,7 @@
                 setup_manual: '{name} syöttää sanoja seuraavaa kierrosta varten...',
                 ready_label: "Valmiina:",
                 remaining_label: "Löytämättä:",
-                translation_spanish: "Espanja",
-                translation_finnish: "Suomi",
+                translation_native: "Suomi",
                 translation_english: "Englanti",
                 game_setup_failed: "Pelin alustus epäonnistui.",
                 game_over: "Peli päättyi! Voittaja: {winner}",
@@ -469,7 +467,7 @@
                 prompt_word: "Anna {pair}/8 parin sana (kuvaile paria yhdellä yleisellä sanalla):",
                 prompt_word_retry: "Anna {pair}/8 parin sana uudelleen:",
                 prompt_theme: "Anna teema:",
-                prompt_spanish_theme: "Anna teema englanniksi:",
+                prompt_lang_theme: "Anna teema englanniksi:",
                 pixabay_retry: "Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.",
                 found_word: "Pari löytyi: {word}",
                 pair_found_label: "Pari löytyi",
@@ -482,7 +480,7 @@
                 solo_result_penalty: "Aikasakko (+{secs}s)",
                 solo_result_total: "Kokonaisaika",
                 solo_mistake_explanation: "Virhe lasketaan, kun käännät parin jossa molemmat kortit on jo aiemmin nähty.",
-                study_spanish: "Opiskele espanjaa",
+                study_lang: "Opiskele kieltä",
                 theme_missing: "Teema puuttuu.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta."
@@ -590,6 +588,21 @@
         let currentTurn = null;
         let currentTranslationHint = null;
         let isSoloMode = false;
+        let currentTargetLanguage = "es";
+
+        const LANG_NAMES = {
+            es: { fi: "Espanja",   en: "Spanish"    },
+            sv: { fi: "Ruotsi",    en: "Swedish"    },
+            de: { fi: "Saksa",     en: "German"     },
+            fr: { fi: "Ranska",    en: "French"     },
+            it: { fi: "Italia",    en: "Italian"    },
+            pt: { fi: "Portugali", en: "Portuguese" },
+        };
+
+        function getTargetLanguageLabel() {
+            const ui = getLanguage();
+            return (LANG_NAMES[currentTargetLanguage] || {})[ui] || currentTargetLanguage.toUpperCase();
+        }
         let soloMistakes = 0;
         let soloTimerInterval = null;
         let soloElapsed = 0;
@@ -791,11 +804,11 @@
         }
 
         function modeUsesTheme(mode) {
-            return mode === "theme" || mode === "spanish";
+            return mode === "theme" || mode === "language" || mode === "spanish";
         }
 
         function getThemePromptForMode(mode) {
-            return mode === "spanish" ? t("prompt_spanish_theme") : t("prompt_theme");
+            return (mode === "language" || mode === "spanish") ? t("prompt_lang_theme") : t("prompt_theme");
         }
 
         function queueNextRound(mode) {
@@ -805,6 +818,9 @@
             const payload = { mode };
             if (modeUsesTheme(mode)) {
                 payload.theme = getLastRoundTheme();
+            }
+            if (mode === "language") {
+                payload.target_lang = currentTargetLanguage;
             }
             try { sessionStorage.setItem("queued_next_round", JSON.stringify(payload)); } catch (e) {}
             try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
@@ -831,11 +847,12 @@
 
         function getTranslationHintWords(card) {
             if (!card || card.card_type !== "word") return null;
-            const spanish = card.spanish_word || card.text;
+            const target = card.target_word || card.spanish_word || card.text;
             const english = card.word || "";
-            const finnish = (card.finnish_word && String(card.finnish_word).trim()) ? card.finnish_word : "--";
-            if (!spanish || !english) return null;
-            return { spanish, finnish, english };
+            const native = (card.native_word && String(card.native_word).trim()) ? card.native_word
+                         : (card.finnish_word && String(card.finnish_word).trim()) ? card.finnish_word : "--";
+            if (!target || !english) return null;
+            return { target, native, english };
         }
 
         function renderTranslationHint() {
@@ -847,14 +864,15 @@
                 return;
             }
 
+            const targetLangLabel = getTargetLanguageLabel();
             const columns = getLanguage() === "fi"
                 ? [
-                    { label: t("translation_spanish"), value: currentTranslationHint.spanish },
-                    { label: t("translation_finnish"), value: currentTranslationHint.finnish },
+                    { label: targetLangLabel, value: currentTranslationHint.target },
+                    { label: t("translation_native"), value: currentTranslationHint.native },
                     { label: t("translation_english"), value: currentTranslationHint.english }
                 ]
                 : [
-                    { label: t("translation_spanish"), value: currentTranslationHint.spanish },
+                    { label: targetLangLabel, value: currentTranslationHint.target },
                     { label: t("translation_english"), value: currentTranslationHint.english }
                 ];
 
@@ -1001,6 +1019,7 @@
             matched = data.matched ? new Set(data.matched) : new Set();
             currentTranslationHint = null;
             isSoloMode = Boolean(data.solo);
+            if (data.target_language) currentTargetLanguage = data.target_language;
             if (isSoloMode) {
                 startSoloTimer();
                 document.getElementById("players").style.display = "none";
@@ -1095,9 +1114,10 @@
             console.error("[DEBUG] game_setup_error:", reason);
             const failedMode = sessionStorage.getItem("game_setup_mode");
             const failedTheme = sessionStorage.getItem("game_setup_theme") || "";
-            if (failedMode === "theme" || failedMode === "spanish") {
+            if (failedMode === "theme" || failedMode === "language" || failedMode === "spanish") {
+                const failedLang = sessionStorage.getItem("game_setup_lang") || "es";
                 try {
-                    sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: failedMode, theme: failedTheme }));
+                    sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: failedMode === "spanish" ? "language" : failedMode, theme: failedTheme, target_lang: failedLang }));
                 } catch (e) {}
             }
             try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}
@@ -1212,7 +1232,7 @@
                     <div class="results-actions">
                         <button id="restart-manual-btn" class="results-btn mode">${t("enter_words")}</button>
                         <button id="restart-theme-btn" class="results-btn mode">${t("enter_theme")}</button>
-                        <button id="restart-spanish-btn" class="results-btn mode">${t("study_spanish")}</button>
+                        <button id="restart-lang-btn" class="results-btn mode">${getTargetLanguageLabel()}</button>
                     </div>
                     <div class="results-actions">
                         <button id="end-game-btn" class="results-btn end">${t("exit_game")}</button>
@@ -1221,7 +1241,7 @@
                 document.getElementById("end-game-btn").addEventListener("click", () => navigateTo("/summary"));
                 document.getElementById("restart-manual-btn").addEventListener("click", () => { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "manual" })); } catch (_) {} navigateTo("/waiting"); });
                 document.getElementById("restart-theme-btn").addEventListener("click", () => { const theme = prompt(t("prompt_theme"), ""); if (theme) { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "theme", theme })); } catch (_) {} navigateTo("/waiting"); } });
-                document.getElementById("restart-spanish-btn").addEventListener("click", () => { const theme = prompt(t("prompt_spanish_theme"), ""); if (theme) { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "spanish", theme })); } catch (_) {} navigateTo("/waiting"); } });
+                document.getElementById("restart-lang-btn").addEventListener("click", () => { const theme = prompt(t("prompt_lang_theme"), ""); if (theme) { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "language", target_lang: currentTargetLanguage, theme })); } catch (_) {} navigateTo("/waiting"); } });
                 return;
             }
 
@@ -1249,7 +1269,7 @@
                 <div class="results-actions" style="${canChooseNextRound ? "" : "display:none;"}">
                     <button id="restart-manual-btn" class="results-btn mode">${t("enter_words")}</button>
                     <button id="restart-theme-btn" class="results-btn mode">${t("enter_theme")}</button>
-                    <button id="restart-spanish-btn" class="results-btn mode">${t("study_spanish")}</button>
+                    <button id="restart-lang-btn" class="results-btn mode">${getTargetLanguageLabel()}</button>
                 </div>
                 <div class="results-actions">
                     <button id="end-game-btn" class="results-btn end">${t("exit_game")}</button>
@@ -1258,7 +1278,7 @@
             document.body.appendChild(results);
             document.getElementById("restart-manual-btn")?.addEventListener("click", () => queueNextRound("manual"));
             document.getElementById("restart-theme-btn")?.addEventListener("click", () => queueNextRound("theme"));
-            document.getElementById("restart-spanish-btn")?.addEventListener("click", () => queueNextRound("spanish"));
+            document.getElementById("restart-lang-btn")?.addEventListener("click", () => queueNextRound("language"));
             document.getElementById("end-game-btn")?.addEventListener("click", endGame);
 
             const winnerMessage = document.getElementById("winner-message");
