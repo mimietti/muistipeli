@@ -25,6 +25,22 @@
             display: flex;
             justify-content: center;
         }
+        .card-mode-btn {
+            padding: 6px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04);
+            color: #aaa;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        .card-mode-btn.active {
+            background: rgba(124,245,138,0.15);
+            border-color: rgba(124,245,138,0.4);
+            color: #7cf58a;
+            font-weight: 700;
+        }
         .lang-select {
             background: rgba(255,255,255,0.06);
             color: #fff;
@@ -430,7 +446,11 @@
             <p id="startOptionsText">Choose how words are provided for this round.</p>
             <button id="manualStartBtn" class="modeBtn">Enter your own words</button>
             <button id="themeStartBtn" class="modeBtn">Enter theme</button>
-            <div id="langBtns" style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:8px;">
+            <div id="cardModeToggle" style="display:flex;justify-content:center;gap:8px;margin:12px 0 8px;">
+                <button class="card-mode-btn active" data-mode="image_word" id="cardModeImageWord">🖼 + 📝</button>
+                <button class="card-mode-btn" data-mode="words" id="cardModeWords">📝 + 📝</button>
+            </div>
+            <div id="langBtns" style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:4px;">
                 <button class="modeBtn lang-start-btn" data-lang="es">🇪🇸 Spanish</button>
                 <button class="modeBtn lang-start-btn" data-lang="sv">🇸🇪 Swedish</button>
                 <button class="modeBtn lang-start-btn" data-lang="de">🇩🇪 German</button>
@@ -491,6 +511,8 @@
                 reconnect_empty_alert: "Reconnect token is missing or empty! Reloading the page.",
                 enter_theme_prompt: "Enter theme:",
                 enter_lang_theme_prompt: "Enter theme (in English):",
+                card_mode_image_word: "Image + word",
+                card_mode_words: "Word + word",
                 setup_failed: "Game setup failed.",
                 disconnect_alert: "Connection to the server was lost. Trying again...",
                 game_aborted: "The round was cancelled because the other player left.",
@@ -560,6 +582,9 @@
                 prompt_name: "Anna nimesi:",
                 reconnect_empty_alert: "Reconnect_token puuttuu tai on tyhjä! Sivua ladataan uudelleen.",
                 enter_theme_prompt: "Anna teema:",
+                enter_lang_theme_prompt: "Anna teema (englanniksi):",
+                card_mode_image_word: "Kuva + sana",
+                card_mode_words: "Sana + sana",
                 enter_spanish_theme_prompt: "Anna teema:",
                 setup_failed: "Pelin alustus epäonnistui.",
                 disconnect_alert: "Yhteys katkesi palvelimeen. Yritetään uudelleen...",
@@ -709,6 +734,8 @@
                 const name = (LANG_NAMES[lc] || {})[getLanguage()] || lc.toUpperCase();
                 btn.textContent = (LANG_FLAGS[lc] || "") + " " + name;
             });
+            document.getElementById("cardModeImageWord").textContent = "🖼 " + t("card_mode_image_word");
+            document.getElementById("cardModeWords").textContent = "📝 " + t("card_mode_words");
             document.getElementById("pageTitle").textContent = t("page_title");
             document.getElementById("introText").textContent = t("intro_text");
             document.getElementById("startOptionsText").textContent = t("start_options");
@@ -1331,7 +1358,7 @@
                 socket.emit("start_custom_game", { mode: "theme", theme, ui_language: getLanguage() });
             }
 
-            function startLanguageRound(targetLang, prefill = "") {
+            function startLanguageRound(targetLang, prefill = "", cardMode = "image_word") {
                 if (!myName || myName.trim().length === 0) {
                     askName();
                     return;
@@ -1347,12 +1374,13 @@
                 console.log("[DEBUG] Aloitetaan kielipeli, kieli:", targetLang, "teema:", theme);
                 try { sessionStorage.setItem("game_setup_mode", "language"); } catch (e) {}
                 try { sessionStorage.setItem("game_setup_lang", targetLang); } catch (e) {}
+                try { sessionStorage.setItem("game_setup_card_mode", cardMode); } catch (e) {}
                 try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
                 renderSetupStatus({ active: true, mode: "language", theme });
-                socket.emit("start_custom_game", { mode: "theme", card_mode: "image_word", target_language: targetLang, theme, ui_language: getLanguage() });
+                socket.emit("start_custom_game", { mode: "theme", card_mode: cardMode, target_language: targetLang, theme, ui_language: getLanguage() });
             }
 
             function maybeStartQueuedNextRound(canStart) {
@@ -1375,7 +1403,8 @@
                 }
                 if (queued.mode === "language" || queued.mode === "spanish") {
                     const lang = queued.target_lang || sessionStorage.getItem("game_setup_lang") || "es";
-                    startLanguageRound(lang, queued.theme || "");
+                    const cm = queued.card_mode || sessionStorage.getItem("game_setup_card_mode") || "image_word";
+                    startLanguageRound(lang, queued.theme || "", cm);
                 }
             }
 
@@ -1395,8 +1424,17 @@
                 startThemeRound();
             });
 
+            let selectedCardMode = "image_word";
+
+            document.querySelectorAll(".card-mode-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    selectedCardMode = btn.dataset.mode;
+                    document.querySelectorAll(".card-mode-btn").forEach(b => b.classList.toggle("active", b === btn));
+                });
+            });
+
             document.querySelectorAll(".lang-start-btn").forEach(btn => {
-                btn.addEventListener("click", () => startLanguageRound(btn.dataset.lang));
+                btn.addEventListener("click", () => startLanguageRound(btn.dataset.lang, "", selectedCardMode));
             });
             document.getElementById("exitGameBtn").addEventListener("click", () => {
                 exitGame();
@@ -1495,7 +1533,8 @@
                             startThemeRound(failedTheme);
                         } else {
                             const lang = sessionStorage.getItem("game_setup_lang") || "es";
-                            startLanguageRound(lang, failedTheme);
+                            const cm = sessionStorage.getItem("game_setup_card_mode") || "image_word";
+                            startLanguageRound(lang, failedTheme, cm);
                         }
                     }, 0);
                 }
