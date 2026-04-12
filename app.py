@@ -1149,7 +1149,8 @@ def launch_grid_round(room):
     room.revealed_cards = []
     room.turn = 0
     room.player_points = {name: 0 for name in room.player_order}
-    if is_solo(room):
+    has_bot = any(info.get("is_bot") for info in room.players.values())
+    if is_solo(room) or has_bot:
         room.solo_start_time = time.time()
         room.solo_mistakes = 0
         room.solo_seen_cards = set()
@@ -1180,7 +1181,10 @@ def conclude_round(winner_label, room, surrendered_by=None):
     else:
         print(f"[INFO] Kierros päättyi. Tulos: {winner_label}")
 
-    solo_time = round(time.time() - room.solo_start_time) if is_solo(room) and room.solo_start_time else None
+    has_bot = any(info.get("is_bot") for info in room.players.values())
+    elapsed = round(time.time() - room.solo_start_time) if room.solo_start_time else None
+    solo_time = elapsed if is_solo(room) else None
+    bot_time = elapsed if has_bot else None
 
     # --- Save to leaderboard ---
     if not surrendered_by:
@@ -1196,15 +1200,25 @@ def conclude_round(winner_label, room, surrendered_by=None):
             )
         else:
             for name in room.player_order:
-                play_mode = "bot" if any(
-                    info.get("is_bot") for info in room.players.values()
-                ) else "multiplayer"
-                save_result(
-                    username=name,
-                    play_mode=play_mode,
-                    game_mode=room.game_mode,
-                    pairs_found=room.player_points.get(name, 0)
-                )
+                if is_bot_player(name, room):
+                    continue  # don't save bot's own result
+                if has_bot:
+                    save_result(
+                        username=name,
+                        play_mode="bot",
+                        game_mode=room.game_mode,
+                        pairs_found=room.player_points.get(name, 0),
+                        time_secs=bot_time,
+                        mistakes=room.solo_mistakes,
+                        card_mode=room.card_mode or "images"
+                    )
+                else:
+                    save_result(
+                        username=name,
+                        play_mode="multiplayer",
+                        game_mode=room.game_mode,
+                        pairs_found=room.player_points.get(name, 0)
+                    )
 
     emit_to_room("game_over", {
         "winner": winner_label,
@@ -1419,7 +1433,9 @@ def process_card_click(index, resolved_sid, clicker, room):
                     print("[ERROR] Ei voittajaa, player_points on tyhjää.")
         else:
             debug(f"[DEBUG] Ei paria: {word1} vs {word2}")
-            if is_solo(room):
+            has_bot = any(info.get("is_bot") for info in room.players.values())
+            clicker_is_human = not is_bot_player(clicker or {})
+            if (is_solo(room) or (has_bot and clicker_is_human)):
                 # Mistake only if both cards have been seen before
                 if idx1 in room.solo_seen_cards and idx2 in room.solo_seen_cards:
                     room.solo_mistakes += 1
@@ -1626,6 +1642,7 @@ def summary():
 def leaderboard():
     conn = _get_db()
     solo_top = {"images": [], "image_word": [], "words": []}
+    bot_top = {"images": [], "image_word": [], "words": []}
     if conn:
         try:
             with conn.cursor() as cur:
@@ -1639,6 +1656,15 @@ def leaderboard():
                         LIMIT 10
                     """, (cm, cm))
                     solo_top[cm] = cur.fetchall()
+                    cur.execute("""
+                        SELECT username, pairs_found, mistakes, time_secs
+                        FROM results
+                        WHERE play_mode = 'bot' AND pairs_found IS NOT NULL
+                          AND (card_mode = %s OR (card_mode IS NULL AND %s = 'images'))
+                        ORDER BY pairs_found DESC, mistakes ASC NULLS LAST, time_secs ASC NULLS LAST
+                        LIMIT 10
+                    """, (cm, cm))
+                    bot_top[cm] = cur.fetchall()
         except Exception as e:
             print(f"[DB] Leaderboard query error: {e}")
         finally:
@@ -1646,6 +1672,7 @@ def leaderboard():
 
     return render_template("leaderboard.html",
                            solo_top=solo_top,
+                           bot_top=bot_top,
                            db_available=bool(conn),
                            SOLO_PENALTY=SOLO_PENALTY_PER_MISTAKE)
 

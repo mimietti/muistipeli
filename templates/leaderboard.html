@@ -72,6 +72,15 @@
         .total { color: #7cf58a; font-weight: 700; font-size: 16px; }
         .dim { color: #6a7a6a; }
         .empty { color: #4a5a4a; padding: 20px 0; font-size: 14px; }
+        .group-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff4a8;
+            text-align: left;
+            padding-left: 4px;
+            margin-bottom: 10px;
+            margin-top: 8px;
+        }
         .back-btn {
             display: inline-block;
             margin-top: 20px;
@@ -110,6 +119,7 @@
         <div class="board"><div class="empty" id="noDbText">Leaderboard not available.</div></div>
         {% else %}
 
+        <div class="group-title" id="soloGroupTitle">Solo</div>
         {% for cm, rows, title_key, icon in [
             ("images",     solo_top.images,     "mode_images",     "🖼"),
             ("image_word", solo_top.image_word,  "mode_image_word", "🖼📝"),
@@ -148,6 +158,45 @@
         </div>
         {% endfor %}
 
+        <div class="group-title" id="botGroupTitle" style="margin-top:28px;">vs Bot</div>
+        {% for cm, rows, title_key, icon in [
+            ("images",     bot_top.images,     "mode_images",     "🖼"),
+            ("image_word", bot_top.image_word,  "mode_image_word", "🖼📝"),
+            ("words",      bot_top.words,       "mode_words",      "📝📝")
+        ] %}
+        <div class="section">
+            <div class="section-title">{{ icon }} <span class="section-label" data-key="{{ title_key }}">{{ title_key }}</span></div>
+            <div class="board">
+                {% if rows %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th class="th-name" style="text-align:left;">Player</th>
+                            <th class="th-pairs">Pairs</th>
+                            <th class="th-mistakes">Mistakes</th>
+                            <th class="th-time">Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+                            <td class="name">{{ row[0] }}</td>
+                            <td class="total">{{ row[1] }}</td>
+                            <td class="dim">{{ row[2] if row[2] is not none else "–" }}</td>
+                            <td class="dim">{{ (row[3] // 60)|string + ":" + "%02d"|format(row[3] % 60) if row[3] is not none else "–" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty section-empty">–</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
         {% endif %}
 
         <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:22px;">
@@ -163,13 +212,15 @@
                 title: "Leaderboard", subtitle: "Solo — top 10, sorted by total time",
                 th_name: "Player", th_time: "Time", th_mistakes: "Mistakes", th_total: "Total",
                 mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word",
-                noDb: "Leaderboard not available.", newGame: "▶ New game", back: "← Back to start"
+                noDb: "Leaderboard not available.", newGame: "▶ New game", back: "← Back to start",
+                solo_group: "Solo", bot_group: "vs Bot", th_pairs: "Pairs"
             },
             fi: {
                 title: "Tulostaulu", subtitle: "Solo — 10 nopeinta, järjestetty kokonaisajan mukaan",
                 th_name: "Pelaaja", th_time: "Aika", th_mistakes: "Virheet", th_total: "Yhteensä",
                 mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana",
-                noDb: "Tulostaulu ei käytössä.", newGame: "▶ Uusi peli", back: "← Takaisin alkuun"
+                noDb: "Tulostaulu ei käytössä.", newGame: "▶ Uusi peli", back: "← Takaisin alkuun",
+                solo_group: "Solo", bot_group: "vs Botti", th_pairs: "Pareja"
             },
         };
 
@@ -187,6 +238,9 @@
             const el = (id) => document.getElementById(id);
             if (el("backBtn")) el("backBtn").textContent = t.back;
             if (el("newGameBtn")) el("newGameBtn").textContent = t.newGame;
+            if (el("soloGroupTitle")) el("soloGroupTitle").textContent = t.solo_group;
+            if (el("botGroupTitle")) el("botGroupTitle").textContent = t.bot_group;
+            document.querySelectorAll(".th-pairs").forEach(e => e.textContent = t.th_pairs);
             if (el("noDbText")) el("noDbText").textContent = t.noDb;
             document.querySelectorAll(".th-name").forEach(e => e.textContent = t.th_name);
             document.querySelectorAll(".th-time").forEach(e => e.textContent = t.th_time);
