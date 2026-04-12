@@ -446,11 +446,16 @@
             <p id="startOptionsText">Choose how words are provided for this round.</p>
             <button id="manualStartBtn" class="modeBtn">Enter your own words</button>
             <button id="themeStartBtn" class="modeBtn">Enter theme</button>
-            <div id="cardModeToggle" style="display:flex;justify-content:center;gap:8px;margin:12px 0 8px;">
-                <button class="card-mode-btn active" data-mode="image_word" id="cardModeImageWord">🖼 + 📝</button>
-                <button class="card-mode-btn" data-mode="words" id="cardModeWords">📝 + 📝</button>
+            <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin:12px 0 8px;">
+                <div id="langSourceToggle" style="display:flex;gap:8px;">
+                    <button class="card-mode-btn active" data-source="theme" id="langSourceTheme">Theme</button>
+                    <button class="card-mode-btn" data-source="manual" id="langSourceManual">Own words</button>
+                </div>
+                <div id="cardModeToggle" style="display:flex;gap:8px;">
+                    <button class="card-mode-btn active" data-mode="image_word" id="cardModeImageWord">🖼 + 📝</button>
+                    <button class="card-mode-btn" data-mode="words" id="cardModeWords">📝 + 📝</button>
+                </div>
             </div>
-            <div style="color:#8c928c;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin:10px 0 5px;" id="langThemeLabel">Theme</div>
             <div id="langBtns" style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;">
                 <button class="modeBtn lang-start-btn" data-lang="es">🇪🇸 Spanish</button>
                 <button class="modeBtn lang-start-btn" data-lang="sv">🇸🇪 Swedish</button>
@@ -458,15 +463,6 @@
                 <button class="modeBtn lang-start-btn" data-lang="fr">🇫🇷 French</button>
                 <button class="modeBtn lang-start-btn" data-lang="it">🇮🇹 Italian</button>
                 <button class="modeBtn lang-start-btn" data-lang="pt">🇵🇹 Portuguese</button>
-            </div>
-            <div style="color:#8c928c;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin:10px 0 5px;" id="langManualLabel">Own words</div>
-            <div id="langManualBtns" style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;">
-                <button class="modeBtn lang-manual-btn" data-lang="es">🇪🇸 Spanish</button>
-                <button class="modeBtn lang-manual-btn" data-lang="sv">🇸🇪 Swedish</button>
-                <button class="modeBtn lang-manual-btn" data-lang="de">🇩🇪 German</button>
-                <button class="modeBtn lang-manual-btn" data-lang="fr">🇫🇷 French</button>
-                <button class="modeBtn lang-manual-btn" data-lang="it">🇮🇹 Italian</button>
-                <button class="modeBtn lang-manual-btn" data-lang="pt">🇵🇹 Portuguese</button>
             </div>
         </div>
         <div id="setupStatus">
@@ -743,15 +739,13 @@
             document.title = t("page_title");
             const sel = document.getElementById("uiLangSelect");
             if (sel) sel.value = getLanguage();
-            document.querySelectorAll(".lang-start-btn, .lang-manual-btn").forEach((btn) => {
+            document.querySelectorAll(".lang-start-btn").forEach((btn) => {
                 const lc = btn.dataset.lang;
                 const name = (LANG_NAMES[lc] || {})[getLanguage()] || lc.toUpperCase();
                 btn.textContent = (LANG_FLAGS[lc] || "") + " " + name;
             });
-            const langThemeLabelEl = document.getElementById("langThemeLabel");
-            if (langThemeLabelEl) langThemeLabelEl.textContent = t("lang_theme_label");
-            const langManualLabelEl = document.getElementById("langManualLabel");
-            if (langManualLabelEl) langManualLabelEl.textContent = t("lang_manual_label");
+            document.getElementById("langSourceTheme").textContent = t("lang_theme_label");
+            document.getElementById("langSourceManual").textContent = t("lang_manual_label");
             document.getElementById("cardModeImageWord").textContent = "🖼 " + t("card_mode_image_word");
             document.getElementById("cardModeWords").textContent = "📝 " + t("card_mode_words");
             document.getElementById("pageTitle").textContent = t("page_title");
@@ -1473,19 +1467,30 @@
             });
 
             let selectedCardMode = "image_word";
+            let selectedLangSource = "theme";
 
-            document.querySelectorAll(".card-mode-btn").forEach(btn => {
+            document.querySelectorAll("#cardModeToggle .card-mode-btn").forEach(btn => {
                 btn.addEventListener("click", () => {
                     selectedCardMode = btn.dataset.mode;
-                    document.querySelectorAll(".card-mode-btn").forEach(b => b.classList.toggle("active", b === btn));
+                    document.querySelectorAll("#cardModeToggle .card-mode-btn").forEach(b => b.classList.toggle("active", b === btn));
+                });
+            });
+
+            document.querySelectorAll("#langSourceToggle .card-mode-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    selectedLangSource = btn.dataset.source;
+                    document.querySelectorAll("#langSourceToggle .card-mode-btn").forEach(b => b.classList.toggle("active", b === btn));
                 });
             });
 
             document.querySelectorAll(".lang-start-btn").forEach(btn => {
-                btn.addEventListener("click", () => startLanguageRound(btn.dataset.lang, "", selectedCardMode));
-            });
-            document.querySelectorAll(".lang-manual-btn").forEach(btn => {
-                btn.addEventListener("click", () => startLangManualRound(btn.dataset.lang, selectedCardMode));
+                btn.addEventListener("click", () => {
+                    if (selectedLangSource === "manual") {
+                        startLangManualRound(btn.dataset.lang, selectedCardMode);
+                    } else {
+                        startLanguageRound(btn.dataset.lang, "", selectedCardMode);
+                    }
+                });
             });
             document.getElementById("exitGameBtn").addEventListener("click", () => {
                 exitGame();

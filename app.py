@@ -1452,7 +1452,7 @@ def ask_next_word(room):
         launch_grid_round(room)
         return
 
-    if len(room.player_order) < 2:
+    if not is_solo(room) and len(room.player_order) < 2:
         print("[WARNING] Pelaajia liian vähän, peli keskeytetään")
         emit_to_room("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."}, room_id=room.room_id)
         return
@@ -2225,7 +2225,7 @@ def on_disconnect():
         payload2["username"] = uname
         emit_to_room("player_joined", payload2, room_id=r.room_id)
 
-        if get_effective_player_count(r) < 2 and (
+        if not is_solo(r) and get_effective_player_count(r) < 2 and (
                 theme_selection_active(r) or r.grid_data or r.pending_pair > 0):
             print("[INFO] Pelaajia liian vähän kesken erän – keskeytetään")
             emit_to_room("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."}, room_id=r.room_id)
