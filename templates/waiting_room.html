@@ -100,7 +100,8 @@
             font-weight: 700;
         }
 
-        #changeNameBtn, .modeBtn {
+        #changeNameBtn {
+            display: none;
             background-color: limegreen;
             color: black;
             font-size: 20px;
@@ -110,24 +111,88 @@
             cursor: pointer;
         }
 
-        #changeNameBtn {
-            display: none;
-        }
-
-        .modeBtn:hover, #changeNameBtn:hover {
-            background-color: green;
-        }
+        #changeNameBtn:hover { background-color: green; }
 
         #startOptions {
             display: none;
             margin-top: 20px;
         }
 
-        #startOptions p {
-            color: #ccc;
-            font-size: 16px;
-            margin-bottom: 12px;
+        .option-group {
+            margin: 0 auto 14px;
+            max-width: 480px;
+            text-align: left;
         }
+        .option-group-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #6a7a6a;
+            margin-bottom: 7px;
+            padding-left: 2px;
+        }
+        .option-group-btns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .opt-btn {
+            padding: 9px 18px;
+            border-radius: 999px;
+            border: 1.5px solid rgba(255,255,255,0.13);
+            background: rgba(255,255,255,0.05);
+            color: #bbb;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: background 0.12s, border-color 0.12s, color 0.12s;
+        }
+        .opt-btn:hover {
+            background: rgba(255,255,255,0.09);
+            color: #ddd;
+        }
+        .opt-btn.active {
+            background: rgba(124,245,138,0.15);
+            border-color: rgba(124,245,138,0.5);
+            color: #7cf58a;
+        }
+        #langPicker {
+            display: none;
+        }
+        .lang-flag-btn {
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1.5px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.04);
+            color: #ccc;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: background 0.12s, border-color 0.12s, color 0.12s;
+        }
+        .lang-flag-btn:hover {
+            background: rgba(255,255,255,0.09);
+        }
+        .lang-flag-btn.active {
+            background: rgba(124,245,138,0.15);
+            border-color: rgba(124,245,138,0.5);
+            color: #fff;
+        }
+        #startRoundBtn {
+            display: block;
+            margin: 18px auto 0;
+            padding: 13px 38px;
+            border-radius: 999px;
+            border: none;
+            background: linear-gradient(180deg, #7cf58a, #47d45c);
+            color: #0d2211;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(71,212,92,0.22);
+            transition: filter 0.12s;
+        }
+        #startRoundBtn:hover { filter: brightness(1.05); }
         #setupStatus {
             display: none;
             margin-top: 24px;
@@ -443,27 +508,33 @@
             Tip: only the second player to join can start the game.
         </div>
         <div id="startOptions">
-            <p id="startOptionsText">Choose how words are provided for this round.</p>
-            <button id="manualStartBtn" class="modeBtn">Enter your own words</button>
-            <button id="themeStartBtn" class="modeBtn">Enter theme</button>
-            <div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin:12px 0 8px;">
-                <div id="langSourceToggle" style="display:flex;gap:8px;">
-                    <button class="card-mode-btn active" data-source="theme" id="langSourceTheme">Theme</button>
-                    <button class="card-mode-btn" data-source="manual" id="langSourceManual">Own words</button>
-                </div>
-                <div id="cardModeToggle" style="display:flex;gap:8px;">
-                    <button class="card-mode-btn active" data-mode="image_word" id="cardModeImageWord">🖼 + 📝</button>
-                    <button class="card-mode-btn" data-mode="words" id="cardModeWords">📝 + 📝</button>
+            <div class="option-group">
+                <div class="option-group-label" id="labelWordSource">Words</div>
+                <div class="option-group-btns">
+                    <button class="opt-btn active" data-source="manual" id="srcManualBtn">Own words</button>
+                    <button class="opt-btn" data-source="theme" id="srcThemeBtn">Theme</button>
                 </div>
             </div>
-            <div id="langBtns" style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;">
-                <button class="modeBtn lang-start-btn" data-lang="es">🇪🇸 Spanish</button>
-                <button class="modeBtn lang-start-btn" data-lang="sv">🇸🇪 Swedish</button>
-                <button class="modeBtn lang-start-btn" data-lang="de">🇩🇪 German</button>
-                <button class="modeBtn lang-start-btn" data-lang="fr">🇫🇷 French</button>
-                <button class="modeBtn lang-start-btn" data-lang="it">🇮🇹 Italian</button>
-                <button class="modeBtn lang-start-btn" data-lang="pt">🇵🇹 Portuguese</button>
+            <div class="option-group">
+                <div class="option-group-label" id="labelCardMode">Cards</div>
+                <div class="option-group-btns">
+                    <button class="opt-btn active" data-mode="images" id="cardModeImages">🖼 Images</button>
+                    <button class="opt-btn" data-mode="image_word" id="cardModeImageWord">🖼 + 📝</button>
+                    <button class="opt-btn" data-mode="words" id="cardModeWords">📝 + 📝</button>
+                </div>
             </div>
+            <div class="option-group" id="langPicker">
+                <div class="option-group-label" id="labelLang">Language</div>
+                <div class="option-group-btns">
+                    <button class="lang-flag-btn active" data-lang="es">🇪🇸 Spanish</button>
+                    <button class="lang-flag-btn" data-lang="sv">🇸🇪 Swedish</button>
+                    <button class="lang-flag-btn" data-lang="de">🇩🇪 German</button>
+                    <button class="lang-flag-btn" data-lang="fr">🇫🇷 French</button>
+                    <button class="lang-flag-btn" data-lang="it">🇮🇹 Italian</button>
+                    <button class="lang-flag-btn" data-lang="pt">🇵🇹 Portuguese</button>
+                </div>
+            </div>
+            <button id="startRoundBtn">Start</button>
         </div>
         <div id="setupStatus">
             <div id="setupStatusTitle"></div>
@@ -568,8 +639,11 @@
                 queue_searching: "Searching for an opponent...",
                 queue_leave: "Leave queue",
                 match_found_msg: "Opponent found! Starting game...",
-                lang_theme_label: "Theme",
-                lang_manual_label: "Own words"
+                label_word_source: "Words",
+                label_card_mode: "Cards",
+                label_lang: "Language",
+                card_mode_images: "Images",
+                start_round: "Start"
             },
             fi: {
                 page_title: "Odotushuone",
@@ -643,8 +717,11 @@
                 queue_searching: "Etsitään vastustajaa...",
                 queue_leave: "Poistu jonosta",
                 match_found_msg: "Vastustaja löytyi! Peli alkaa...",
-                lang_theme_label: "Teema",
-                lang_manual_label: "Omat sanat"
+                label_word_source: "Sanat",
+                label_card_mode: "Kortit",
+                label_lang: "Kieli",
+                card_mode_images: "Kuvat",
+                start_round: "Aloita"
             }
         };
 
@@ -739,22 +816,25 @@
             document.title = t("page_title");
             const sel = document.getElementById("uiLangSelect");
             if (sel) sel.value = getLanguage();
-            document.querySelectorAll(".lang-start-btn").forEach((btn) => {
+            document.querySelectorAll(".lang-flag-btn").forEach((btn) => {
                 const lc = btn.dataset.lang;
                 const name = (LANG_NAMES[lc] || {})[getLanguage()] || lc.toUpperCase();
                 btn.textContent = (LANG_FLAGS[lc] || "") + " " + name;
             });
-            document.getElementById("langSourceTheme").textContent = t("lang_theme_label");
-            document.getElementById("langSourceManual").textContent = t("lang_manual_label");
-            document.getElementById("cardModeImageWord").textContent = "🖼 " + t("card_mode_image_word");
-            document.getElementById("cardModeWords").textContent = "📝 " + t("card_mode_words");
-            document.getElementById("pageTitle").textContent = t("page_title");
-            document.getElementById("introText").textContent = t("intro_text");
-            document.getElementById("startOptionsText").textContent = t("start_options");
-            document.getElementById("manualStartBtn").textContent = t("enter_words");
-            document.getElementById("themeStartBtn").textContent = t("enter_theme");
-            document.getElementById("exitGameBtn").textContent = t("exit_game");
-            document.getElementById("changeNameBtn").textContent = t("change_name");
+            const el = (id) => document.getElementById(id);
+            el("labelWordSource").textContent = t("label_word_source");
+            el("labelCardMode").textContent = t("label_card_mode");
+            el("labelLang").textContent = t("label_lang");
+            el("srcManualBtn").textContent = t("enter_words");
+            el("srcThemeBtn").textContent = t("enter_theme");
+            el("cardModeImages").textContent = "🖼 " + t("card_mode_images");
+            el("cardModeImageWord").textContent = "🖼 📝 " + t("card_mode_image_word");
+            el("cardModeWords").textContent = "📝 📝 " + t("card_mode_words");
+            el("startRoundBtn").textContent = t("start_round");
+            el("pageTitle").textContent = t("page_title");
+            el("introText").textContent = t("intro_text");
+            el("exitGameBtn").textContent = t("exit_game");
+            el("changeNameBtn").textContent = t("change_name");
             renderPlayerRole(window.latestPlayersInfo || []);
         }
 
@@ -1458,40 +1538,54 @@
                 updateLobbyFromPayload(payload);
             });
 
-            document.getElementById("manualStartBtn").addEventListener("click", () => {
-                startManualRound();
+            // --- Round options state ---
+            let selectedWordSource = "manual"; // "manual" | "theme"
+            let selectedCardMode = "images";   // "images" | "image_word" | "words"
+            let selectedLang = "es";
+
+            function updateLangPickerVisibility() {
+                const needsLang = selectedCardMode !== "images";
+                document.getElementById("langPicker").style.display = needsLang ? "" : "none";
+            }
+
+            document.querySelectorAll("#srcManualBtn, #srcThemeBtn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    selectedWordSource = btn.dataset.source;
+                    document.querySelectorAll("#srcManualBtn, #srcThemeBtn").forEach(b => b.classList.toggle("active", b === btn));
+                });
             });
 
-            document.getElementById("themeStartBtn").addEventListener("click", () => {
-                startThemeRound();
-            });
-
-            let selectedCardMode = "image_word";
-            let selectedLangSource = "theme";
-
-            document.querySelectorAll("#cardModeToggle .card-mode-btn").forEach(btn => {
+            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach(btn => {
                 btn.addEventListener("click", () => {
                     selectedCardMode = btn.dataset.mode;
-                    document.querySelectorAll("#cardModeToggle .card-mode-btn").forEach(b => b.classList.toggle("active", b === btn));
+                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach(b => b.classList.toggle("active", b === btn));
+                    updateLangPickerVisibility();
                 });
             });
 
-            document.querySelectorAll("#langSourceToggle .card-mode-btn").forEach(btn => {
+            document.querySelectorAll(".lang-flag-btn").forEach(btn => {
                 btn.addEventListener("click", () => {
-                    selectedLangSource = btn.dataset.source;
-                    document.querySelectorAll("#langSourceToggle .card-mode-btn").forEach(b => b.classList.toggle("active", b === btn));
+                    selectedLang = btn.dataset.lang;
+                    document.querySelectorAll(".lang-flag-btn").forEach(b => b.classList.toggle("active", b === btn));
                 });
             });
 
-            document.querySelectorAll(".lang-start-btn").forEach(btn => {
-                btn.addEventListener("click", () => {
-                    if (selectedLangSource === "manual") {
-                        startLangManualRound(btn.dataset.lang, selectedCardMode);
+            document.getElementById("startRoundBtn").addEventListener("click", () => {
+                if (selectedCardMode === "images") {
+                    if (selectedWordSource === "theme") {
+                        startThemeRound();
                     } else {
-                        startLanguageRound(btn.dataset.lang, "", selectedCardMode);
+                        startManualRound();
                     }
-                });
+                } else {
+                    if (selectedWordSource === "theme") {
+                        startLanguageRound(selectedLang, "", selectedCardMode);
+                    } else {
+                        startLangManualRound(selectedLang, selectedCardMode);
+                    }
+                }
             });
+
             document.getElementById("exitGameBtn").addEventListener("click", () => {
                 exitGame();
             });

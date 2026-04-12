@@ -1260,7 +1260,6 @@
                     <div class="results-actions">
                         <button id="restart-manual-btn" class="results-btn mode">${t("enter_words")}</button>
                         <button id="restart-theme-btn" class="results-btn mode">${t("enter_theme")}</button>
-                        <button id="restart-lang-btn" class="results-btn mode">${getTargetLanguageLabel()}</button>
                     </div>
                     <div class="results-actions">
                         <button id="end-game-btn" class="results-btn end">${t("exit_game")}</button>
@@ -1269,7 +1268,6 @@
                 document.getElementById("end-game-btn").addEventListener("click", () => navigateTo("/summary"));
                 document.getElementById("restart-manual-btn").addEventListener("click", () => { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "manual" })); } catch (_) {} navigateTo("/waiting"); });
                 document.getElementById("restart-theme-btn").addEventListener("click", () => { const theme = prompt(t("prompt_theme"), ""); if (theme) { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "theme", theme })); } catch (_) {} navigateTo("/waiting"); } });
-                document.getElementById("restart-lang-btn").addEventListener("click", () => { const theme = prompt(t("prompt_lang_theme"), ""); if (theme) { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "language", target_lang: currentTargetLanguage, theme })); } catch (_) {} navigateTo("/waiting"); } });
                 return;
             }
 
