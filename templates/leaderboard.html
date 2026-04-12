@@ -150,7 +150,10 @@
 
         {% endif %}
 
-        <a href="/" class="back-btn" id="backBtn">← Back</a>
+        <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:22px;">
+            <a href="/waiting" class="back-btn" id="newGameBtn">▶ New game</a>
+            <a href="/" class="back-btn" id="backBtn" style="background:rgba(255,255,255,0.04);">← Back to start</a>
+        </div>
         <div class="footer">© Michael Miettinen • {{ app_version }}</div>
     </div>
 
@@ -160,13 +163,13 @@
                 title: "Leaderboard", subtitle: "Solo — top 10, sorted by total time",
                 th_name: "Player", th_time: "Time", th_mistakes: "Mistakes", th_total: "Total",
                 mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word",
-                noDb: "Leaderboard not available.", back: "← Back"
+                noDb: "Leaderboard not available.", newGame: "▶ New game", back: "← Back to start"
             },
             fi: {
                 title: "Tulostaulu", subtitle: "Solo — 10 nopeinta, järjestetty kokonaisajan mukaan",
                 th_name: "Pelaaja", th_time: "Aika", th_mistakes: "Virheet", th_total: "Yhteensä",
                 mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana",
-                noDb: "Tulostaulu ei käytössä.", back: "← Takaisin"
+                noDb: "Tulostaulu ei käytössä.", newGame: "▶ Uusi peli", back: "← Takaisin alkuun"
             },
         };
 
@@ -183,6 +186,7 @@
             document.title = t.title;
             const el = (id) => document.getElementById(id);
             if (el("backBtn")) el("backBtn").textContent = t.back;
+            if (el("newGameBtn")) el("newGameBtn").textContent = t.newGame;
             if (el("noDbText")) el("noDbText").textContent = t.noDb;
             document.querySelectorAll(".th-name").forEach(e => e.textContent = t.th_name);
             document.querySelectorAll(".th-time").forEach(e => e.textContent = t.th_time);
