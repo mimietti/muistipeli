@@ -416,6 +416,7 @@
                 surrendered_round: "{name} surrendered this round.",
                 surrender_failed: "This round cannot be surrendered right now.",
                 prompt_word: "Enter a word for pair {pair}/8 (describe the pair with a common word):",
+                prompt_word_lang_manual: "Enter word {pair}/8 in {lang} — it will be translated to {target}:",
                 prompt_word_retry: "Enter a new word for pair {pair}/8:",
                 prompt_theme: "Enter theme:",
                 prompt_lang_theme: "Enter theme in English:",
@@ -465,6 +466,7 @@
                 surrendered_round: "{name} luovutti tämän kierroksen.",
                 surrender_failed: "Tätä kierrosta ei voi luovuttaa juuri nyt.",
                 prompt_word: "Anna {pair}/8 parin sana (kuvaile paria yhdellä yleisellä sanalla):",
+                prompt_word_lang_manual: "Anna sana {pair}/8 kielellä {lang} — käännetään kielelle {target}:",
                 prompt_word_retry: "Anna {pair}/8 parin sana uudelleen:",
                 prompt_theme: "Anna teema:",
                 prompt_lang_theme: "Anna teema englanniksi:",
@@ -590,7 +592,9 @@
         let currentTurn = null;
         let currentTranslationHint = null;
         let isSoloMode = false;
-        let currentTargetLanguage = "es";
+        let currentTargetLanguage = (function() {
+            try { return sessionStorage.getItem("game_setup_lang") || "es"; } catch (_) { return "es"; }
+        })();
 
         const LANG_NAMES = {
             fi: { fi: "Suomi",     en: "Finnish",    sv: "Finska",    de: "Finnisch",   fr: "Finnois",    es: "Finlandés",  it: "Finlandese", pt: "Finlandês"   },
@@ -603,7 +607,7 @@
             pt: { fi: "Portugali", en: "Portuguese", sv: "Portugisiska",de:"Portugiesisch",fr:"Portugais",es: "Portugués",  it: "Portoghese", pt: "Português"   },
         };
 
-        let currentNativeLanguage = "fi";
+        let currentNativeLanguage = getLanguage();
 
         function getLangLabel(langCode) {
             const ui = getLanguage();
@@ -616,6 +620,18 @@
 
         function getNativeLanguageLabel() {
             return getLangLabel(currentNativeLanguage);
+        }
+
+        function getWordPrompt(pair) {
+            const mode = sessionStorage.getItem("game_setup_mode");
+            if (mode === "lang_manual" && currentTargetLanguage && currentNativeLanguage) {
+                return t("prompt_word_lang_manual", {
+                    pair,
+                    lang: getNativeLanguageLabel(),
+                    target: getTargetLanguageLabel()
+                });
+            }
+            return t("prompt_word", { pair });
         }
         let soloMistakes = 0;
         let soloTimerInterval = null;
@@ -1319,7 +1335,7 @@
                 return;
             }
             if (myName === data.player) {
-                let sana = prompt(t("prompt_word", { pair: data.pair }));
+                let sana = prompt(getWordPrompt(data.pair));
                 console.log("[DEBUG] Annettiin sana:", sana);
                 if (sana) {
                     socket.emit("word_given", {word: sana});
@@ -1366,7 +1382,7 @@
                 return;
             }
             if (myName === data.player) {
-                let sana = prompt(t("prompt_word", { pair: data.pair }));
+                let sana = prompt(getWordPrompt(data.pair));
                 console.log("[DEBUG] (pending) Annettiin sana:", sana);
                 if (sana) {
                     socket.emit("word_given", {word: sana});

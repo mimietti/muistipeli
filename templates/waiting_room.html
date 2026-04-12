@@ -450,13 +450,23 @@
                 <button class="card-mode-btn active" data-mode="image_word" id="cardModeImageWord">🖼 + 📝</button>
                 <button class="card-mode-btn" data-mode="words" id="cardModeWords">📝 + 📝</button>
             </div>
-            <div id="langBtns" style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:4px;">
+            <div style="color:#8c928c;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin:10px 0 5px;" id="langThemeLabel">Theme</div>
+            <div id="langBtns" style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;">
                 <button class="modeBtn lang-start-btn" data-lang="es">🇪🇸 Spanish</button>
                 <button class="modeBtn lang-start-btn" data-lang="sv">🇸🇪 Swedish</button>
                 <button class="modeBtn lang-start-btn" data-lang="de">🇩🇪 German</button>
                 <button class="modeBtn lang-start-btn" data-lang="fr">🇫🇷 French</button>
                 <button class="modeBtn lang-start-btn" data-lang="it">🇮🇹 Italian</button>
                 <button class="modeBtn lang-start-btn" data-lang="pt">🇵🇹 Portuguese</button>
+            </div>
+            <div style="color:#8c928c;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin:10px 0 5px;" id="langManualLabel">Own words</div>
+            <div id="langManualBtns" style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;">
+                <button class="modeBtn lang-manual-btn" data-lang="es">🇪🇸 Spanish</button>
+                <button class="modeBtn lang-manual-btn" data-lang="sv">🇸🇪 Swedish</button>
+                <button class="modeBtn lang-manual-btn" data-lang="de">🇩🇪 German</button>
+                <button class="modeBtn lang-manual-btn" data-lang="fr">🇫🇷 French</button>
+                <button class="modeBtn lang-manual-btn" data-lang="it">🇮🇹 Italian</button>
+                <button class="modeBtn lang-manual-btn" data-lang="pt">🇵🇹 Portuguese</button>
             </div>
         </div>
         <div id="setupStatus">
@@ -561,7 +571,9 @@
                 find_opponent: "Find a human opponent",
                 queue_searching: "Searching for an opponent...",
                 queue_leave: "Leave queue",
-                match_found_msg: "Opponent found! Starting game..."
+                match_found_msg: "Opponent found! Starting game...",
+                lang_theme_label: "Theme",
+                lang_manual_label: "Own words"
             },
             fi: {
                 page_title: "Odotushuone",
@@ -634,7 +646,9 @@
                 find_opponent: "Etsi ihmispelaaja",
                 queue_searching: "Etsitään vastustajaa...",
                 queue_leave: "Poistu jonosta",
-                match_found_msg: "Vastustaja löytyi! Peli alkaa..."
+                match_found_msg: "Vastustaja löytyi! Peli alkaa...",
+                lang_theme_label: "Teema",
+                lang_manual_label: "Omat sanat"
             }
         };
 
@@ -729,11 +743,15 @@
             document.title = t("page_title");
             const sel = document.getElementById("uiLangSelect");
             if (sel) sel.value = getLanguage();
-            document.querySelectorAll(".lang-start-btn").forEach((btn) => {
+            document.querySelectorAll(".lang-start-btn, .lang-manual-btn").forEach((btn) => {
                 const lc = btn.dataset.lang;
                 const name = (LANG_NAMES[lc] || {})[getLanguage()] || lc.toUpperCase();
                 btn.textContent = (LANG_FLAGS[lc] || "") + " " + name;
             });
+            const langThemeLabelEl = document.getElementById("langThemeLabel");
+            if (langThemeLabelEl) langThemeLabelEl.textContent = t("lang_theme_label");
+            const langManualLabelEl = document.getElementById("langManualLabel");
+            if (langManualLabelEl) langManualLabelEl.textContent = t("lang_manual_label");
             document.getElementById("cardModeImageWord").textContent = "🖼 " + t("card_mode_image_word");
             document.getElementById("cardModeWords").textContent = "📝 " + t("card_mode_words");
             document.getElementById("pageTitle").textContent = t("page_title");
@@ -955,18 +973,25 @@
                 setupStatusEl.style.display = "block";
                 document.getElementById("startOptions").style.display = "none";
                 setupStatusTitleEl.textContent = t("setup_status_title");
-                const chosenText = starterName
-                    ? (mode === "language" || mode === "spanish"
-                        ? t("setup_status_chosen_spanish", { name: starterName, theme })
-                        : t("setup_status_chosen_theme", { name: starterName, theme }))
-                    : "";
-                const loadingText = phase === "finding_words"
-                    ? t("setup_status_finding_words", { theme })
-                    : t("setup_status_drawing_cards", { theme });
-                setupStatusTextEl.textContent = chosenText ? `${chosenText} ${loadingText}` : loadingText;
+                let statusText;
+                if (mode === "lang_manual") {
+                    // Manual language mode: no theme/loading — just "entering words"
+                    statusText = starterName ? t("setup_status_manual", { name: starterName }) : t("setup_status_manual", { name: "..." });
+                } else {
+                    const chosenText = starterName
+                        ? (mode === "language" || mode === "spanish"
+                            ? t("setup_status_chosen_spanish", { name: starterName, theme })
+                            : t("setup_status_chosen_theme", { name: starterName, theme }))
+                        : "";
+                    const loadingText = phase === "finding_words"
+                        ? t("setup_status_finding_words", { theme })
+                        : t("setup_status_drawing_cards", { theme });
+                    statusText = chosenText ? `${chosenText} ${loadingText}` : loadingText;
+                }
+                setupStatusTextEl.textContent = statusText;
                 const totalPairs = Number(state.total_pairs || 8);
                 const progressCount = Number(state.progress_count || 0);
-                const showProgress = totalPairs > 0 && (state.mode === "theme" || state.mode === "language" || state.mode === "spanish");
+                const showProgress = totalPairs > 0 && (mode === "theme" || mode === "language" || mode === "spanish");
                 setupProgressEl.style.display = showProgress ? "block" : "none";
                 if (showProgress) {
                     const safeCount = Math.max(0, Math.min(progressCount, totalPairs));
@@ -1383,6 +1408,24 @@
                 socket.emit("start_custom_game", { mode: "theme", card_mode: cardMode, target_language: targetLang, theme, ui_language: getLanguage() });
             }
 
+            function startLangManualRound(targetLang, cardMode = "image_word") {
+                if (!myName || myName.trim().length === 0) {
+                    askName();
+                    return;
+                }
+                const cm = cardMode || "image_word";
+                console.log("[DEBUG] Aloitetaan kielimanuaalipeli, kieli:", targetLang, "cardMode:", cm);
+                try { sessionStorage.setItem("game_setup_mode", "lang_manual"); } catch (e) {}
+                try { sessionStorage.setItem("game_setup_lang", targetLang); } catch (e) {}
+                try { sessionStorage.setItem("game_setup_card_mode", cm); } catch (e) {}
+                try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
+                try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
+                try { sessionStorage.removeItem("words_given"); } catch (e) {}
+                renderThemeSelection({ active: false });
+                renderSetupStatus({ active: true, mode: "lang_manual" });
+                socket.emit("start_custom_game", { mode: "manual", card_mode: cm, target_language: targetLang, ui_language: getLanguage() });
+            }
+
             function maybeStartQueuedNextRound(canStart) {
                 if (!canStart || queuedNextRoundHandled) {
                     return;
@@ -1440,6 +1483,9 @@
 
             document.querySelectorAll(".lang-start-btn").forEach(btn => {
                 btn.addEventListener("click", () => startLanguageRound(btn.dataset.lang, "", selectedCardMode));
+            });
+            document.querySelectorAll(".lang-manual-btn").forEach(btn => {
+                btn.addEventListener("click", () => startLangManualRound(btn.dataset.lang, selectedCardMode));
             });
             document.getElementById("exitGameBtn").addEventListener("click", () => {
                 exitGame();

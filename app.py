@@ -702,31 +702,43 @@ def prepare_theme_selection(starter_name, room):
 # Utility: Spanish pair
 # ---------------------------------------------------------------------------
 
-def append_selected_lang_pair(word, pair_index, room):
+def append_selected_lang_pair(word, pair_index, room, source_lang=None):
+    """Build a language-learning card pair for `word`.
+
+    source_lang: the language the word is provided in (default "en").
+    For manual input, pass room.ui_language so the translation uses the
+    correct source; Pixabay search is always done in English.
+    """
     target_lang = room.target_language or "es"
-    target_word = translate_word(word, "en", target_lang)
+    src = source_lang or "en"
+    target_word = translate_word(word, src, target_lang)
     if not target_word:
-        print(f"[INFO] Käännös ({target_lang}) ei kelpaa sanalle '{word}'")
+        print(f"[INFO] Käännös ({src}→{target_lang}) ei kelpaa sanalle '{word}'")
         return False
     native_lang = room.native_language or "fi"
-    native_word = translate_word(word, "en", native_lang) if native_lang != "en" else word
-    print(f"[INFO] Kokeillaan {target_lang}-pariksi '{word}' -> '{target_word}' parille {pair_index + 1}")
+    # native_word is the word in UI language — if src IS the native lang, use the input word directly
+    native_word = word if src == native_lang else (
+        translate_word(word, src, native_lang) if native_lang != "en" else translate_word(word, src, "en")
+    )
+    # english_word for Pixabay search
+    english_word = word if src == "en" else (translate_word(word, src, "en") or word)
+    print(f"[INFO] Kokeillaan {target_lang}-pariksi '{word}' ({src}) -> '{target_word}' parille {pair_index + 1}")
     # Words-only mode: skip Pixabay entirely
     if (room.card_mode or "image_word") == "words":
         return {
             "pair_id": pair_index + 1,
-            "english_word": word,
+            "english_word": english_word,
             "target_word": target_word,
             "native_word": native_word,
             "image_url": None,
         }
-    image_paths = fetch_and_save_pixabay_images(word, room, required_count=1)
+    image_paths = fetch_and_save_pixabay_images(english_word, room, required_count=1)
     if not image_paths:
         print(f"[INFO] Pixabay ei löytänyt parille '{word}' sopivaa kuvaa")
         return False
     return {
         "pair_id": pair_index + 1,
-        "english_word": word,
+        "english_word": english_word,
         "target_word": target_word,
         "native_word": native_word,
         "image_url": image_source_for_card(image_paths[0]),
@@ -2086,6 +2098,23 @@ def handle_word_given(data):
         return
     pair_index = room.pending_pair
     print(f"[INFO] Vastaanotettu sana '{word}' parille {pair_index + 1}")
+
+    # Language manual mode: translate and build lang pair instead of image-only
+    if room.game_mode == "manual" and room.card_mode in {"image_word", "words"}:
+        try:
+            pair = append_selected_lang_pair(word, pair_index, room, source_lang=room.ui_language)
+        except PixabayConfigError as e:
+            abort_round_due_to_pixabay_error(str(e), room)
+            return
+        if pair:
+            append_lang_learning_pair_to_grid(pair, room)
+            room.pending_pair += 1
+            ask_next_word(room)
+        else:
+            print(f"[WARNING] Käännös tai kuva epäonnistui sanalle '{word}'")
+            emit_to_room("word_failed", {"player": expected_player, "pair": room.pending_pair + 1}, room_id=room.room_id)
+        return
+
     try:
         image_append_ok = append_word_images_to_grid(word, room)
     except PixabayConfigError as e:
