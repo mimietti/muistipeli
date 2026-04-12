@@ -59,9 +59,12 @@ def _init_db():
                         created_at  TIMESTAMPTZ DEFAULT NOW()
                     )
                 """)
-                # Add total_time column if table existed without it
+                # Add columns if table existed without them
                 cur.execute("""
                     ALTER TABLE results ADD COLUMN IF NOT EXISTS total_time INT
+                """)
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS card_mode TEXT
                 """)
         print("[DB] Tietokanta alustettu.")
     except Exception as e:
@@ -73,7 +76,7 @@ _init_db()
 
 SOLO_PENALTY_PER_MISTAKE = 3  # seconds
 
-def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None):
+def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None):
     total_time = None
     if time_secs is not None and mistakes is not None:
         total_time = time_secs + mistakes * SOLO_PENALTY_PER_MISTAKE
@@ -84,9 +87,9 @@ def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mis
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time)
+                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode)
                 )
     except Exception as e:
         print(f"[DB] Tallennusvirhe: {e}")
@@ -1188,7 +1191,8 @@ def conclude_round(winner_label, room, surrendered_by=None):
                 game_mode=room.game_mode,
                 pairs_found=room.player_points.get(room.player_order[0], 0),
                 time_secs=solo_time,
-                mistakes=room.solo_mistakes
+                mistakes=room.solo_mistakes,
+                card_mode=room.card_mode or "images"
             )
         else:
             for name in room.player_order:
@@ -1621,18 +1625,20 @@ def summary():
 @app.route("/leaderboard")
 def leaderboard():
     conn = _get_db()
-    solo_top = []
+    solo_top = {"images": [], "image_word": [], "words": []}
     if conn:
         try:
             with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT username, time_secs, mistakes, total_time, created_at
-                    FROM results
-                    WHERE play_mode = 'solo' AND total_time IS NOT NULL
-                    ORDER BY total_time ASC
-                    LIMIT 10
-                """)
-                solo_top = cur.fetchall()
+                for cm in ("images", "image_word", "words"):
+                    cur.execute("""
+                        SELECT username, time_secs, mistakes, total_time
+                        FROM results
+                        WHERE play_mode = 'solo' AND total_time IS NOT NULL
+                          AND (card_mode = %s OR (card_mode IS NULL AND %s = 'images'))
+                        ORDER BY total_time ASC
+                        LIMIT 10
+                    """, (cm, cm))
+                    solo_top[cm] = cur.fetchall()
         except Exception as e:
             print(f"[DB] Leaderboard query error: {e}")
         finally:
@@ -1640,7 +1646,8 @@ def leaderboard():
 
     return render_template("leaderboard.html",
                            solo_top=solo_top,
-                           db_available=bool(conn))
+                           db_available=bool(conn),
+                           SOLO_PENALTY=SOLO_PENALTY_PER_MISTAKE)
 
 
 # ---------------------------------------------------------------------------
