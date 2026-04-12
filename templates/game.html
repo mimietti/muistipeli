@@ -487,9 +487,11 @@
             }
         };
 
+        const UI_LANGS = ["en","fi","sv","de","fr","es","it","pt"];
+
         function getLanguage() {
             const stored = localStorage.getItem("ui_language");
-            return stored === "fi" ? "fi" : "en";
+            return UI_LANGS.includes(stored) ? stored : "en";
         }
 
         function t(key, vars = {}) {
@@ -591,17 +593,29 @@
         let currentTargetLanguage = "es";
 
         const LANG_NAMES = {
-            es: { fi: "Espanja",   en: "Spanish"    },
-            sv: { fi: "Ruotsi",    en: "Swedish"    },
-            de: { fi: "Saksa",     en: "German"     },
-            fr: { fi: "Ranska",    en: "French"     },
-            it: { fi: "Italia",    en: "Italian"    },
-            pt: { fi: "Portugali", en: "Portuguese" },
+            fi: { fi: "Suomi",     en: "Finnish",    sv: "Finska",    de: "Finnisch",   fr: "Finnois",    es: "Finlandés",  it: "Finlandese", pt: "Finlandês"   },
+            en: { fi: "Englanti",  en: "English",    sv: "Engelska",  de: "Englisch",   fr: "Anglais",    es: "Inglés",     it: "Inglese",    pt: "Inglês"      },
+            es: { fi: "Espanja",   en: "Spanish",    sv: "Spanska",   de: "Spanisch",   fr: "Espagnol",   es: "Español",    it: "Spagnolo",   pt: "Espanhol"    },
+            sv: { fi: "Ruotsi",    en: "Swedish",    sv: "Svenska",   de: "Schwedisch", fr: "Suédois",    es: "Sueco",      it: "Svedese",    pt: "Sueco"       },
+            de: { fi: "Saksa",     en: "German",     sv: "Tyska",     de: "Deutsch",    fr: "Allemand",   es: "Alemán",     it: "Tedesco",    pt: "Alemão"      },
+            fr: { fi: "Ranska",    en: "French",     sv: "Franska",   de: "Französisch",fr: "Français",   es: "Francés",    it: "Francese",   pt: "Francês"     },
+            it: { fi: "Italia",    en: "Italian",    sv: "Italienska",de: "Italienisch",fr: "Italien",    es: "Italiano",   it: "Italiano",   pt: "Italiano"    },
+            pt: { fi: "Portugali", en: "Portuguese", sv: "Portugisiska",de:"Portugiesisch",fr:"Portugais",es: "Portugués",  it: "Portoghese", pt: "Português"   },
         };
 
-        function getTargetLanguageLabel() {
+        let currentNativeLanguage = "fi";
+
+        function getLangLabel(langCode) {
             const ui = getLanguage();
-            return (LANG_NAMES[currentTargetLanguage] || {})[ui] || currentTargetLanguage.toUpperCase();
+            return (LANG_NAMES[langCode] || {})[ui] || (LANG_NAMES[langCode] || {}).en || langCode.toUpperCase();
+        }
+
+        function getTargetLanguageLabel() {
+            return getLangLabel(currentTargetLanguage);
+        }
+
+        function getNativeLanguageLabel() {
+            return getLangLabel(currentNativeLanguage);
         }
         let soloMistakes = 0;
         let soloTimerInterval = null;
@@ -865,10 +879,13 @@
             }
 
             const targetLangLabel = getTargetLanguageLabel();
-            const columns = getLanguage() === "fi"
+            const nativeLangLabel = getNativeLanguageLabel();
+            const nativeLang = getLanguage();
+            // Show 3 columns when native ≠ English, 2 columns when native is English
+            const columns = nativeLang !== "en"
                 ? [
                     { label: targetLangLabel, value: currentTranslationHint.target },
-                    { label: t("translation_native"), value: currentTranslationHint.native },
+                    { label: nativeLangLabel, value: currentTranslationHint.native },
                     { label: t("translation_english"), value: currentTranslationHint.english }
                 ]
                 : [
@@ -1020,6 +1037,7 @@
             currentTranslationHint = null;
             isSoloMode = Boolean(data.solo);
             if (data.target_language) currentTargetLanguage = data.target_language;
+            if (data.native_language) currentNativeLanguage = data.native_language;
             if (isSoloMode) {
                 startSoloTimer();
                 document.getElementById("players").style.display = "none";

@@ -903,29 +903,32 @@ def translate_theme_to_english(theme, ui_language):
     theme_text = str(theme or "").strip()
     if not theme_text:
         return None
+    src_lang = str(ui_language or "en").strip().lower()
+    # English: just apply manual fixes, no API call needed
+    if src_lang == "en":
+        translated = THEME_TRANSLATION_FIXES.get(theme_text.lower(), theme_text)
+        return translated or theme_text
     theme_key = normalize_candidate_word(theme_text)
-    cache_key = (theme_key or theme_text.lower(), ui_language)
+    cache_key = (theme_key or theme_text.lower(), src_lang)
     if cache_key in theme_translation_cache:
         return theme_translation_cache[cache_key]
-    if ui_language != "fi":
-        translated = THEME_TRANSLATION_FIXES.get(theme_text.lower(), theme_text)
-        theme_translation_cache[cache_key] = translated
-        return translated
-    if theme_key and theme_key in THEME_TRANSLATION_OVERRIDES:
+    # Finnish: check local overrides first
+    if src_lang == "fi" and theme_key and theme_key in THEME_TRANSLATION_OVERRIDES:
         translated = THEME_TRANSLATION_OVERRIDES[theme_key]
         print(f"[INFO] Teema käännetty paikallisesti: '{theme_text}' -> '{translated}'")
         theme_translation_cache[cache_key] = translated
         return translated
+    # Any non-English language: translate via MyMemory
     try:
         response = requests.get(
             TRANSLATION_API_URL,
-            params={"q": theme_text, "langpair": "fi|en"},
+            params={"q": theme_text, "langpair": f"{src_lang}|en"},
             timeout=10
         )
         response.raise_for_status()
         payload = response.json()
     except (requests.RequestException, ValueError) as e:
-        print(f"[WARNING] Teeman käännös epäonnistui ('{theme_text}'): {e}")
+        print(f"[WARNING] Teeman käännös epäonnistui ('{theme_text}', {src_lang}→en): {e}")
         theme_translation_cache[cache_key] = theme_text
         return theme_text
     translated_text = ((payload.get("responseData") or {}).get("translatedText") or "").strip()
@@ -935,7 +938,7 @@ def translate_theme_to_english(theme, ui_language):
         theme_translation_cache[cache_key] = theme_text
         return theme_text
     translated_text = THEME_TRANSLATION_FIXES.get(translated_text.lower(), translated_text)
-    print(f"[INFO] Teema käännetty suomesta: '{theme_text}' -> '{translated_text}'")
+    print(f"[INFO] Teema käännetty ({src_lang}→en): '{theme_text}' -> '{translated_text}'")
     theme_translation_cache[cache_key] = translated_text
     return translated_text
 
@@ -1122,6 +1125,7 @@ def launch_grid_round(room):
         "solo": is_solo(room),
         "game_mode": room.game_mode,
         "target_language": room.target_language,
+        "native_language": room.native_language,
     }, room_id=room.room_id)
     schedule_bot_turn_if_needed(room)
 
@@ -1857,7 +1861,9 @@ def handle_start_custom_game(data=None):
         data.setdefault("target_language", "es")
     if mode not in {"manual", "theme", "language"}:
         mode = "manual"
-    room.ui_language = ui_language if ui_language in {"fi", "en"} else "en"
+    all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
+    room.ui_language = ui_language if ui_language in all_ui_langs else "en"
+    room.native_language = room.ui_language
     if mode == "language":
         tl = str(data.get("target_language", "es")).strip().lower()
         room.target_language = tl if tl in SUPPORTED_LANGUAGES else "es"

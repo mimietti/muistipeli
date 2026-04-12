@@ -85,27 +85,26 @@
             color: #8c928c;
             font-size: 12px;
         }
-        .lang-tabs {
+        .lang-picker {
             display: flex;
             justify-content: center;
-            gap: 12px;
             margin-bottom: 28px;
         }
-        .lang-tab {
-            padding: 8px 20px;
-            border-radius: 999px;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: rgba(255,255,255,0.04);
-            color: #ccc;
-            cursor: pointer;
+        .lang-select {
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 10px;
+            padding: 8px 14px;
             font-size: 15px;
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            min-width: 160px;
+            text-align: center;
         }
-        .lang-tab.active {
-            background: rgba(124,245,138,0.15);
-            border-color: rgba(124,245,138,0.4);
-            color: #7cf58a;
-            font-weight: 700;
-        }
+        .lang-select option { background: #1a1a1a; color: #fff; }
     </style>
 </head>
 <body>
@@ -113,9 +112,17 @@
         <h1 id="pageTitle">Leaderboard</h1>
         <p class="subtitle" id="pageSubtitle">Top results</p>
 
-        <div class="lang-tabs">
-            <button class="lang-tab active" id="tabFi" onclick="setLang('fi')">🇫🇮 Suomi</button>
-            <button class="lang-tab" id="tabEn" onclick="setLang('en')">🇬🇧 English</button>
+        <div class="lang-picker">
+            <select id="uiLangSelect" class="lang-select" aria-label="UI language">
+                <option value="en">🇬🇧 English</option>
+                <option value="fi">🇫🇮 Suomi</option>
+                <option value="sv">🇸🇪 Svenska</option>
+                <option value="de">🇩🇪 Deutsch</option>
+                <option value="fr">🇫🇷 Français</option>
+                <option value="es">🇪🇸 Español</option>
+                <option value="it">🇮🇹 Italiano</option>
+                <option value="pt">🇵🇹 Português</option>
+            </select>
         </div>
 
         {% if not db_available %}
@@ -223,8 +230,16 @@
             }
         };
 
+        const UI_LANGS = ["en","fi","sv","de","fr","es","it","pt"];
+
         function getStoredLang() {
-            return (localStorage.getItem("ui_language") === "fi") ? "fi" : "en";
+            const s = localStorage.getItem("ui_language");
+            return UI_LANGS.includes(s) ? s : "en";
+        }
+
+        // Fall back to English translation for languages without explicit translation
+        function T(lang) {
+            return translations[lang] || translations.en;
         }
 
         function formatTime(secs) {
@@ -260,26 +275,29 @@
         }
 
         function applyTranslations(lang) {
-            const T = translations[lang];
-            document.getElementById("pageTitle").textContent = T.title;
-            document.getElementById("pageSubtitle").textContent = T.subtitle;
-            document.getElementById("soloTitle").textContent = T.soloTitle;
+            const sel = document.getElementById("uiLangSelect");
+            if (sel) sel.value = lang;
+            const tr = T(lang);
+            document.getElementById("pageTitle").textContent = tr.title;
+            document.getElementById("pageSubtitle").textContent = tr.subtitle;
+            document.getElementById("soloTitle").textContent = tr.soloTitle;
             const multiTitleEl = document.getElementById("multiTitle");
-            if (multiTitleEl) multiTitleEl.textContent = T.multiTitle;
+            if (multiTitleEl) multiTitleEl.textContent = tr.multiTitle;
             const ids = ["thName","thMode","thTime","thMistakes","thPairs","thNameM","thGames","thTotalPairs","soloEmpty","multiEmpty","noDbText"];
-            ids.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = T[id] || el.textContent; });
-            document.getElementById("backBtn").textContent = T.back;
-            document.title = T.title;
+            ids.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = tr[id] || el.textContent; });
+            document.getElementById("backBtn").textContent = tr.back;
+            document.title = tr.title;
         }
 
         function setLang(lang) {
             localStorage.setItem("ui_language", lang);
-            document.getElementById("tabFi").classList.toggle("active", lang === "fi");
-            document.getElementById("tabEn").classList.toggle("active", lang === "en");
+            // Language mode leaderboard: "fi" UI shows language-mode results, others show theme/manual
+            const isLangUi = (lang === "fi");
             applyTranslations(lang);
-            renderSoloTable(lang === "fi" ? soloFiData : soloEnData, lang);
+            renderSoloTable(isLangUi ? soloFiData : soloEnData, lang);
         }
 
+        document.getElementById("uiLangSelect").addEventListener("change", (e) => setLang(e.target.value));
         setLang(getStoredLang());
     </script>
 </body>
