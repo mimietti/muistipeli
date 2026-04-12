@@ -104,6 +104,7 @@
                         <th id="thName" style="text-align:left;">Player</th>
                         <th id="thTime">Time</th>
                         <th id="thMistakes">Mistakes</th>
+                        <th id="thTotal">Total</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -111,8 +112,9 @@
                     <tr>
                         <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
                         <td class="name">{{ row[0] }}</td>
-                        <td class="time">{{ (row[3] // 60)|string + ":" + "%02d"|format(row[3] % 60) }}</td>
+                        <td>{{ (row[1] // 60)|string + ":" + "%02d"|format(row[1] % 60) if row[1] is not none else "–" }}</td>
                         <td class="mistakes">{{ row[2] if row[2] is not none else "–" }}</td>
+                        <td class="time">{{ (row[3] // 60)|string + ":" + "%02d"|format(row[3] % 60) }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -128,8 +130,8 @@
 
     <script>
         const tr = {
-            en: { title: "Leaderboard", subtitle: "Solo — top 10 fastest", thName: "Player", thTime: "Time", thMistakes: "Mistakes", empty: "No results yet.", noDb: "Leaderboard not available.", back: "← Back" },
-            fi: { title: "Tulostaulu",  subtitle: "Solo — 10 nopeinta",     thName: "Pelaaja", thTime: "Aika", thMistakes: "Virheet", empty: "Ei tuloksia vielä.", noDb: "Tulostaulu ei käytössä.", back: "← Takaisin" },
+            en: { title: "Leaderboard", subtitle: "Solo — top 10 fastest", thName: "Player", thTime: "Time", thMistakes: "Mistakes", thTotal: "Total", empty: "No results yet.", noDb: "Leaderboard not available.", back: "← Back" },
+            fi: { title: "Tulostaulu",  subtitle: "Solo — 10 nopeinta",     thName: "Pelaaja", thTime: "Aika", thMistakes: "Virheet", thTotal: "Yhteensä", empty: "Ei tuloksia vielä.", noDb: "Tulostaulu ei käytössä.", back: "← Takaisin" },
         };
 
         const UI_LANGS = ["en","fi","sv","de","fr","es","it","pt"];
@@ -149,7 +151,7 @@
             document.getElementById("pageSubtitle").textContent = t.subtitle;
             document.title = t.title;
             const el = (id, key) => { const e = document.getElementById(id); if (e) e.textContent = t[key] || e.textContent; };
-            el("thName", "thName"); el("thTime", "thTime"); el("thMistakes", "thMistakes");
+            el("thName", "thName"); el("thTime", "thTime"); el("thMistakes", "thMistakes"); el("thTotal", "thTotal");
             el("emptyText", "empty"); el("noDbText", "noDb");
             document.getElementById("backBtn").textContent = t.back;
         }
