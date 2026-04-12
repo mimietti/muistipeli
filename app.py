@@ -1621,43 +1621,25 @@ def summary():
 @app.route("/leaderboard")
 def leaderboard():
     conn = _get_db()
-    solo_fi, solo_en, multi = [], [], []
+    solo_top = []
     if conn:
         try:
             with conn.cursor() as cur:
-                # Solo: top 10 fastest per game_mode (fi=suomi/spanish, en=theme/manual)
                 cur.execute("""
-                    SELECT username, game_mode, time_secs, mistakes, pairs_found, total_time, created_at
+                    SELECT username, time_secs, mistakes, total_time, created_at
                     FROM results
                     WHERE play_mode = 'solo' AND total_time IS NOT NULL
                     ORDER BY total_time ASC
-                    LIMIT 50
-                """)
-                solo_rows = cur.fetchall()
-                solo_fi = [r for r in solo_rows if r[1] in ("language", "spanish")][:10]
-                solo_en = [r for r in solo_rows if r[1] in ("theme", "manual")][:10]
-
-                # Multiplayer: most round wins (pair count sum)
-                cur.execute("""
-                    SELECT username,
-                           COUNT(*) AS games,
-                           SUM(pairs_found) AS total_pairs
-                    FROM results
-                    WHERE play_mode IN ('multiplayer', 'bot')
-                    GROUP BY username
-                    ORDER BY total_pairs DESC
                     LIMIT 10
                 """)
-                multi = cur.fetchall()
+                solo_top = cur.fetchall()
         except Exception as e:
             print(f"[DB] Leaderboard query error: {e}")
         finally:
             conn.close()
 
     return render_template("leaderboard.html",
-                           solo_fi=solo_fi,
-                           solo_en=solo_en,
-                           multi=multi,
+                           solo_top=solo_top,
                            db_available=bool(conn))
 
 

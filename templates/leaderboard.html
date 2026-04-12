@@ -10,107 +10,75 @@
             font-family: sans-serif;
             text-align: center;
             margin: 0;
-            padding: 0 0 40px;
+            padding: 0 0 48px;
         }
         .shell {
-            width: min(720px, calc(100% - 32px));
-            margin: 32px auto 0;
+            width: min(560px, calc(100% - 32px));
+            margin: 36px auto 0;
         }
-        h1 { font-size: 32px; margin-bottom: 8px; }
-        .subtitle {
-            color: #8c928c;
-            font-size: 14px;
-            margin-bottom: 32px;
-        }
-        .section {
-            margin-bottom: 32px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 18px;
-            padding: 20px 16px;
-        }
-        .section-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: #fff4a8;
-            margin-bottom: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 15px;
-        }
-        th {
-            color: #7a9e7a;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 6px 8px;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
-        }
-        td {
-            padding: 10px 8px;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
-        }
-        tr:last-child td { border-bottom: none; }
-        .rank {
-            color: #7a9e7a;
-            font-weight: 700;
-            width: 36px;
-        }
-        .rank-1 { color: #ffd700; }
-        .rank-2 { color: #c0c0c0; }
-        .rank-3 { color: #cd7f32; }
-        .username { font-weight: 700; text-align: left; }
-        .time-val { color: #7cf58a; font-weight: 700; font-size: 17px; }
-        .mistakes-val { color: #ffb84d; }
-        .empty { color: #5a6a5a; font-size: 14px; padding: 20px 0; }
-        .back-btn {
-            display: inline-block;
-            margin-top: 8px;
-            padding: 10px 24px;
-            background: rgba(255,255,255,0.08);
-            color: #fff;
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 16px;
-            text-decoration: none;
-        }
-        .back-btn:hover { background: rgba(255,255,255,0.13); }
-        .footer-credit {
-            margin-top: 28px;
-            color: #8c928c;
-            font-size: 12px;
-        }
-        .lang-picker {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 28px;
-        }
+        h1 { font-size: 30px; margin-bottom: 4px; }
+        .subtitle { color: #6a7a6a; font-size: 14px; margin-bottom: 28px; }
+        .lang-picker { display: flex; justify-content: center; margin-bottom: 24px; }
         .lang-select {
             background: rgba(255,255,255,0.06);
             color: #fff;
             border: 1px solid rgba(255,255,255,0.14);
             border-radius: 10px;
-            padding: 8px 14px;
+            padding: 7px 14px;
             font-size: 15px;
             cursor: pointer;
             outline: none;
             appearance: none;
             -webkit-appearance: none;
-            min-width: 160px;
+            min-width: 150px;
             text-align: center;
         }
         .lang-select option { background: #1a1a1a; color: #fff; }
+        .board {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 15px; }
+        th {
+            color: #6a7a6a;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 12px 14px 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+        td { padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        tr:last-child td { border-bottom: none; }
+        .rank { width: 32px; color: #6a7a6a; font-weight: 700; }
+        .rank-1 { color: #ffd700; }
+        .rank-2 { color: #c0c0c0; }
+        .rank-3 { color: #cd7f32; }
+        .name { font-weight: 700; text-align: left; }
+        .time { color: #7cf58a; font-weight: 700; font-size: 17px; }
+        .mistakes { color: #ffb84d; }
+        .empty { color: #4a5a4a; padding: 32px 0; font-size: 15px; }
+        .back-btn {
+            display: inline-block;
+            margin-top: 22px;
+            padding: 10px 24px;
+            background: rgba(255,255,255,0.07);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            text-decoration: none;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.12); }
+        .footer { margin-top: 28px; color: #444; font-size: 12px; }
     </style>
 </head>
 <body>
     <div class="shell">
         <h1 id="pageTitle">Leaderboard</h1>
-        <p class="subtitle" id="pageSubtitle">Top results</p>
+        <p class="subtitle" id="pageSubtitle">Solo — top 10 fastest</p>
 
         <div class="lang-picker">
             <select id="uiLangSelect" class="lang-select" aria-label="UI language">
@@ -125,180 +93,69 @@
             </select>
         </div>
 
-        {% if not db_available %}
-        <div class="section">
-            <div class="empty" id="noDbText">Leaderboard not available — database not configured.</div>
-        </div>
-        {% else %}
-
-        <!-- Solo -->
-        <div class="section">
-            <div class="section-title" id="soloTitle">Solo — fastest</div>
-            {% set solo_rows = solo_fi %}
-            {% if solo_rows %}
+        <div class="board">
+            {% if not db_available %}
+            <div class="empty" id="noDbText">Leaderboard not available.</div>
+            {% elif solo_top %}
             <table>
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th id="thName">Player</th>
-                        <th id="thTime">Total time</th>
+                        <th id="thName" style="text-align:left;">Player</th>
+                        <th id="thTime">Time</th>
                         <th id="thMistakes">Mistakes</th>
                     </tr>
                 </thead>
-                <tbody id="soloBody">
-                    {% for row in solo_rows %}
-                    {% set total = row[5] if row[5] is not none else row[2] %}
-                    <tr>
-                        <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
-                        <td class="username">{{ row[0] }}</td>
-                        <td class="time-val">{{ (total // 60)|string + ":" + "%02d"|format(total % 60) }}</td>
-                        <td class="mistakes-val">{{ row[3] if row[3] is not none else "–" }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <div class="empty" id="soloEmpty">No solo results yet.</div>
-            {% endif %}
-        </div>
-
-        <!-- Multiplayer -->
-        <div class="section">
-            <div class="section-title" id="multiTitle">Multiplayer — most pairs</div>
-            {% if multi %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th id="thNameM">Player</th>
-                        <th id="thGames">Games</th>
-                        <th id="thTotalPairs">Total pairs</th>
-                    </tr>
-                </thead>
                 <tbody>
-                    {% for row in multi %}
+                    {% for row in solo_top %}
                     <tr>
                         <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
-                        <td class="username">{{ row[0] }}</td>
-                        <td>{{ row[1] }}</td>
-                        <td class="time-val">{{ row[2] }}</td>
+                        <td class="name">{{ row[0] }}</td>
+                        <td class="time">{{ (row[3] // 60)|string + ":" + "%02d"|format(row[3] % 60) }}</td>
+                        <td class="mistakes">{{ row[2] if row[2] is not none else "–" }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
             {% else %}
-            <div class="empty" id="multiEmpty">No multiplayer results yet.</div>
+            <div class="empty" id="emptyText">No results yet.</div>
             {% endif %}
         </div>
-
-        {% endif %}
 
         <a href="/" class="back-btn" id="backBtn">← Back</a>
-        <div class="footer-credit">© Michael Miettinen • {{ app_version }}</div>
+        <div class="footer">© Michael Miettinen • {{ app_version }}</div>
     </div>
 
     <script>
-        const soloFiData = {{ solo_fi | tojson }};
-        const soloEnData = {{ solo_en | tojson }};
-
-        const translations = {
-            fi: {
-                title: "Tulostaulu",
-                subtitle: "Parhaat tulokset",
-                soloTitle: "Solo — nopein",
-                multiTitle: "Moninpeli — eniten pareja",
-                thName: "Pelaaja", thTime: "Kokonaisaika",
-                thMistakes: "Virheet",
-                thNameM: "Pelaaja", thGames: "Pelit", thTotalPairs: "Pareja yhteensä",
-                soloEmpty: "Ei solo-tuloksia vielä.",
-                multiEmpty: "Ei moninpelituloksia vielä.",
-                noDb: "Tulostaulu ei käytössä – tietokantaa ei ole konfiguroitu.",
-                back: "← Takaisin"
-            },
-            en: {
-                title: "Leaderboard",
-                subtitle: "Top results",
-                soloTitle: "Solo — fastest",
-                multiTitle: "Multiplayer — most pairs",
-                thName: "Player", thTime: "Total time",
-                thMistakes: "Mistakes",
-                thNameM: "Player", thGames: "Games", thTotalPairs: "Total pairs",
-                soloEmpty: "No solo results yet.",
-                multiEmpty: "No multiplayer results yet.",
-                noDb: "Leaderboard not available — database not configured.",
-                back: "← Back"
-            }
+        const tr = {
+            en: { title: "Leaderboard", subtitle: "Solo — top 10 fastest", thName: "Player", thTime: "Time", thMistakes: "Mistakes", empty: "No results yet.", noDb: "Leaderboard not available.", back: "← Back" },
+            fi: { title: "Tulostaulu",  subtitle: "Solo — 10 nopeinta",     thName: "Pelaaja", thTime: "Aika", thMistakes: "Virheet", empty: "Ei tuloksia vielä.", noDb: "Tulostaulu ei käytössä.", back: "← Takaisin" },
         };
 
         const UI_LANGS = ["en","fi","sv","de","fr","es","it","pt"];
 
-        function getStoredLang() {
+        function T(lang) { return tr[lang] || tr.en; }
+
+        function getLang() {
             const s = localStorage.getItem("ui_language");
             return UI_LANGS.includes(s) ? s : "en";
         }
 
-        // Fall back to English translation for languages without explicit translation
-        function T(lang) {
-            return translations[lang] || translations.en;
-        }
-
-        function formatTime(secs) {
-            if (secs == null) return "–";
-            const m = Math.floor(secs / 60);
-            const s = secs % 60;
-            return `${m}:${String(s).padStart(2, "0")}`;
-        }
-
-        function renderSoloTable(rows, lang) {
-            const tbody = document.getElementById("soloBody");
-            const emptyEl = document.getElementById("soloEmpty");
-            if (!tbody && !emptyEl) return;
-            if (!rows || rows.length === 0) {
-                if (tbody) tbody.closest("table").style.display = "none";
-                if (emptyEl) emptyEl.style.display = "";
-                return;
-            }
-            if (emptyEl) emptyEl.style.display = "none";
-            if (tbody) {
-                tbody.closest("table").style.display = "";
-                tbody.innerHTML = rows.map((row, i) => {
-                    const rankClass = i < 3 ? `rank-${i+1}` : "";
-                    const total = row[5] != null ? row[5] : row[2];
-                    return `<tr>
-                        <td class="rank ${rankClass}">${i+1}</td>
-                        <td class="username">${row[0]}</td>
-                        <td class="time-val">${formatTime(total)}</td>
-                        <td class="mistakes-val">${row[3] != null ? row[3] : "–"}</td>
-                    </tr>`;
-                }).join("");
-            }
-        }
-
-        function applyTranslations(lang) {
-            const sel = document.getElementById("uiLangSelect");
-            if (sel) sel.value = lang;
-            const tr = T(lang);
-            document.getElementById("pageTitle").textContent = tr.title;
-            document.getElementById("pageSubtitle").textContent = tr.subtitle;
-            document.getElementById("soloTitle").textContent = tr.soloTitle;
-            const multiTitleEl = document.getElementById("multiTitle");
-            if (multiTitleEl) multiTitleEl.textContent = tr.multiTitle;
-            const ids = ["thName","thMode","thTime","thMistakes","thPairs","thNameM","thGames","thTotalPairs","soloEmpty","multiEmpty","noDbText"];
-            ids.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = tr[id] || el.textContent; });
-            document.getElementById("backBtn").textContent = tr.back;
-            document.title = tr.title;
-        }
-
-        function setLang(lang) {
+        function applyLang(lang) {
             localStorage.setItem("ui_language", lang);
-            // Language mode leaderboard: "fi" UI shows language-mode results, others show theme/manual
-            const isLangUi = (lang === "fi");
-            applyTranslations(lang);
-            renderSoloTable(isLangUi ? soloFiData : soloEnData, lang);
+            document.getElementById("uiLangSelect").value = lang;
+            const t = T(lang);
+            document.getElementById("pageTitle").textContent = t.title;
+            document.getElementById("pageSubtitle").textContent = t.subtitle;
+            document.title = t.title;
+            const el = (id, key) => { const e = document.getElementById(id); if (e) e.textContent = t[key] || e.textContent; };
+            el("thName", "thName"); el("thTime", "thTime"); el("thMistakes", "thMistakes");
+            el("emptyText", "empty"); el("noDbText", "noDb");
+            document.getElementById("backBtn").textContent = t.back;
         }
 
-        document.getElementById("uiLangSelect").addEventListener("change", (e) => setLang(e.target.value));
-        setLang(getStoredLang());
+        document.getElementById("uiLangSelect").addEventListener("change", e => applyLang(e.target.value));
+        applyLang(getLang());
     </script>
 </body>
 </html>
