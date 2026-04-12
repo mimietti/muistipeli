@@ -778,26 +778,24 @@
             const roleDiv = document.getElementById("playerRole");
             const hintDiv = document.getElementById("hint");
             if (!roleDiv) return;
+            const playMode = localStorage.getItem("play_mode") || "";
+            const isSoloOrBot = playMode === "solo" || playMode === "bot";
             const myToken = getReconnectToken();
             const myName = (localStorage.getItem("username") || "").trim();
-            const myIndex = window.latestPlayersInfo.findIndex((player) => (
-                player && player.reconnect_token === myToken
-            ));
-            if (myIndex === 0) {
-                roleDiv.textContent = t("welcome_player", { name: myName || "Player" });
-                if (hintDiv) hintDiv.textContent = t("status_waiting_for_player");
-                return;
-            }
-            if (myIndex === 1) {
-                roleDiv.textContent = t("welcome_player", { name: myName || "Player" });
-                if (hintDiv) hintDiv.textContent = t("status_choose_round");
-                return;
-            }
-            roleDiv.textContent = t("spectator_player", { name: myName || "Player" });
+            roleDiv.textContent = t("welcome_player", { name: myName || "Player" });
             if (hintDiv) {
-                hintDiv.textContent = window.latestPlayersInfo.length >= 2
-                    ? t("status_room_full")
-                    : t("status_waiting_for_player");
+                if (isSoloOrBot) {
+                    hintDiv.textContent = "";
+                } else {
+                    const myIndex = window.latestPlayersInfo.findIndex(p => p && p.reconnect_token === myToken);
+                    if (myIndex === 1) {
+                        hintDiv.textContent = t("status_choose_round");
+                    } else if (window.latestPlayersInfo.length >= 2) {
+                        hintDiv.textContent = t("status_room_full");
+                    } else {
+                        hintDiv.textContent = t("status_waiting_for_player");
+                    }
+                }
             }
         }
 

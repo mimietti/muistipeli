@@ -103,7 +103,10 @@
         </div>
         <div class="card">
             <div class="section-title" id="leaderboardTitle">Leaderboard</div>
-            <div class="muted" id="leaderboardText">A full leaderboard comes later, after login and persistent storage are added.</div>
+            <div class="muted" id="leaderboardText"></div>
+            <div class="actions" style="margin-top:14px;">
+                <a href="/leaderboard" class="btn primary" id="leaderboardBtn">View leaderboard</a>
+            </div>
         </div>
         <div class="actions">
             <button class="btn primary" id="newGameBtn">Start new game</button>
@@ -120,7 +123,7 @@
                 rounds_won: "Rounds won",
                 no_rounds: "No completed rounds yet.",
                 leaderboard: "Leaderboard",
-                leaderboard_placeholder: "A full leaderboard comes later, after login and persistent storage are added.",
+                leaderboard_btn: "View leaderboard",
                 start_new_game: "Start new game",
                 clear_summary: "Clear summary"
             },
@@ -129,7 +132,7 @@
                 rounds_won: "Voitetut erät",
                 no_rounds: "Valmiita eriä ei vielä ole.",
                 leaderboard: "Tulostaulu",
-                leaderboard_placeholder: "Varsinainen leaderboard tulee myöhemmin, kun kirjautuminen ja pysyvä tallennus on lisätty.",
+                leaderboard_btn: "Avaa tulostaulu",
                 start_new_game: "Aloita uusi peli",
                 clear_summary: "Tyhjennä yhteenveto"
             }
@@ -151,7 +154,7 @@
             document.getElementById("pageTitle").textContent = t("page_title");
             document.getElementById("winsTitle").textContent = t("rounds_won");
             document.getElementById("leaderboardTitle").textContent = t("leaderboard");
-            document.getElementById("leaderboardText").textContent = t("leaderboard_placeholder");
+            document.getElementById("leaderboardBtn").textContent = t("leaderboard_btn");
             document.getElementById("newGameBtn").textContent = t("start_new_game");
             document.getElementById("clearSummaryBtn").textContent = t("clear_summary");
             document.querySelector(".footer-credit").textContent = `© Michael Miettinen • ${APP_VERSION}`;
