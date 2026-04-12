@@ -1140,6 +1140,8 @@ def launch_grid_round(room):
         room.solo_seen_cards = set()
     random.shuffle(room.grid_data)
     room.status = "playing"
+    for p in room.players.values():
+        p["in_waiting"] = False
     emit_to_room("init_grid", {
         "cards": room.grid_data,
         "turn": room.player_order[0] if room.player_order else None,
@@ -1453,6 +1455,8 @@ def ask_next_word(room):
         card_mode = room.card_mode or "images"
         if card_mode == "images":
             print(f"[INFO] Generoidaan teemasanat teemalle '{room.pending_theme}'")
+            for p in room.players.values():
+                p["in_waiting"] = False
             emit_to_room("theme_generation_started", {
                 "theme": room.pending_theme,
                 "pair": room.pending_pair + 1,
@@ -1472,6 +1476,8 @@ def ask_next_word(room):
         else:
             lang_name = (SUPPORTED_LANGUAGES.get(room.target_language) or {}).get("en", room.target_language)
             print(f"[INFO] Generoidaan kielipeli ({lang_name}, {card_mode}) teemalle '{room.pending_theme}'")
+            for p in room.players.values():
+                p["in_waiting"] = False
             emit_to_room("theme_generation_started", {
                 "theme": room.pending_theme,
                 "pair": room.pending_pair + 1,
@@ -1491,6 +1497,8 @@ def ask_next_word(room):
         return
 
     print(f"[INFO] Pyydetään sana pelaajalta {first_player}, pari {room.pending_pair + 1}")
+    for p in room.players.values():
+        p["in_waiting"] = False
     emit_to_room("ask_for_word", {
         "player": first_player,
         "pair": room.pending_pair + 1
@@ -1559,7 +1567,7 @@ def try_match_from_queue():
 def build_lobby_payload(room):
     players_ordered = get_active_players_ordered(room)
     usernames = [v["username"] for v in players_ordered]
-    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token")} for v in players_ordered]
+    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token"), "in_waiting": v.get("in_waiting", False)} for v in players_ordered]
     last_token = infos[-1]["reconnect_token"] if infos else None
     return {
         "room_id": room.room_id,
@@ -1691,7 +1699,8 @@ def on_join(data):
         "reconnect_token": reconnect_token,
         "connected": True,
         "disconnected_at": None,
-        "room_id": room_id
+        "room_id": room_id,
+        "in_waiting": True,
     }
     _sid_to_room_id[sid] = room_id
     join_room(room_id)

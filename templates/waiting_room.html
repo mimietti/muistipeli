@@ -1391,6 +1391,11 @@
                 if (!queued || !queued.mode) {
                     return;
                 }
+                // Only auto-start if all players are actively in the waiting room
+                const playersInfo = (window.latestLobbyPayload && window.latestLobbyPayload.players_info) || [];
+                if (playersInfo.length >= 2 && !playersInfo.every(p => p.in_waiting)) {
+                    return;
+                }
                 queuedNextRoundHandled = true;
                 clearQueuedNextRound();
                 if (queued.mode === "manual") {
