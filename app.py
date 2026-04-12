@@ -1614,9 +1614,13 @@ def on_join(data):
 
     room_id = get_room_id_for_reconnect_token(reconnect_token)
 
-    # Solo: always get a private room (create new if landing on default or shared room)
-    if wants_solo and (room_id == DEFAULT_ROOM_ID or (room_id in rooms and get_effective_human_player_items(rooms[room_id]))):
-        room_id = f"solo-{str(uuid.uuid4())[:8]}"
+    # Solo/bot: always get a private room (create new if landing on default or occupied room)
+    if (wants_solo or wants_bot) and (
+        room_id == DEFAULT_ROOM_ID or
+        (room_id in rooms and get_effective_human_player_items(rooms[room_id]))
+    ):
+        prefix = "solo" if wants_solo else "bot"
+        room_id = f"{prefix}-{str(uuid.uuid4())[:8]}"
         assign_reconnect_token_to_room(reconnect_token, room_id)
 
     room = get_room(room_id)
