@@ -1613,6 +1613,12 @@ def on_join(data):
         return
 
     room_id = get_room_id_for_reconnect_token(reconnect_token)
+
+    # Solo: always get a private room (create new if landing on default or shared room)
+    if wants_solo and (room_id == DEFAULT_ROOM_ID or (room_id in rooms and get_effective_human_player_items(rooms[room_id]))):
+        room_id = f"solo-{str(uuid.uuid4())[:8]}"
+        assign_reconnect_token_to_room(reconnect_token, room_id)
+
     room = get_room(room_id)
 
     # Remove stale entry for this token
