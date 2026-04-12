@@ -821,8 +821,9 @@
             return mode === "theme" || mode === "language" || mode === "spanish";
         }
 
-        function getThemePromptForMode(mode) {
-            return (mode === "language" || mode === "spanish") ? t("prompt_lang_theme") : t("prompt_theme");
+        function getThemePromptForMode(mode, cardMode) {
+            return (cardMode === "image_word" || cardMode === "words" || mode === "language" || mode === "spanish")
+                ? t("prompt_lang_theme") : t("prompt_theme");
         }
 
         function queueNextRound(mode) {
@@ -1028,6 +1029,7 @@
             matched = data.matched ? new Set(data.matched) : new Set();
             currentTranslationHint = null;
             isSoloMode = Boolean(data.solo);
+            if (data.card_mode) window.currentCardMode = data.card_mode;
             if (data.target_language) currentTargetLanguage = data.target_language;
             if (data.native_language) currentNativeLanguage = data.native_language;
             if (isSoloMode) {

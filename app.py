@@ -131,7 +131,8 @@ def inject_app_version():
 class RoomState:
     room_id: str
     status: str = "waiting"          # waiting | setup | playing | results
-    game_mode: str = "manual"        # manual | theme | language
+    game_mode: str = "manual"        # word source: manual | theme | language(legacy)
+    card_mode: str = "images"        # card display: images | image_word | words
     play_mode: str = "local"         # local | bot | queue | solo
     ui_language: str = "en"
     native_language: str = "fi"
@@ -710,6 +711,15 @@ def append_selected_lang_pair(word, pair_index, room):
     native_lang = room.native_language or "fi"
     native_word = translate_word(word, "en", native_lang) if native_lang != "en" else word
     print(f"[INFO] Kokeillaan {target_lang}-pariksi '{word}' -> '{target_word}' parille {pair_index + 1}")
+    # Words-only mode: skip Pixabay entirely
+    if (room.card_mode or "image_word") == "words":
+        return {
+            "pair_id": pair_index + 1,
+            "english_word": word,
+            "target_word": target_word,
+            "native_word": native_word,
+            "image_url": None,
+        }
     image_paths = fetch_and_save_pixabay_images(word, room, required_count=1)
     if not image_paths:
         print(f"[INFO] Pixabay ei löytänyt parille '{word}' sopivaa kuvaa")
@@ -719,7 +729,7 @@ def append_selected_lang_pair(word, pair_index, room):
         "english_word": word,
         "target_word": target_word,
         "native_word": native_word,
-    "image_url": image_source_for_card(image_paths[0])
+        "image_url": image_source_for_card(image_paths[0]),
     }
 
 
@@ -741,7 +751,7 @@ def next_theme_picker_name(current_name, room):
 def lang_setup_still_active(theme, room):
     if room.pending_pair is None or room.pending_pair == 0 and not room.grid_data:
         return False
-    if room.game_mode not in {"language", "spanish"}:
+    if room.game_mode != "theme" or (room.card_mode or "images") == "images":
         return False
     if room.pending_theme != theme:
         return False
@@ -1042,24 +1052,35 @@ def append_word_images_to_grid(word, room):
     return True
 
 
-def append_lang_learning_pair_to_grid(pair, room):
+def append_lang_learning_pair_to_grid(pair, room, card_mode=None):
+    mode = card_mode or room.card_mode or "image_word"
     common = {
         "word": pair["english_word"],
         "target_word": pair["target_word"],
         "native_word": pair.get("native_word"),
     }
+    # Card A: always the target language word
     room.grid_data.append({
         "pair_id": pair["pair_id"],
         "card_type": "word",
         "text": pair["target_word"],
         **common,
     })
-    room.grid_data.append({
-        "pair_id": pair["pair_id"],
-        "card_type": "image",
-        "image": pair["image_url"],
-        **common,
-    })
+    # Card B: image (image_word mode) or native language word (words mode)
+    if mode == "words":
+        room.grid_data.append({
+            "pair_id": pair["pair_id"],
+            "card_type": "word",
+            "text": pair.get("native_word") or pair["english_word"],
+            **common,
+        })
+    else:
+        room.grid_data.append({
+            "pair_id": pair["pair_id"],
+            "card_type": "image",
+            "image": pair.get("image_url"),
+            **common,
+        })
 
 
 def build_theme_pair_entry(word, room):
@@ -1076,13 +1097,14 @@ def build_theme_pair_entry(word, room):
 
 
 def build_pair_entry_for_mode(word, pair_index, room):
-    if room.game_mode == "theme":
+    card_mode = room.card_mode or "images"
+    if card_mode == "images":
         return build_theme_pair_entry(word, room)
-    if room.game_mode in {"language", "spanish"}:
+    if card_mode in {"image_word", "words"}:
         pair = append_selected_lang_pair(word, pair_index, room)
         if not pair:
             return None
-        return {"type": "language", "pair": pair}
+        return {"type": card_mode, "pair": pair}
     return None
 
 
@@ -1097,10 +1119,10 @@ def append_pair_entry_to_grid(entry, pair_index, room):
                 "word": entry.get("word")
             })
         return
-    if entry.get("type") in {"language", "spanish"}:
+    if entry.get("type") in {"image_word", "words", "language", "spanish"}:
         pair = dict(entry.get("pair") or {})
         pair["pair_id"] = pair_index + 1
-        append_lang_learning_pair_to_grid(pair, room)
+        append_lang_learning_pair_to_grid(pair, room, card_mode=entry.get("type"))
 
 
 # ---------------------------------------------------------------------------
@@ -1124,6 +1146,7 @@ def launch_grid_round(room):
         "players": room.player_order,
         "solo": is_solo(room),
         "game_mode": room.game_mode,
+        "card_mode": room.card_mode,
         "target_language": room.target_language,
         "native_language": room.native_language,
     }, room_id=room.room_id)
@@ -1427,45 +1450,44 @@ def ask_next_word(room):
         if theme_selection_active(room):
             emit_theme_selection_state(room)
             return
-        print(f"[INFO] Generoidaan teemasanat teemalle '{room.pending_theme}'")
-        emit_to_room("theme_generation_started", {
-            "theme": room.pending_theme,
-            "pair": room.pending_pair + 1,
-            "mode": "theme",
-            "starter_name": first_player,
-            "phase": "drawing_cards",
-            "progress_count": room.pending_pair,
-            "total_pairs": 8
-        }, room_id=room.room_id)
-        socketio.sleep(0)
-        if room.theme_generation_in_progress:
-            debug("[DEBUG] Teemagenerointi jo käynnissä")
-            return
-        room.theme_generation_in_progress = True
-        socketio.start_background_task(generate_theme_pair, room)
-        return
-
-    if room.game_mode in {"language", "spanish"}:
-        if theme_selection_active(room):
-            emit_theme_selection_state(room)
-            return
-        lang_name = (SUPPORTED_LANGUAGES.get(room.target_language) or {}).get("en", room.target_language)
-        print(f"[INFO] Generoidaan kielipeli ({lang_name}) teemalle '{room.pending_theme}'")
-        emit_to_room("theme_generation_started", {
-            "theme": room.pending_theme,
-            "pair": room.pending_pair + 1,
-            "mode": "language",
-            "starter_name": first_player,
-            "phase": "drawing_cards",
-            "progress_count": room.pending_pair,
-            "total_pairs": 8
-        }, room_id=room.room_id)
-        socketio.sleep(0)
-        if room.lang_generation_in_progress:
-            debug("[DEBUG] Kielipelin generointi jo käynnissä")
-            return
-        room.lang_generation_in_progress = True
-        socketio.start_background_task(generate_lang_learning_pairs, room.pending_theme, room)
+        card_mode = room.card_mode or "images"
+        if card_mode == "images":
+            print(f"[INFO] Generoidaan teemasanat teemalle '{room.pending_theme}'")
+            emit_to_room("theme_generation_started", {
+                "theme": room.pending_theme,
+                "pair": room.pending_pair + 1,
+                "mode": "theme",
+                "card_mode": card_mode,
+                "starter_name": first_player,
+                "phase": "drawing_cards",
+                "progress_count": room.pending_pair,
+                "total_pairs": 8
+            }, room_id=room.room_id)
+            socketio.sleep(0)
+            if room.theme_generation_in_progress:
+                debug("[DEBUG] Teemagenerointi jo käynnissä")
+                return
+            room.theme_generation_in_progress = True
+            socketio.start_background_task(generate_theme_pair, room)
+        else:
+            lang_name = (SUPPORTED_LANGUAGES.get(room.target_language) or {}).get("en", room.target_language)
+            print(f"[INFO] Generoidaan kielipeli ({lang_name}, {card_mode}) teemalle '{room.pending_theme}'")
+            emit_to_room("theme_generation_started", {
+                "theme": room.pending_theme,
+                "pair": room.pending_pair + 1,
+                "mode": "theme",
+                "card_mode": card_mode,
+                "starter_name": first_player,
+                "phase": "drawing_cards",
+                "progress_count": room.pending_pair,
+                "total_pairs": 8
+            }, room_id=room.room_id)
+            socketio.sleep(0)
+            if room.lang_generation_in_progress:
+                debug("[DEBUG] Kielipelin generointi jo käynnissä")
+                return
+            room.lang_generation_in_progress = True
+            socketio.start_background_task(generate_lang_learning_pairs, room.pending_theme, room)
         return
 
     print(f"[INFO] Pyydetään sana pelaajalta {first_player}, pari {room.pending_pair + 1}")
@@ -1771,7 +1793,7 @@ def handle_grid_request():
             return
         if room.pending_pair > 0 or room.pending_player:
             try:
-                if room.game_mode in {"theme", "language"}:
+                if room.game_mode == "theme":
                     emit_to_room("theme_generation_started", {
                         "theme": room.pending_theme,
                         "pair": room.pending_pair + 1,
@@ -1821,7 +1843,9 @@ def handle_ready_for_game():
             "turn": current_player_name,
             "players": room.player_order,
             "game_mode": room.game_mode,
+            "card_mode": room.card_mode,
             "target_language": room.target_language,
+            "native_language": room.native_language,
         })
 
 
@@ -1855,39 +1879,47 @@ def handle_start_custom_game(data=None):
     mode = str(data.get("mode", "manual")).strip().lower()
     theme = str(data.get("theme", "")).strip()
     ui_language = str(data.get("ui_language", "")).strip().lower()
-    # "spanish" is a legacy alias for mode="language" with target_language="es"
-    if mode == "spanish":
-        mode = "language"
+    card_mode = str(data.get("card_mode", "")).strip().lower()
+    # "spanish" / "language" legacy: word_source=theme + card_mode=image_word
+    if mode in {"spanish", "language"}:
+        mode = "theme"
+        if not card_mode:
+            card_mode = "image_word"
         data.setdefault("target_language", "es")
-    if mode not in {"manual", "theme", "language"}:
+    if mode not in {"manual", "theme"}:
         mode = "manual"
+    if card_mode not in {"images", "image_word", "words"}:
+        # default: language games → image_word, others → images
+        card_mode = "image_word" if data.get("target_language") else "images"
     all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
     room.ui_language = ui_language if ui_language in all_ui_langs else "en"
     room.native_language = room.ui_language
-    if mode == "language":
+    room.card_mode = card_mode
+    if card_mode in {"image_word", "words"}:
         tl = str(data.get("target_language", "es")).strip().lower()
         room.target_language = tl if tl in SUPPORTED_LANGUAGES else "es"
-    if mode in {"theme", "language"} and not theme:
+    if mode == "theme" and not theme:
         emit_to_room("game_setup_error", {"reason": "Teema puuttuu."}, room_id=room.room_id)
         return
 
-    print("[INFO] Aloitetaan sanojen keruu")
+    print(f"[INFO] Aloitetaan sanojen keruu — word_source={mode}, card_mode={card_mode}")
     room.pending_pair = 0
     room.pending_player = None
     room.grid_data.clear()
     room.game_mode = mode
-    room.pending_theme = theme if mode in {"theme", "language"} else None
-    room.pending_search_theme = translate_theme_to_english(theme, room.ui_language) if mode in {"theme", "language"} else None
+    room.pending_theme = theme if mode == "theme" else None
+    room.pending_search_theme = translate_theme_to_english(theme, room.ui_language) if mode == "theme" else None
     room.theme_candidates = []
     room.theme_rejected_words = set()
     room.status = "setup"
 
-    if room.game_mode in {"theme", "language"}:
+    if room.game_mode == "theme":
         starter_name = room.players.get(request.sid, {}).get("username")
         emit_to_room("theme_generation_started", {
             "theme": room.pending_theme,
             "pair": room.pending_pair + 1,
             "mode": room.game_mode,
+            "card_mode": room.card_mode,
             "starter_name": starter_name,
             "phase": "finding_words",
             "progress_count": room.pending_pair,
@@ -1906,7 +1938,7 @@ def handle_start_custom_game(data=None):
 @socketio.on("select_theme_word")
 def handle_select_theme_word(data):
     room = get_room_for_sid(request.sid)
-    if room.game_mode not in {"theme", "language"} or not theme_selection_active(room):
+    if room.game_mode != "theme" or not theme_selection_active(room):
         emit("theme_selection_failed", {"reason": "selection_inactive"})
         return
 
@@ -2004,7 +2036,7 @@ def handle_select_theme_word(data):
 @socketio.on("set_theme_ready")
 def handle_set_theme_ready(data):
     room = get_room_for_sid(request.sid)
-    if room.game_mode not in {"theme", "language"} or not theme_selection_active(room):
+    if room.game_mode != "theme" or not theme_selection_active(room):
         emit("theme_selection_failed", {"reason": "selection_inactive"})
         return
 

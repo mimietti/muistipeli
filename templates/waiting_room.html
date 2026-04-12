@@ -1352,7 +1352,7 @@
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
                 renderSetupStatus({ active: true, mode: "language", theme });
-                socket.emit("start_custom_game", { mode: "language", target_language: targetLang, theme, ui_language: getLanguage() });
+                socket.emit("start_custom_game", { mode: "theme", card_mode: "image_word", target_language: targetLang, theme, ui_language: getLanguage() });
             }
 
             function maybeStartQueuedNextRound(canStart) {
