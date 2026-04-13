@@ -354,10 +354,17 @@
                     `.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"]${langAttr}`) ||
                     document.querySelector(`.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"]`) ||
                     document.querySelector(`.section[data-play="${highlightPlay}"][data-mode="all"]`);
-                // Hide all other sections when navigating from a finished game
+                // Hide all other sections (and their group titles) when navigating from a finished game
                 if (highlightUser && highlightPlay && targetSection) {
+                    const visiblePlay = targetSection.dataset.play;
                     document.querySelectorAll(".section").forEach(sec => {
                         sec.style.display = (sec === targetSection) ? "" : "none";
+                    });
+                    // Hide group titles that don't belong to the visible play mode
+                    const titleMap = { solo: "soloGroupTitle", bot: "botGroupTitle", multi: "multiGroupTitle" };
+                    Object.entries(titleMap).forEach(([play, id]) => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.display = (play === visiblePlay) ? "" : "none";
                     });
                     setTimeout(() => targetSection.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
                 } else if (targetSection) {
