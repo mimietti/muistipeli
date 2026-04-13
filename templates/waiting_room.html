@@ -594,6 +594,7 @@
                 <div class="option-group-btns">
                     <button class="opt-btn active" data-source="manual" id="srcManualBtn">Own words</button>
                     <button class="opt-btn" data-source="theme" id="srcThemeBtn">Theme</button>
+                    <button class="opt-btn" data-source="random" id="srcRandomBtn">Random</button>
                 </div>
             </div>
             <div class="option-group">
@@ -742,6 +743,8 @@
                 label_card_mode: "Cards",
                 label_lang: "Language",
                 card_mode_images: "Images",
+                enter_random: "Random",
+                setup_status_random: "Generating random words...",
                 start_round: "Start"
             },
             fi: {
@@ -820,6 +823,8 @@
                 label_card_mode: "Kortit",
                 label_lang: "Kieli",
                 card_mode_images: "Kuvat",
+                enter_random: "Satunnaiset",
+                setup_status_random: "Etsitään satunnaisia sanoja...",
                 start_round: "Aloita"
             }
         };
@@ -936,6 +941,7 @@
             el("labelLang").textContent = t("label_lang");
             el("srcManualBtn").textContent = t("enter_words");
             el("srcThemeBtn").textContent = t("enter_theme");
+            el("srcRandomBtn").textContent = t("enter_random");
             el("cardModeImages").textContent = "🖼 " + t("card_mode_images");
             el("cardModeImageWord").textContent = "🖼 📝 " + t("card_mode_image_word");
             el("cardModeWords").textContent = "📝 📝 " + t("card_mode_words");
@@ -1159,7 +1165,9 @@
                 document.getElementById("startOptions").style.display = "none";
                 setupStatusTitleEl.textContent = t("setup_status_title");
                 let statusText;
-                if (mode === "lang_manual") {
+                if (mode === "random") {
+                    statusText = t("setup_status_random");
+                } else if (mode === "lang_manual") {
                     // Manual language mode: no theme/loading — just "entering words"
                     statusText = starterName ? t("setup_status_manual", { name: starterName }) : t("setup_status_manual", { name: "..." });
                 } else {
@@ -1176,7 +1184,7 @@
                 setupStatusTextEl.textContent = statusText;
                 const totalPairs = Number(state.total_pairs || 8);
                 const progressCount = Number(state.progress_count || 0);
-                const showProgress = totalPairs > 0 && (mode === "theme" || mode === "language" || mode === "spanish");
+                const showProgress = totalPairs > 0 && (mode === "theme" || mode === "language" || mode === "spanish" || mode === "random");
                 setupProgressEl.style.display = showProgress ? "block" : "none";
                 if (showProgress) {
                     const safeCount = Math.max(0, Math.min(progressCount, totalPairs));
@@ -1620,6 +1628,26 @@
                 socket.emit("start_custom_game", { mode: "manual", card_mode: cm, target_language: targetLang, ui_language: getLanguage() });
             }
 
+            function startRandomRound(targetLang, cardMode = "images") {
+                if (!myName || myName.trim().length === 0) {
+                    askName();
+                    return;
+                }
+                const cm = cardMode || "images";
+                const payload = { mode: "random", card_mode: cm, ui_language: getLanguage() };
+                if (cm !== "images") {
+                    payload.target_language = targetLang;
+                }
+                console.log("[DEBUG] Aloitetaan satunnaispeli", payload);
+                try { sessionStorage.setItem("game_setup_mode", "random"); } catch (e) {}
+                try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
+                try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
+                try { sessionStorage.removeItem("words_given"); } catch (e) {}
+                renderThemeSelection({ active: false });
+                renderSetupStatus({ active: true, mode: "random" });
+                socket.emit("start_custom_game", payload);
+            }
+
             function maybeStartQueuedNextRound(canStart) {
                 if (!canStart || queuedNextRoundHandled) {
                     return;
@@ -1659,7 +1687,7 @@
             });
 
             // --- Round options state ---
-            let selectedWordSource = "manual"; // "manual" | "theme"
+            let selectedWordSource = "manual"; // "manual" | "theme" | "random"
             let selectedCardMode = "image_word"; // "images" | "image_word" | "words"
             let selectedLang = "es";
 
@@ -1668,10 +1696,10 @@
                 document.getElementById("langPicker").style.display = needsLang ? "block" : "none";
             }
 
-            document.querySelectorAll("#srcManualBtn, #srcThemeBtn").forEach(btn => {
+            document.querySelectorAll("#srcManualBtn, #srcThemeBtn, #srcRandomBtn").forEach(btn => {
                 btn.addEventListener("click", () => {
                     selectedWordSource = btn.dataset.source;
-                    document.querySelectorAll("#srcManualBtn, #srcThemeBtn").forEach(b => b.classList.toggle("active", b === btn));
+                    document.querySelectorAll("#srcManualBtn, #srcThemeBtn, #srcRandomBtn").forEach(b => b.classList.toggle("active", b === btn));
                 });
             });
 
@@ -1693,6 +1721,10 @@
             });
 
             document.getElementById("startRoundBtn").addEventListener("click", () => {
+                if (selectedWordSource === "random") {
+                    startRandomRound(selectedLang, selectedCardMode);
+                    return;
+                }
                 if (selectedCardMode === "images") {
                     if (selectedWordSource === "theme") {
                         startThemeRound();
@@ -1753,6 +1785,16 @@
                     total_pairs: Number((data && data.total_pairs) || 8)
                 });
                 renderThemeSelection({ active: false });
+            });
+            socket.on("word_accepted", (data) => {
+                if (!window.currentSetupState || !window.currentSetupState.active) return;
+                const currentState = {
+                    ...window.currentSetupState,
+                    active: true,
+                    progress_count: Number((data && data.pair) || 0),
+                    total_pairs: Number((data && data.total_pairs) || 8)
+                };
+                renderSetupStatus(currentState);
             });
             socket.on("theme_word_accepted", (data) => {
                 if (!window.currentSetupState || !window.currentSetupState.active) return;

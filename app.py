@@ -210,6 +210,12 @@ ABSTRACT_THEME_WORDS = {
     "strength", "success", "theory", "thought", "truth", "value", "vision", "wisdom"
 }
 
+RANDOM_WORD_THEMES = [
+    "animal", "food", "sport", "nature", "vehicle", "furniture",
+    "clothing", "tool", "fruit", "vegetable", "music", "body",
+    "weather", "building", "kitchen", "garden", "office", "ocean",
+]
+
 
 # ---------------------------------------------------------------------------
 # Room helpers
@@ -861,6 +867,24 @@ def normalize_translated_word(word):
 
 def is_concrete_theme_word(word):
     return word not in ABSTRACT_THEME_WORDS
+
+
+def fetch_random_game_words(target=8):
+    """Pick `target` distinct concrete words from random themes."""
+    themes = random.sample(RANDOM_WORD_THEMES, min(len(RANDOM_WORD_THEMES), target * 2))
+    pool = []
+    seen = set()
+    for theme in themes:
+        words = fetch_theme_words(theme, max_results=20, require_noun=True, exclude_proper=True)
+        for w in words:
+            if w and w not in seen and is_concrete_theme_word(w):
+                seen.add(w)
+                pool.append(w)
+        if len(pool) >= target * 4:
+            break
+    if len(pool) < target:
+        return pool
+    return random.sample(pool, target)
 
 
 def has_noun_tag(tags):
@@ -2053,7 +2077,7 @@ def handle_start_custom_game(data=None):
         if not card_mode:
             card_mode = "image_word"
         data.setdefault("target_language", "es")
-    if mode not in {"manual", "theme"}:
+    if mode not in {"manual", "theme", "random"}:
         mode = "manual"
     if card_mode not in {"images", "image_word", "words"}:
         # default: language games → image_word, others → images
@@ -2094,6 +2118,26 @@ def handle_start_custom_game(data=None):
         }, room_id=room.room_id)
         socketio.sleep(0)
         prepare_theme_selection(starter_name, room)
+        return
+    if room.game_mode == "random":
+        def run_random_game():
+            words = fetch_random_game_words(target=8)
+            if len(words) < 8:
+                emit_to_room("game_setup_error", {"reason": "Satunnaisia sanoja ei löytynyt tarpeeksi. Yritä uudelleen."}, room_id=room.room_id)
+                reset_pending_state(room)
+                return
+            print(f"[INFO] Satunnaiset sanat: {', '.join(words)}")
+            for word in words:
+                if not append_word_images_to_grid(word, room):
+                    emit_to_room("game_setup_error", {"reason": f"Pixabay-haku epäonnistui sanalle '{word}'."}, room_id=room.room_id)
+                    room.grid_data.clear()
+                    reset_pending_state(room)
+                    return
+                room.pending_pair += 1
+                emit_to_room("word_accepted", {"word": word, "pair": room.pending_pair, "total_pairs": 8}, room_id=room.room_id)
+                socketio.sleep(0)
+            launch_grid_round(room)
+        socketio.start_background_task(run_random_game)
         return
     ask_next_word(room)
 
