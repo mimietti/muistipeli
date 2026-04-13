@@ -585,6 +585,19 @@ def normalize_display_label(word):
     return normalize_candidate_word(str(word or "").strip())
 
 
+def normalize_theme_family_key(word):
+    normalized = normalize_candidate_word(word)
+    if not normalized:
+        return None
+    if normalized.endswith("ies") and len(normalized) > 5:
+        return normalized[:-3] + "y"
+    if normalized.endswith("es") and len(normalized) > 5 and not normalized.endswith("ses"):
+        return normalized[:-2]
+    if normalized.endswith("s") and len(normalized) > 4 and not normalized.endswith("ss"):
+        return normalized[:-1]
+    return normalized
+
+
 def get_theme_display_word(word, entry=None, room=None):
     base_word = str(word or "").strip()
     if not base_word:
@@ -605,22 +618,49 @@ def build_candidate_labels(words, room=None):
     return {word: get_theme_display_word(word, room=room) for word in (words or [])}
 
 
-def build_theme_candidate_list(search_theme, candidate_count=24):
-    raw = fetch_theme_words(search_theme, max_results=72, require_noun=False)
+def filter_theme_candidate_pool(words, room=None, excluded_display_keys=None):
+    filtered = []
+    labels = {}
+    seen_words = set()
+    seen_families = set()
+    seen_display = set(excluded_display_keys or set())
+    for word in (words or []):
+        if word in seen_words:
+            continue
+        seen_words.add(word)
+        family_key = normalize_theme_family_key(word)
+        if family_key and family_key in seen_families:
+            continue
+        display_word = get_theme_display_word(word, room=room)
+        display_key = normalize_display_label(display_word)
+        if display_key and display_key in seen_display:
+            continue
+        filtered.append(word)
+        labels[word] = display_word
+        if family_key:
+            seen_families.add(family_key)
+        if display_key:
+            seen_display.add(display_key)
+    return filtered, labels
+
+
+def build_theme_candidate_list(search_theme, candidate_count=24, room=None):
+    raw = fetch_theme_words(search_theme, max_results=96, require_noun=False, exclude_proper=True)
     filtered, seen = [], set()
     for word in raw:
         if word in seen or not is_concrete_theme_word(word):
             continue
         seen.add(word)
         filtered.append(word)
-        if len(filtered) >= candidate_count:
+        if len(filtered) >= max(candidate_count * 2, 24):
             break
-    return filtered
+    unique_filtered, _ = filter_theme_candidate_pool(filtered, room=room)
+    return unique_filtered[:candidate_count]
 
 
 def prepare_theme_selection(starter_name, room):
     search_theme = room.pending_search_theme or room.pending_theme
-    candidates = build_theme_candidate_list(search_theme, candidate_count=24)
+    candidates = build_theme_candidate_list(search_theme, candidate_count=48, room=room)
     if len(candidates) < 8:
         message = f"Teemasta '{room.pending_theme}' ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa."
         print(f"[WARNING] {message}")
@@ -634,6 +674,7 @@ def prepare_theme_selection(starter_name, room):
     selected_words = []
     rejected_words = []
     remaining_candidates = []
+    selected_display_keys = set()
 
     emit_to_room("theme_generation_started", {
         "theme": room.pending_theme,
@@ -661,12 +702,19 @@ def prepare_theme_selection(starter_name, room):
             room.theme_rejected_words.add(word)
             continue
         display_word = get_theme_display_word(word, pair_entry, room)
+        display_key = normalize_display_label(display_word)
+        if display_key and display_key in selected_display_keys:
+            rejected_words.append(word)
+            room.theme_rejected_words.add(word)
+            continue
         selected_words.append({
             "word": word,
             "display_word": display_word,
             "chosen_by": starter_name,
             "entry": pair_entry
         })
+        if display_key:
+            selected_display_keys.add(display_key)
         emit_to_room("theme_word_accepted", {
             "theme": room.pending_theme,
             "word": word,
@@ -683,13 +731,19 @@ def prepare_theme_selection(starter_name, room):
         emit_to_room("game_setup_error", {"reason": message}, room_id=room.room_id)
         return
 
+    remaining_candidates, candidate_labels = filter_theme_candidate_pool(
+        remaining_candidates,
+        room=room,
+        excluded_display_keys=selected_display_keys,
+    )
+
     room.theme_selection_state = {
         "active": True,
         "theme": room.pending_theme,
         "search_theme": search_theme,
         "starter_name": starter_name,
         "candidates": remaining_candidates,
-        "candidate_labels": build_candidate_labels(remaining_candidates, room),
+        "candidate_labels": candidate_labels,
         "selected_words": selected_words,
         "rejected_words": rejected_words,
         "counts": counts,
