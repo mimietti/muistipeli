@@ -720,7 +720,8 @@
         const joinPayload = {
             username: myName,
             reconnect_token: reconnectToken,
-            bot_mode: false
+            bot_mode: false,
+            solo_mode: (localStorage.getItem("play_mode") || "") === "solo"
         };
         console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
         socket.emit("join", joinPayload);
