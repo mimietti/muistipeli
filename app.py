@@ -1662,21 +1662,26 @@ def leaderboard():
     if conn:
         try:
             with conn.cursor() as cur:
-                for play_mode, query in [
+                bot_name = BOT_USERNAME
+                for play_mode, query, args in [
                     ("solo",
                      """SELECT card_mode, COALESCE(target_language,'') AS tl,
                                username, time_secs, mistakes, total_time
                         FROM results
                         WHERE play_mode = 'solo' AND total_time IS NOT NULL
-                        ORDER BY card_mode, tl, total_time ASC"""),
+                          AND username != %s
+                        ORDER BY card_mode, tl, total_time ASC""",
+                     (bot_name,)),
                     ("bot",
                      """SELECT card_mode, COALESCE(target_language,'') AS tl,
                                username, pairs_found, mistakes, time_secs
                         FROM results
                         WHERE play_mode = 'bot' AND pairs_found IS NOT NULL
-                        ORDER BY card_mode, tl, pairs_found DESC, mistakes ASC NULLS LAST, time_secs ASC NULLS LAST"""),
+                          AND username != %s
+                        ORDER BY card_mode, tl, pairs_found DESC, mistakes ASC NULLS LAST, time_secs ASC NULLS LAST""",
+                     (bot_name,)),
                 ]:
-                    cur.execute(query)
+                    cur.execute(query, args)
                     rows_all = cur.fetchall()
                     # group by (card_mode, target_language), keep top 10 each
                     grouped = {}
@@ -1705,10 +1710,11 @@ def leaderboard():
                     SELECT username, SUM(round_won) AS wins, COUNT(*) AS rounds
                     FROM results
                     WHERE play_mode = 'multiplayer' AND round_won IS NOT NULL
+                      AND username != %s
                     GROUP BY username
                     ORDER BY wins DESC, rounds ASC
                     LIMIT 10
-                """)
+                """, (bot_name,))
                 multi_top = cur.fetchall()
         except Exception as e:
             print(f"[DB] Leaderboard query error: {e}")
