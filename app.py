@@ -610,14 +610,14 @@ def get_theme_display_word(word, entry=None, room=None):
     if not base_word:
         return ""
     ui_language = room.ui_language if room else "en"
-    if ui_language != "fi":
+    if ui_language == "en":
         return base_word
-    if entry and entry.get("type") in {"language", "spanish"}:
+    if entry and entry.get("type") in {"language", "spanish", "image_word", "words"}:
         pair = entry.get("pair") or {}
         native_word = (pair.get("native_word") or pair.get("finnish_word") or "").strip()
         if native_word:
             return native_word
-    translated = translate_word_to_finnish(base_word)
+    translated = translate_word(base_word, "en", ui_language)
     return translated or base_word
 
 

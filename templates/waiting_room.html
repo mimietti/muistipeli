@@ -599,7 +599,7 @@
                     <button class="opt-btn active" data-source="random" id="srcRandomBtn">Random</button>
                 </div>
             </div>
-            <div class="option-group">
+            <div class="option-group" id="cardModePicker">
                 <div class="option-group-label" id="labelCardMode">Cards</div>
                 <div class="option-group-btns">
                     <button class="opt-btn active" data-mode="image_word" id="cardModeImageWord">🖼 + 📝</button>
@@ -1717,7 +1717,9 @@
 
             // --- Round options state ---
             let selectedWordSource = "random"; // "manual" | "theme" | "random"
-            let selectedCardMode = "image_word"; // "images" | "image_word" | "words"
+            let selectedCardMode = ["images", "image_word", "words"].includes(localStorage.getItem("preferred_card_mode"))
+                ? localStorage.getItem("preferred_card_mode")
+                : "image_word"; // "images" | "image_word" | "words"
             let selectedLang = "es";
 
             function updateLangPickerVisibility() {
@@ -1735,12 +1737,17 @@
             document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach(btn => {
                 btn.addEventListener("click", () => {
                     selectedCardMode = btn.dataset.mode;
+                    try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (e) {}
                     document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach(b => b.classList.toggle("active", b === btn));
                     updateLangPickerVisibility();
                 });
             });
 
-            updateLangPickerVisibility(); // show lang picker for default image_word
+            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
+            });
+            document.getElementById("cardModePicker").style.display = "none";
+            updateLangPickerVisibility();
 
             document.querySelectorAll(".lang-flag-btn").forEach(btn => {
                 btn.addEventListener("click", () => {

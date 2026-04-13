@@ -181,6 +181,56 @@
             font-size: 12px;
             letter-spacing: 0.04em;
         }
+        .config-section {
+            margin: 22px auto 0;
+            max-width: 460px;
+        }
+        .config-title {
+            margin: 0 0 10px;
+            color: #dce6dc;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .card-mode-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .card-mode-btn {
+            min-width: 128px;
+            padding: 12px 12px 11px;
+            margin-top: 0;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04);
+            color: #f2f5f2;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            box-shadow: none;
+            transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+        }
+        .card-mode-btn:hover {
+            background: rgba(255,255,255,0.08);
+        }
+        .card-mode-btn.is-active {
+            background: rgba(94, 220, 135, 0.15);
+            border-color: rgba(126, 231, 135, 0.6);
+            box-shadow: 0 0 0 2px rgba(126, 231, 135, 0.18);
+        }
+        .card-mode-icon {
+            font-size: 24px;
+            line-height: 1;
+        }
+        .card-mode-label {
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
     </style>
 </head>
 <body>
@@ -249,6 +299,23 @@
         <h1 id="pageTitle">Welcome to study languages in a new way or play a new kind of memory game!</h1>
         <p id="introText"></p>
         <input type="text" id="nameInput" placeholder="Your name" />
+        <div class="config-section">
+            <div class="config-title" id="cardModeTitle">Cards</div>
+            <div class="card-mode-row">
+                <button type="button" class="card-mode-btn" id="indexCardModeImages" data-mode="images">
+                    <span class="card-mode-icon" aria-hidden="true">🖼🖼</span>
+                    <span class="card-mode-label" id="indexCardModeImagesText">Image pairs</span>
+                </button>
+                <button type="button" class="card-mode-btn is-active" id="indexCardModeImageWord" data-mode="image_word">
+                    <span class="card-mode-icon" aria-hidden="true">🖼📝</span>
+                    <span class="card-mode-label" id="indexCardModeImageWordText">Image + word</span>
+                </button>
+                <button type="button" class="card-mode-btn" id="indexCardModeWords" data-mode="words">
+                    <span class="card-mode-icon" aria-hidden="true">📝📝</span>
+                    <span class="card-mode-label" id="indexCardModeWordsText">Word + word</span>
+                </button>
+            </div>
+        </div>
         <br>
         <div class="button-row">
             <button id="joinBtn" class="mode-btn multiplayer" type="button" onclick="joinGame(false)" aria-label="Play with another player" title="Play with another player">
@@ -412,10 +479,31 @@
         };
 
         const UI_LANGS = ["fi", "en", "sv", "de", "fr", "es", "it", "pt"];
+        const cardModeTranslations = {
+            en: { title: "Card type", images: "Image pairs", image_word: "Image + word", words: "Word + word" },
+            fi: { title: "Korttityyppi", images: "Kuvaparit", image_word: "Kuva + sana", words: "Sana + sana" },
+            sv: { title: "Korttyp", images: "Bildpar", image_word: "Bild + ord", words: "Ord + ord" },
+            de: { title: "Kartentyp", images: "Bildpaare", image_word: "Bild + Wort", words: "Wort + Wort" },
+            fr: { title: "Type de cartes", images: "Paires d'images", image_word: "Image + mot", words: "Mot + mot" },
+            es: { title: "Tipo de cartas", images: "Parejas de imágenes", image_word: "Imagen + palabra", words: "Palabra + palabra" },
+            it: { title: "Tipo di carte", images: "Coppie di immagini", image_word: "Immagine + parola", words: "Parola + parola" },
+            pt: { title: "Tipo de cartas", images: "Pares de imagens", image_word: "Imagem + palavra", words: "Palavra + palavra" }
+        };
 
         function getLanguage() {
             const stored = localStorage.getItem("ui_language");
             return UI_LANGS.includes(stored) ? stored : "en";
+        }
+
+        function getSelectedCardMode() {
+            const stored = localStorage.getItem("preferred_card_mode");
+            return ["images", "image_word", "words"].includes(stored) ? stored : "image_word";
+        }
+
+        function setSelectedCardMode(mode) {
+            const next = ["images", "image_word", "words"].includes(mode) ? mode : "image_word";
+            localStorage.setItem("preferred_card_mode", next);
+            return next;
         }
 
         function setLanguage(lang) {
@@ -435,10 +523,16 @@
         }
 
         function applyTranslations() {
+            const lang = getLanguage();
+            const cardTexts = cardModeTranslations[lang] || cardModeTranslations.en;
             document.title = t("page_title");
             document.getElementById("pageTitle").textContent = t("page_title");
             document.getElementById("introText").textContent = t("intro_text");
             document.getElementById("nameInput").placeholder = t("name_placeholder");
+            document.getElementById("cardModeTitle").textContent = cardTexts.title;
+            document.getElementById("indexCardModeImagesText").textContent = cardTexts.images;
+            document.getElementById("indexCardModeImageWordText").textContent = cardTexts.image_word;
+            document.getElementById("indexCardModeWordsText").textContent = cardTexts.words;
             const joinBtn = document.getElementById("joinBtn");
             const joinBotBtn = document.getElementById("joinBotBtn");
             const joinSoloBtn = document.getElementById("joinSoloBtn");
@@ -464,6 +558,11 @@
             }
             const leaderboardLink = document.getElementById("leaderboardLink");
             if (leaderboardLink) leaderboardLink.textContent = t("best_of_best");
+            document.querySelectorAll(".card-mode-btn").forEach((button) => {
+                const active = button.dataset.mode === getSelectedCardMode();
+                button.classList.toggle("is-active", active);
+                button.setAttribute("aria-pressed", active ? "true" : "false");
+            });
             renderLobbyStatus(window.currentLobbyPlayers || []);
         }
 
@@ -543,6 +642,13 @@
             });
         });
 
+        document.querySelectorAll(".card-mode-btn").forEach((button) => {
+            button.addEventListener("click", () => {
+                setSelectedCardMode(button.dataset.mode);
+                applyTranslations();
+            });
+        });
+
         function joinGame(mode = false) {
             const username = document.getElementById("nameInput").value.trim();
             if (!username) {
@@ -556,6 +662,7 @@
                 return;
             }
             localStorage.setItem("username", username);
+            localStorage.setItem("preferred_card_mode", getSelectedCardMode());
             if (mode === "solo") {
                 localStorage.setItem("bot_mode", "0");
                 localStorage.setItem("play_mode", "solo");
