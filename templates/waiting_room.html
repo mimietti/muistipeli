@@ -25,6 +25,36 @@
             display: flex;
             justify-content: center;
         }
+        .flag-toggle {
+            display: inline-flex;
+            gap: 8px;
+            padding: 5px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .flag-btn {
+            width: 44px;
+            height: 33px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+        }
+        .flag-btn:hover {
+            transform: translateY(-1px);
+            background: rgba(255,255,255,0.05);
+        }
+        .flag-btn.is-active {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.16);
+        }
+        .flag-svg { width: 26px; height: 18px; display: block; }
         .card-mode-btn {
             padding: 6px 16px;
             border-radius: 999px;
@@ -479,16 +509,65 @@
 <body>
     <div class="shell">
         <div id="languagePicker">
-            <select id="uiLangSelect" class="lang-select" aria-label="UI language">
-                <option value="en">🇬🇧 English</option>
-                <option value="fi">🇫🇮 Suomi</option>
-                <option value="sv">🇸🇪 Svenska</option>
-                <option value="de">🇩🇪 Deutsch</option>
-                <option value="fr">🇫🇷 Français</option>
-                <option value="es">🇪🇸 Español</option>
-                <option value="it">🇮🇹 Italiano</option>
-                <option value="pt">🇵🇹 Português</option>
-            </select>
+            <div class="flag-toggle" role="group" aria-label="UI language">
+                <button type="button" class="flag-btn" data-ui-lang="fi" aria-label="Suomi" title="Suomi">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="18" height="11" fill="#fff"/>
+                        <rect x="5" width="3" height="11" fill="#003580"/>
+                        <rect y="4" width="18" height="3" fill="#003580"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-ui-lang="en" aria-label="English" title="English">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="18" height="11" fill="#012169"/>
+                        <path d="M0 0l18 11M18 0L0 11" stroke="#fff" stroke-width="2.4"/>
+                        <path d="M0 0l18 11M18 0L0 11" stroke="#C8102E" stroke-width="1.2"/>
+                        <path d="M9 0v11M0 5.5h18" stroke="#fff" stroke-width="3.6"/>
+                        <path d="M9 0v11M0 5.5h18" stroke="#C8102E" stroke-width="2"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-ui-lang="sv" aria-label="Svenska" title="Svenska">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="18" height="11" fill="#006AA7"/>
+                        <rect x="5" width="3" height="11" fill="#FECC02"/>
+                        <rect y="4" width="18" height="3" fill="#FECC02"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-ui-lang="de" aria-label="Deutsch" title="Deutsch">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="18" height="3.67" fill="#000"/>
+                        <rect y="3.67" width="18" height="3.67" fill="#DD0000"/>
+                        <rect y="7.33" width="18" height="3.67" fill="#FFCE00"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-ui-lang="fr" aria-label="Français" title="Français">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="6" height="11" fill="#002395"/>
+                        <rect x="6" width="6" height="11" fill="#fff"/>
+                        <rect x="12" width="6" height="11" fill="#ED2939"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-ui-lang="es" aria-label="Español" title="Español">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="18" height="11" fill="#c60b1e"/>
+                        <rect y="2.5" width="18" height="6" fill="#ffc400"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-ui-lang="it" aria-label="Italiano" title="Italiano">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="6" height="11" fill="#009246"/>
+                        <rect x="6" width="6" height="11" fill="#fff"/>
+                        <rect x="12" width="6" height="11" fill="#CE2B37"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-ui-lang="pt" aria-label="Português" title="Português">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="7" height="11" fill="#006600"/>
+                        <rect x="7" width="11" height="11" fill="#FF0000"/>
+                        <circle cx="7" cy="5.5" r="2.2" fill="#FFD700" stroke="#006600" stroke-width="0.5"/>
+                    </svg>
+                </button>
+            </div>
         </div>
         <h1 id="pageTitle">Waiting Room</h1>
         <p id="introText"></p>
@@ -571,7 +650,7 @@
             en: {
                 page_title: "Waiting Room",
                 language: "Language",
-                intro_text: "The game starts from the waiting room once two players are connected. The second player can choose whether the round uses your own words, a theme-based word set, or Spanish study pairs.",
+                intro_text: "The game starts from the waiting room once two players are connected. The second player can choose the word source and card type for the round.",
                 welcome_player: "Welcome, {name}!",
                 spectator_player: "Welcome, {name}!",
                 status_waiting_for_player: "Status: waiting for another player.",
@@ -648,7 +727,7 @@
             fi: {
                 page_title: "Odotushuone",
                 language: "Kieli",
-                intro_text: "Peli alkaa odotushuoneesta, kun kaksi pelaajaa on paikalla. Toisena liittynyt pelaaja voi valita, käytetäänkö erässä omia sanoja, teemaan perustuvia sanoja vai espanjan opiskelupareja.",
+                intro_text: "Peli alkaa odotushuoneesta, kun kaksi pelaajaa on paikalla. Toisena liittynyt pelaaja voi valita sananlähteen ja korttityypin seuraavaan erään.",
                 welcome_player: "Tervetuloa, {name}!",
                 spectator_player: "Tervetuloa, {name}!",
                 status_waiting_for_player: "Status: odotetaan toista pelaajaa.",
@@ -812,8 +891,11 @@
         function applyTranslations() {
             document.documentElement.lang = getLanguage();
             document.title = t("page_title");
-            const sel = document.getElementById("uiLangSelect");
-            if (sel) sel.value = getLanguage();
+            document.querySelectorAll(".flag-btn[data-ui-lang]").forEach(btn => {
+                const active = btn.dataset.uiLang === getLanguage();
+                btn.classList.toggle("is-active", active);
+                btn.setAttribute("aria-pressed", active ? "true" : "false");
+            });
             document.querySelectorAll(".lang-flag-btn").forEach((btn) => {
                 const lc = btn.dataset.lang;
                 const name = (LANG_NAMES[lc] || {})[getLanguage()] || lc.toUpperCase();
@@ -839,9 +921,11 @@
         setLanguage(getLanguage());
         applyTranslations();
 
-        document.getElementById("uiLangSelect").addEventListener("change", (e) => {
-            setLanguage(e.target.value);
-            applyTranslations();
+        document.querySelectorAll(".flag-btn[data-ui-lang]").forEach(btn => {
+            btn.addEventListener("click", () => {
+                setLanguage(btn.dataset.uiLang);
+                applyTranslations();
+            });
         });
 
         function safeUUID() {
@@ -1543,7 +1627,7 @@
 
             function updateLangPickerVisibility() {
                 const needsLang = selectedCardMode !== "images";
-                document.getElementById("langPicker").style.display = needsLang ? "" : "none";
+                document.getElementById("langPicker").style.display = needsLang ? "block" : "none";
             }
 
             document.querySelectorAll("#srcManualBtn, #srcThemeBtn").forEach(btn => {
