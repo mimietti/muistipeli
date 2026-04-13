@@ -159,9 +159,50 @@
                         <path d="M9 0v11M0 5.5h18" stroke="#C8102E" stroke-width="2"/>
                     </svg>
                 </button>
+                <button type="button" class="flag-btn" data-lang="sv" aria-label="Svenska" title="Svenska">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="18" height="11" fill="#006AA7"/>
+                        <rect x="5" width="3" height="11" fill="#FECC02"/>
+                        <rect y="4" width="18" height="3" fill="#FECC02"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="de" aria-label="Deutsch" title="Deutsch">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="18" height="3.67" fill="#000"/>
+                        <rect y="3.67" width="18" height="3.67" fill="#DD0000"/>
+                        <rect y="7.33" width="18" height="3.67" fill="#FFCE00"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="fr" aria-label="Français" title="Français">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="6" height="11" fill="#002395"/>
+                        <rect x="6" width="6" height="11" fill="#fff"/>
+                        <rect x="12" width="6" height="11" fill="#ED2939"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="es" aria-label="Español" title="Español">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="18" height="11" fill="#c60b1e"/>
+                        <rect y="2.5" width="18" height="6" fill="#ffc400"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="it" aria-label="Italiano" title="Italiano">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="6" height="11" fill="#009246"/>
+                        <rect x="6" width="6" height="11" fill="#fff"/>
+                        <rect x="12" width="6" height="11" fill="#CE2B37"/>
+                    </svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="pt" aria-label="Português" title="Português">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
+                        <rect width="7" height="11" fill="#006600"/>
+                        <rect x="7" width="11" height="11" fill="#FF0000"/>
+                        <circle cx="7" cy="5.5" r="2.2" fill="#FFD700" stroke="#006600" stroke-width="0.5"/>
+                    </svg>
+                </button>
             </div>
         </div>
-        <h1 id="pageTitle">Welcome to Memory Game!!!</h1>
+        <h1 id="pageTitle">Welcome to study languages in a new way or play a new kind of memory game!</h1>
         <p id="introText"></p>
         <input type="text" id="nameInput" placeholder="Your name" />
         <br>
@@ -182,7 +223,7 @@
         const APP_VERSION = {{ app_version|tojson }};
         const translations = {
             en: {
-                page_title: "Welcome to Memory Game!!!",
+                page_title: "Welcome to study languages in a new way or play a new kind of memory game!",
                 intro_text: "The game is similar to a traditional memory game where you turn over two cards at a time. In this version, you need to figure out which cards form a pair. Depending on the game type, a pair can be two different pictures connected by the same word, or a combination of a picture card and a word card.",
                 join: "Play with another player",
                 join_bot: "Play against bot",
@@ -197,7 +238,7 @@
                 best_of_best: "🏆 The best of the best"
             },
             fi: {
-                page_title: "Tervetuloa muistipeliin!!!",
+                page_title: "Tervetuloa opiskelemaan kieliä uudella tavalla tai pelaamaan uudenlaista muistipeliä!",
                 intro_text: "Peli muistuttaa perinteistä muistipeliä, jossa käännetään kaksi korttia kerrallaan. Tässä pelissä pitää päätellä, mitkä kortit muodostavat parin. Pelityypistä riippuen pari voi olla kaksi eri kuvaa, joita yhdistää sama sana, tai kuva- ja sanakortin yhdistelmä.",
                 join: "Pelaa toisen kanssa",
                 join_bot: "Pelaa bottia vastaan",
@@ -210,16 +251,36 @@
                 waiting_for_you: "{name} odottaa sinua pelaamaan.",
                 waiting_other_player: "Odotetaan toista pelaajaa...",
                 best_of_best: "🏆 Parhaat tulokset"
+            },
+            sv: {
+                page_title: "Välkommen att studera språk på ett nytt sätt eller spela ett nytt slags memoryspel!"
+            },
+            de: {
+                page_title: "Willkommen! Lerne Sprachen auf neue Weise oder spiele eine neue Art von Memory!"
+            },
+            fr: {
+                page_title: "Bienvenue pour apprendre les langues autrement ou jouer à une nouvelle version du jeu de mémoire !"
+            },
+            es: {
+                page_title: "¡Bienvenido a estudiar idiomas de una forma nueva o a jugar a un nuevo tipo de juego de memoria!"
+            },
+            it: {
+                page_title: "Benvenuto per studiare le lingue in un modo nuovo o per giocare a un nuovo tipo di memory!"
+            },
+            pt: {
+                page_title: "Bem-vindo para estudar línguas de uma nova forma ou jogar um novo tipo de jogo da memória!"
             }
         };
 
+        const UI_LANGS = ["fi", "en", "sv", "de", "fr", "es", "it", "pt"];
+
         function getLanguage() {
             const stored = localStorage.getItem("ui_language");
-            return stored === "fi" ? "fi" : "en";
+            return UI_LANGS.includes(stored) ? stored : "en";
         }
 
         function setLanguage(lang) {
-            const next = lang === "fi" ? "fi" : "en";
+            const next = UI_LANGS.includes(lang) ? lang : "en";
             localStorage.setItem("ui_language", next);
             document.documentElement.lang = next;
             return next;

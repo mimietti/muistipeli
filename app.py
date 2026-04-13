@@ -1745,6 +1745,15 @@ def on_join(data):
         return
 
     room_id = get_room_id_for_reconnect_token(reconnect_token)
+    existing_room = get_room(room_id)
+
+    if not wants_bot and not wants_solo:
+        if room_id != DEFAULT_ROOM_ID and (
+            existing_room.play_mode in {"bot", "solo"}
+            or any(is_bot_player(info) for info in existing_room.players.values())
+        ):
+            room_id = DEFAULT_ROOM_ID
+            assign_reconnect_token_to_room(reconnect_token, room_id)
 
     # Solo/bot: always get a private room (create new if landing on default or occupied room)
     if (wants_solo or wants_bot) and (
@@ -1766,7 +1775,10 @@ def on_join(data):
     if wants_solo:
         room.play_mode = "solo"
     elif wants_bot and not get_effective_human_player_items(room):
+        room.play_mode = "bot"
         ensure_bot_opponent(room)
+    else:
+        room.play_mode = "queue"
 
     if get_effective_player_count(room) >= MAX_PLAYERS:
         print(f"[INFO] Hylätty liittyminen, peli on täynnä: {username}")

@@ -237,7 +237,9 @@
             transform: scale(1.03);
         }
         .card.revealed {
-            box-shadow: 0 0 0 3px rgba(124, 245, 138, 0.85), 0 0 12px rgba(124, 245, 138, 0.3);
+            box-shadow: 0 0 0 5px rgba(124, 245, 138, 0.95), 0 0 18px rgba(124, 245, 138, 0.35);
+            outline: 2px solid rgba(124, 245, 138, 0.9);
+            outline-offset: -2px;
         }
         .card.removed {
             opacity: 0;
@@ -759,7 +761,7 @@
 
         function hideCardElement(cardElement) {
             cardElement.classList.add("hidden");
-            cardElement.classList.remove("matched-highlight", "removed");
+            cardElement.classList.remove("matched-highlight", "removed", "revealed");
             cardElement.classList.remove("word-card");
             cardElement.style.backgroundImage = "none";
             cardElement.replaceChildren();
@@ -768,6 +770,7 @@
         function revealCardElement(cardElement, cardData) {
             if (!cardElement || !cardData) return;
             cardElement.classList.remove("hidden", "removed", "matched-highlight");
+            cardElement.classList.add("revealed");
             cardElement.replaceChildren();
             cardElement.style.backgroundImage = "none";
             cardElement.classList.toggle("word-card", cardData.card_type === "word");
@@ -979,15 +982,30 @@
 
         function clearTranslationHint(indices = null) {
             if (!currentTranslationHint) return;
-            if (!indices || indices.includes(currentTranslationHint.index)) {
-                currentTranslationHint = null;
-                renderTranslationHint();
+            if (indices && !indices.includes(currentTranslationHint.index)) return;
+
+            const visibleWordIndex = cards.findIndex((card, index) => {
+                const element = document.getElementById(`card-${index}`);
+                return element
+                    && element.classList.contains("revealed")
+                    && !element.classList.contains("hidden")
+                    && !element.classList.contains("removed")
+                    && card
+                    && card.card_type === "word";
+            });
+
+            if (visibleWordIndex >= 0) {
+                showTranslationHintForCard(cards[visibleWordIndex], visibleWordIndex);
+                return;
             }
+
+            currentTranslationHint = null;
+            renderTranslationHint();
         }
 
         function removeMatchedCardElement(cardElement) {
             if (!cardElement) return;
-            cardElement.classList.remove("matched-highlight", "word-card", "hidden");
+            cardElement.classList.remove("matched-highlight", "word-card", "hidden", "revealed");
             cardElement.style.backgroundImage = "none";
             cardElement.replaceChildren();
             cardElement.classList.add("removed");
@@ -1196,6 +1214,7 @@
             data.indices.forEach((i) => {
                 const card = document.getElementById(`card-${i}`);
                 if (card) {
+                    card.classList.remove("revealed");
                     card.classList.add("matched-highlight");
                     setTimeout(() => {
                         removeMatchedCardElement(card);
@@ -1421,6 +1440,7 @@
                 const div = document.createElement("div");
                 div.classList.add("card", "hidden");
                 div.id = `card-${index}`;
+                div.dataset.index = String(index);
                 div.addEventListener("click", () => {
                     console.log(`[DEBUG] Klikattiin korttia: ${index}`);
                     if (myName === currentTurn && !matched.has(index)) {
