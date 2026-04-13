@@ -190,23 +190,25 @@
             display: none;
         }
         .lang-flag-btn {
-            padding: 8px 14px;
+            width: 44px;
+            height: 33px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             border-radius: 999px;
             border: 1.5px solid rgba(255,255,255,0.1);
             background: rgba(255,255,255,0.04);
-            color: #ccc;
             cursor: pointer;
-            font-size: 15px;
-            font-weight: 600;
-            transition: background 0.12s, border-color 0.12s, color 0.12s;
+            transition: background 0.12s, border-color 0.12s, transform 0.12s;
         }
         .lang-flag-btn:hover {
             background: rgba(255,255,255,0.09);
+            transform: translateY(-1px);
         }
         .lang-flag-btn.active {
             background: rgba(124,245,138,0.15);
             border-color: rgba(124,245,138,0.5);
-            color: #fff;
         }
         #startRoundBtn {
             display: block;
@@ -604,13 +606,31 @@
             </div>
             <div class="option-group" id="langPicker">
                 <div class="option-group-label" id="labelLang">Language</div>
-                <div class="option-group-btns">
-                    <button class="lang-flag-btn active" data-lang="es">🇪🇸 Spanish</button>
-                    <button class="lang-flag-btn" data-lang="sv">🇸🇪 Swedish</button>
-                    <button class="lang-flag-btn" data-lang="de">🇩🇪 German</button>
-                    <button class="lang-flag-btn" data-lang="fr">🇫🇷 French</button>
-                    <button class="lang-flag-btn" data-lang="it">🇮🇹 Italian</button>
-                    <button class="lang-flag-btn" data-lang="pt">🇵🇹 Portuguese</button>
+                <div class="option-group-btns" id="targetLangBtns">
+                    <button class="lang-flag-btn active" data-lang="es" title="Spanish">
+                        <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="18" height="11" fill="#c60b1e"/><rect y="2.5" width="18" height="6" fill="#ffc400"/></svg>
+                    </button>
+                    <button class="lang-flag-btn" data-lang="sv" title="Swedish">
+                        <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="18" height="11" fill="#006AA7"/><rect x="5" width="3" height="11" fill="#FECC02"/><rect y="4" width="18" height="3" fill="#FECC02"/></svg>
+                    </button>
+                    <button class="lang-flag-btn" data-lang="de" title="Deutsch">
+                        <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="18" height="3.67" fill="#000"/><rect y="3.67" width="18" height="3.67" fill="#DD0000"/><rect y="7.33" width="18" height="3.67" fill="#FFCE00"/></svg>
+                    </button>
+                    <button class="lang-flag-btn" data-lang="fr" title="Français">
+                        <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="6" height="11" fill="#002395"/><rect x="6" width="6" height="11" fill="#fff"/><rect x="12" width="6" height="11" fill="#ED2939"/></svg>
+                    </button>
+                    <button class="lang-flag-btn" data-lang="it" title="Italiano">
+                        <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="6" height="11" fill="#009246"/><rect x="6" width="6" height="11" fill="#fff"/><rect x="12" width="6" height="11" fill="#CE2B37"/></svg>
+                    </button>
+                    <button class="lang-flag-btn" data-lang="pt" title="Português">
+                        <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="7" height="11" fill="#006600"/><rect x="7" width="11" height="11" fill="#FF0000"/><circle cx="7" cy="5.5" r="2.2" fill="#FFD700" stroke="#006600" stroke-width="0.5"/></svg>
+                    </button>
+                    <button class="lang-flag-btn" data-lang="en" title="English">
+                        <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="18" height="11" fill="#012169"/><path d="M0 0l18 11M18 0L0 11" stroke="#fff" stroke-width="2.4"/><path d="M0 0l18 11M18 0L0 11" stroke="#C8102E" stroke-width="1.2"/><path d="M9 0v11M0 5.5h18" stroke="#fff" stroke-width="3.6"/><path d="M9 0v11M0 5.5h18" stroke="#C8102E" stroke-width="2"/></svg>
+                    </button>
+                    <button class="lang-flag-btn" data-lang="fi" title="Suomi">
+                        <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="18" height="11" fill="#fff"/><rect x="5" width="3" height="11" fill="#003580"/><rect y="4" width="18" height="3" fill="#003580"/></svg>
+                    </button>
                 </div>
             </div>
             <button id="startRoundBtn">Start</button>
@@ -896,11 +916,7 @@
                 btn.classList.toggle("is-active", active);
                 btn.setAttribute("aria-pressed", active ? "true" : "false");
             });
-            document.querySelectorAll(".lang-flag-btn").forEach((btn) => {
-                const lc = btn.dataset.lang;
-                const name = (LANG_NAMES[lc] || {})[getLanguage()] || lc.toUpperCase();
-                btn.textContent = (LANG_FLAGS[lc] || "") + " " + name;
-            });
+            // lang-flag-btn buttons now use SVG flags — no text update needed
             const el = (id) => document.getElementById(id);
             el("labelWordSource").textContent = t("label_word_source");
             el("labelCardMode").textContent = t("label_card_mode");
