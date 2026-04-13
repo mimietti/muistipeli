@@ -872,6 +872,16 @@
             return message;
         }
 
+        function isQueueSearchLobby(payload, playersInfo) {
+            const playMode = localStorage.getItem("play_mode") || "";
+            const infos = Array.isArray(playersInfo) ? playersInfo : [];
+            return playMode === "queue"
+                && payload
+                && payload.room_id === "default"
+                && infos.length > 0
+                && infos.every(p => p && p.in_waiting);
+        }
+
         function renderPlayerRole(playersInfo) {
             window.latestPlayersInfo = Array.isArray(playersInfo) ? playersInfo : [];
             const roleDiv = document.getElementById("playerRole");
@@ -881,10 +891,13 @@
             const isSoloOrBot = playMode === "solo" || playMode === "bot";
             const myToken = getReconnectToken();
             const myName = (localStorage.getItem("username") || "").trim();
+            const queueSearchActive = isQueueSearchLobby(window.latestLobbyPayload, window.latestPlayersInfo);
             roleDiv.textContent = t("welcome_player", { name: myName || "Player" });
             if (hintDiv) {
                 if (isSoloOrBot) {
                     hintDiv.textContent = "";
+                } else if (queueSearchActive) {
+                    hintDiv.textContent = t("queue_searching");
                 } else {
                     const myIndex = window.latestPlayersInfo.findIndex(p => p && p.reconnect_token === myToken);
                     if (myIndex === 1) {
@@ -1342,10 +1355,19 @@
 
             function updateLobbyFromPayload(payload) {
                 window.latestLobbyPayload = payload || {};
-                const players = (payload && payload.players) || [];
-                const playersInfo = (payload && payload.players_info) || [];
+                const rawPlayers = (payload && payload.players) || [];
+                const rawPlayersInfo = (payload && payload.players_info) || [];
                 const lastJoinedToken = payload && payload.last_joined_token;
-                console.log("[DEBUG] Pelaajat (ordered):", players);
+                const myToken = getReconnectToken();
+                const queueSearchActive = isQueueSearchLobby(payload, rawPlayersInfo);
+                let players = rawPlayers;
+                let playersInfo = rawPlayersInfo;
+                if (queueSearchActive) {
+                    const myInfo = rawPlayersInfo.find(p => p && p.reconnect_token === myToken);
+                    playersInfo = myInfo ? [myInfo] : [];
+                    players = myInfo ? [myInfo.username] : [];
+                }
+                console.log("[DEBUG] Pelaajat (ordered):", rawPlayers, "visible:", players);
                 const playersDiv = document.getElementById("players");
                 playersDiv.textContent = players.join(" & ");
                 renderPlayerRole(playersInfo);

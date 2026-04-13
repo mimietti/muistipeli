@@ -233,12 +233,17 @@
             transform: scale(1.05);
         }
         .card.matched-highlight {
-            box-shadow: 0 0 0 4px rgba(113, 240, 161, 0.95), 0 0 24px rgba(113, 240, 161, 0.55);
+            box-shadow: 0 0 0 5px rgba(113, 240, 161, 0.98), 0 0 28px rgba(113, 240, 161, 0.6);
             transform: scale(1.03);
         }
-        .card.revealed {
-            box-shadow: 0 0 0 5px rgba(124, 245, 138, 0.95), 0 0 18px rgba(124, 245, 138, 0.35);
-            outline: 2px solid rgba(124, 245, 138, 0.9);
+        .card.revealed-first {
+            box-shadow: 0 0 0 4px rgba(255, 216, 92, 0.98), 0 0 18px rgba(255, 216, 92, 0.32);
+            outline: 2px solid rgba(255, 216, 92, 0.92);
+            outline-offset: -2px;
+        }
+        .card.revealed-second {
+            box-shadow: 0 0 0 4px rgba(255, 102, 102, 0.98), 0 0 18px rgba(255, 102, 102, 0.32);
+            outline: 2px solid rgba(255, 102, 102, 0.92);
             outline-offset: -2px;
         }
         .card.removed {
@@ -594,6 +599,7 @@
         const translationHintLabel = document.getElementById("translation-hint-label");
         let cards = [];
         let matched = new Set();
+        let revealedOrder = [];
         let currentTurn = null;
         let currentTranslationHint = null;
         let isSoloMode = false;
@@ -761,16 +767,30 @@
 
         function hideCardElement(cardElement) {
             cardElement.classList.add("hidden");
-            cardElement.classList.remove("matched-highlight", "removed", "revealed");
+            cardElement.classList.remove("matched-highlight", "removed", "revealed-first", "revealed-second");
             cardElement.classList.remove("word-card");
             cardElement.style.backgroundImage = "none";
             cardElement.replaceChildren();
         }
 
+        function updateRevealedHighlights() {
+            document.querySelectorAll(".card.revealed-first, .card.revealed-second").forEach((element) => {
+                element.classList.remove("revealed-first", "revealed-second");
+            });
+            revealedOrder.forEach((index, orderIndex) => {
+                const cardElement = document.getElementById(`card-${index}`);
+                if (!cardElement) return;
+                if (orderIndex === 0) {
+                    cardElement.classList.add("revealed-first");
+                } else if (orderIndex === 1) {
+                    cardElement.classList.add("revealed-second");
+                }
+            });
+        }
+
         function revealCardElement(cardElement, cardData) {
             if (!cardElement || !cardData) return;
-            cardElement.classList.remove("hidden", "removed", "matched-highlight");
-            cardElement.classList.add("revealed");
+            cardElement.classList.remove("hidden", "removed", "matched-highlight", "revealed-first", "revealed-second");
             cardElement.replaceChildren();
             cardElement.style.backgroundImage = "none";
             cardElement.classList.toggle("word-card", cardData.card_type === "word");
@@ -1005,7 +1025,7 @@
 
         function removeMatchedCardElement(cardElement) {
             if (!cardElement) return;
-            cardElement.classList.remove("matched-highlight", "word-card", "hidden", "revealed");
+            cardElement.classList.remove("matched-highlight", "word-card", "hidden", "revealed-first", "revealed-second");
             cardElement.style.backgroundImage = "none";
             cardElement.replaceChildren();
             cardElement.classList.add("removed");
@@ -1064,6 +1084,7 @@
             currentTurn = data.turn;
             sessionStorage.setItem("players", JSON.stringify(data.players));
             matched = data.matched ? new Set(data.matched) : new Set();
+            revealedOrder = [];
             currentTranslationHint = null;
             isSoloMode = Boolean(data.solo);
             if (data.card_mode) window.currentCardMode = data.card_mode;
@@ -1188,19 +1209,25 @@
             const card = document.getElementById(`card-${data.index}`);
             if (card) {
                 const cardData = data.card || cards[data.index];
+                revealedOrder = revealedOrder.filter((index) => index !== data.index);
+                revealedOrder.push(data.index);
+                revealedOrder = revealedOrder.slice(-2);
                 revealCardElement(card, cardData);
+                updateRevealedHighlights();
                 showTranslationHintForCard(cardData, data.index);
             }
         });
 
         socket.on("hide_cards", (data) => {
             console.log("[DEBUG] Piilotetaan kortit:", data.indices);
+            revealedOrder = revealedOrder.filter((index) => !data.indices.includes(index));
             data.indices.forEach(i => {
                 const card = document.getElementById(`card-${i}`);
                 if (card && !matched.has(i)) {
                     hideCardElement(card);
                 }
             });
+            updateRevealedHighlights();
             if (isSoloMode && data.solo_mistakes != null) {
                 soloMistakes = data.solo_mistakes;
                 soloMistakesEl.textContent = String(soloMistakes);
@@ -1211,10 +1238,11 @@
         socket.on("pair_found", (data) => {
             console.log("[DEBUG] Pari löytyi:", data.word);
             data.indices.forEach(i => matched.add(i));
+            revealedOrder = revealedOrder.filter((index) => !data.indices.includes(index));
             data.indices.forEach((i) => {
                 const card = document.getElementById(`card-${i}`);
                 if (card) {
-                    card.classList.remove("revealed");
+                    card.classList.remove("revealed-first", "revealed-second");
                     card.classList.add("matched-highlight");
                     setTimeout(() => {
                         removeMatchedCardElement(card);
