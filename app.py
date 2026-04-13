@@ -736,19 +736,16 @@ def prepare_theme_selection(starter_name, room):
         emit_to_room("game_setup_error", {"reason": message}, room_id=room.room_id)
         return
 
-    remaining_candidates, candidate_labels = filter_theme_candidate_pool(
-        remaining_candidates,
-        room=room,
-        excluded_display_keys=selected_display_keys,
-    )
+    # remaining_candidates no longer needed — word swap phase removed
+    del remaining_candidates
 
     room.theme_selection_state = {
         "active": True,
         "theme": room.pending_theme,
         "search_theme": search_theme,
         "starter_name": starter_name,
-        "candidates": remaining_candidates,
-        "candidate_labels": candidate_labels,
+        "candidates": [],
+        "candidate_labels": {},
         "selected_words": selected_words,
         "rejected_words": rejected_words,
         "counts": counts,
@@ -757,13 +754,10 @@ def prepare_theme_selection(starter_name, room):
             p["username"]: p.get("reconnect_token")
             for p in get_effective_players_ordered(room)
         },
-        "swap_limit": 1,
+        "swap_limit": 0,
     }
-    print(f"[INFO] Teeman '{room.pending_theme}' sanavalinta aloitettu. Ehdokkaita: {len(candidates)}")
-    emit_theme_selection_state(room)
-    if room.player_order and all(ready.get(name, False) for name in room.player_order):
-        print(f"[INFO] Kaikki valmiina – aloitetaan {room.game_mode}-erä")
-        finalize_theme_selection(room)
+    print(f"[INFO] Teeman '{room.pending_theme}' sanat valittu. Käynnistetään suoraan.")
+    finalize_theme_selection(room)
 
 
 # ---------------------------------------------------------------------------
@@ -1829,16 +1823,7 @@ def on_join(data):
     room_id = get_room_id_for_reconnect_token(reconnect_token)
     existing_room = get_room(room_id)
 
-    if not wants_bot and not wants_solo:
-        if room_id != DEFAULT_ROOM_ID and (
-            existing_room.play_mode in {"bot", "solo"}
-            or any(is_bot_player(info) for info in existing_room.players.values())
-        ):
-            room_id = DEFAULT_ROOM_ID
-            assign_reconnect_token_to_room(reconnect_token, room_id)
-
-    # Solo/bot: always get a private room (create new if landing on default or occupied by OTHER players)
-    # If the existing room already belongs to this token's player, reuse it (reconnect case).
+    # Check if the token already exists in the resolved room (reconnect case — always reuse).
     existing_room_belongs_to_self = (
         room_id != DEFAULT_ROOM_ID and
         room_id in rooms and
@@ -1847,6 +1832,14 @@ def on_join(data):
             for info in rooms[room_id].players.values()
         )
     )
+
+    if not wants_bot and not wants_solo and not existing_room_belongs_to_self:
+        if room_id != DEFAULT_ROOM_ID and (
+            existing_room.play_mode in {"bot", "solo"}
+            or any(is_bot_player(info) for info in existing_room.players.values())
+        ):
+            room_id = DEFAULT_ROOM_ID
+            assign_reconnect_token_to_room(reconnect_token, room_id)
     if (wants_solo or wants_bot) and not existing_room_belongs_to_self and (
         room_id == DEFAULT_ROOM_ID or
         (room_id in rooms and get_effective_human_player_items(rooms[room_id]))
