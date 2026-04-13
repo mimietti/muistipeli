@@ -275,7 +275,7 @@
         <div style="margin-top:18px;">
             <a href="/leaderboard" id="leaderboardLink" style="color:#7cf58a; font-size:15px; text-decoration:none;">🏆 The best of the best</a>
         </div>
-        <div class="footer-credit">© Michael Miettinen</div>
+        <div class="footer-credit">&copy; Michael Miettinen &bull; <a id="releaseNotesLink" href="/release-notes">Beta v0.07 (2026-04-13)</a></div>
     </div>
 
     <script>
@@ -294,7 +294,8 @@
                 connect_error: "Could not connect to the server.",
                 waiting_for_you: "{name} is waiting for you to play.",
                 waiting_other_player: "Waiting for another player...",
-                best_of_best: "?? The best of the best"
+                best_of_best: "The best of the best",
+                release_notes: "Release notes"
             },
             fi: {
                 page_title: "Tervetuloa opiskelemaan kieli? uudella tavalla tai pelaamaan uudenlaista muistipeli?!",
@@ -309,7 +310,8 @@
                 connect_error: "Yhteytt? ei saatu palvelimeen.",
                 waiting_for_you: "{name} odottaa sinua pelaamaan.",
                 waiting_other_player: "Odotetaan toista pelaajaa...",
-                best_of_best: "?? Parhaat tulokset"
+                best_of_best: "Parhaat tulokset",
+                release_notes: "Julkaisutiedot"
             },
             sv: {
                 page_title: "V?lkommen! L?r dig spr?k p? ett nytt s?tt eller spela en ny sorts memoryspel!",
@@ -324,7 +326,8 @@
                 connect_error: "Kunde inte ansluta till servern.",
                 waiting_for_you: "{name} v?ntar p? att du ska spela.",
                 waiting_other_player: "V?ntar p? en annan spelare...",
-                best_of_best: "?? De b?sta resultaten"
+                best_of_best: "De b?sta resultaten",
+                release_notes: "Versionsinfo"
             },
             de: {
                 page_title: "Willkommen! Lerne Sprachen auf neue Weise oder spiele eine neue Art von Memory!",
@@ -339,7 +342,8 @@
                 connect_error: "Verbindung zum Server fehlgeschlagen.",
                 waiting_for_you: "{name} wartet auf dich.",
                 waiting_other_player: "Warten auf eine andere Person...",
-                best_of_best: "?? Die Besten"
+                best_of_best: "Die Besten",
+                release_notes: "Versionshinweise"
             },
             fr: {
                 page_title: "Bienvenue ! Apprenez les langues autrement ou jouez ? une nouvelle version du memory !",
@@ -354,7 +358,8 @@
                 connect_error: "Connexion au serveur impossible.",
                 waiting_for_you: "{name} vous attend pour jouer.",
                 waiting_other_player: "En attente d?une autre personne...",
-                best_of_best: "?? Les meilleurs scores"
+                best_of_best: "Les meilleurs scores",
+                release_notes: "Notes de version"
             },
             es: {
                 page_title: "?Bienvenido! Aprende idiomas de una forma nueva o juega a un nuevo tipo de memory.",
@@ -369,7 +374,8 @@
                 connect_error: "No se pudo conectar con el servidor.",
                 waiting_for_you: "{name} te est? esperando para jugar.",
                 waiting_other_player: "Esperando a otra persona...",
-                best_of_best: "?? Los mejores resultados"
+                best_of_best: "Los mejores resultados",
+                release_notes: "Notas de la versi?n"
             },
             it: {
                 page_title: "Benvenuto! Studia le lingue in un modo nuovo oppure gioca a un nuovo tipo di memory!",
@@ -384,7 +390,8 @@
                 connect_error: "Impossibile connettersi al server.",
                 waiting_for_you: "{name} ti sta aspettando per giocare.",
                 waiting_other_player: "In attesa di un?altra persona...",
-                best_of_best: "?? I migliori risultati"
+                best_of_best: "I migliori risultati",
+                release_notes: "Note di rilascio"
             },
             pt: {
                 page_title: "Bem-vindo! Aprende l?nguas de uma nova forma ou joga um novo tipo de jogo da mem?ria!",
@@ -399,7 +406,8 @@
                 connect_error: "N?o foi poss?vel ligar ao servidor.",
                 waiting_for_you: "{name} est? ? tua espera para jogar.",
                 waiting_other_player: "? espera de outra pessoa...",
-                best_of_best: "?? Os melhores resultados"
+                best_of_best: "Os melhores resultados",
+                release_notes: "Notas da vers?o"
             }
         };
 
@@ -448,7 +456,12 @@
                 button.classList.toggle("is-active", active);
                 button.setAttribute("aria-pressed", active ? "true" : "false");
             });
-            document.querySelector(".footer-credit").textContent = `© Michael Miettinen • ${APP_VERSION}`;
+            const releaseNotesLink = document.getElementById("releaseNotesLink");
+            if (releaseNotesLink) {
+                releaseNotesLink.textContent = APP_VERSION;
+                releaseNotesLink.setAttribute("aria-label", t("release_notes"));
+                releaseNotesLink.setAttribute("title", t("release_notes"));
+            }
             const leaderboardLink = document.getElementById("leaderboardLink");
             if (leaderboardLink) leaderboardLink.textContent = t("best_of_best");
             renderLobbyStatus(window.currentLobbyPlayers || []);

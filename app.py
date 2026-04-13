@@ -114,7 +114,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.0.6 (2026-04-13)"
+APP_VERSION = "Beta v0.07 (2026-04-13)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -1650,6 +1650,11 @@ def game():
 @app.route("/summary")
 def summary():
     return render_template("summary.html")
+
+
+@app.route("/release-notes")
+def release_notes():
+    return render_template("release_notes.html")
 
 
 @app.route("/leaderboard")

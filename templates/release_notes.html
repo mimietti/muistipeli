@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Release notes</title>
+    <style>
+        body {
+            background-color: #111;
+            color: white;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 48px 16px;
+            text-align: center;
+        }
+        .card {
+            width: min(720px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 32px 28px 36px;
+            border-radius: 24px;
+            background:
+                radial-gradient(circle at top, rgba(94, 220, 135, 0.18), transparent 42%),
+                linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+        }
+        h1 {
+            margin: 0 0 10px;
+            font-size: clamp(34px, 5vw, 52px);
+        }
+        .version {
+            color: #f3f1c7;
+            font-size: 20px;
+            margin-bottom: 22px;
+        }
+        .note {
+            text-align: left;
+            margin: 0 auto;
+            max-width: 620px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            padding: 22px 22px 18px;
+        }
+        .note h2 {
+            margin: 0 0 10px;
+            color: #fff4a8;
+            font-size: 22px;
+        }
+        .note p {
+            margin: 0;
+            line-height: 1.6;
+            font-size: 18px;
+            color: #f3f3f3;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 24px;
+            color: #7cf58a;
+            text-decoration: none;
+            font-size: 17px;
+        }
+        .footer-credit {
+            margin-top: 24px;
+            color: #bcbcbc;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1 id="title">Release notes</h1>
+        <div class="version" id="version">{{ app_version }}</div>
+        <div class="note">
+            <h2 id="headline">Version 0.07</h2>
+            <p id="summaryText"></p>
+        </div>
+        <a class="back-link" id="backLink" href="/">← Back to home</a>
+        <div class="footer-credit">© Michael Miettinen • {{ app_version }}</div>
+    </div>
+
+    <script>
+        const APP_VERSION = {{ app_version|tojson }};
+        const supportedLangs = ["fi", "en", "sv", "de", "fr", "es", "it", "pt"];
+        const translations = {
+            en: {
+                title: "Release notes",
+                headline: "Version 0.07",
+                summary: "This release makes the game feel more polished across languages: the home page is now localized more completely, the play mode selection is clearer, and themes and words work more consistently in the player's own UI language.",
+                back: "← Back to home"
+            },
+            fi: {
+                title: "Julkaisutiedot",
+                headline: "Versio 0.07",
+                summary: "Tämä versio tekee pelistä viimeistellymmän eri kielillä: etusivu on nyt paremmin lokalisoitu, pelitavan valinta on selkeämpi ja teemat sekä sanat toimivat johdonmukaisemmin pelaajan omalla käyttöliittymäkielellä.",
+                back: "← Takaisin etusivulle"
+            },
+            sv: {
+                title: "Versionsinfo",
+                headline: "Version 0.07",
+                summary: "Den här versionen gör spelet mer finslipat på olika språk: startsidan är nu bättre lokaliserad, valet av spelläge är tydligare och teman samt ord fungerar mer konsekvent på spelarens eget gränssnittsspråk.",
+                back: "← Tillbaka till startsidan"
+            },
+            de: {
+                title: "Versionshinweise",
+                headline: "Version 0.07",
+                summary: "Diese Version wirkt über mehrere Sprachen hinweg runder: Die Startseite ist jetzt besser lokalisiert, die Auswahl des Spielmodus ist klarer und Themen sowie Wörter funktionieren zuverlässiger in der jeweiligen UI-Sprache der spielenden Person.",
+                back: "← Zurück zur Startseite"
+            },
+            fr: {
+                title: "Notes de version",
+                headline: "Version 0.07",
+                summary: "Cette version rend le jeu plus abouti dans plusieurs langues : la page d'accueil est désormais mieux localisée, le choix du mode de jeu est plus clair et les thèmes ainsi que les mots fonctionnent plus régulièrement dans la langue d’interface de la personne qui joue.",
+                back: "← Retour à l’accueil"
+            },
+            es: {
+                title: "Notas de la versión",
+                headline: "Versión 0.07",
+                summary: "Esta versión hace que el juego se sienta más pulido en varios idiomas: la página de inicio está mejor localizada, la selección del modo de juego es más clara y los temas y palabras funcionan de forma más coherente en el idioma de interfaz del jugador.",
+                back: "← Volver al inicio"
+            },
+            it: {
+                title: "Note di rilascio",
+                headline: "Versione 0.07",
+                summary: "Questa versione rende il gioco più rifinito in più lingue: la pagina iniziale è ora localizzata meglio, la scelta della modalità di gioco è più chiara e temi e parole funzionano in modo più coerente nella lingua dell'interfaccia del giocatore.",
+                back: "← Torna alla home"
+            },
+            pt: {
+                title: "Notas da versão",
+                headline: "Versão 0.07",
+                summary: "Esta versão torna o jogo mais polido em várias línguas: a página inicial está agora melhor localizada, a seleção do modo de jogo é mais clara e os temas e palavras funcionam de forma mais consistente na língua da interface do jogador.",
+                back: "← Voltar ao início"
+            }
+        };
+
+        function getLanguage() {
+            const stored = localStorage.getItem("ui_language");
+            return supportedLangs.includes(stored) ? stored : "en";
+        }
+
+        function t(key) {
+            const lang = getLanguage();
+            return (translations[lang] && translations[lang][key]) || translations.en[key] || key;
+        }
+
+        function applyTranslations() {
+            document.documentElement.lang = getLanguage();
+            document.title = t("title");
+            document.getElementById("title").textContent = t("title");
+            document.getElementById("headline").textContent = t("headline");
+            document.getElementById("summaryText").textContent = t("summary");
+            document.getElementById("backLink").textContent = t("back");
+            document.getElementById("version").textContent = APP_VERSION;
+        }
+
+        applyTranslations();
+    </script>
+</body>
+</html>
