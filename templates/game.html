@@ -430,6 +430,7 @@
                 prompt_word_retry: "Enter a new word for pair {pair}/8:",
                 prompt_theme: "Enter theme:",
                 prompt_lang_theme: "Enter theme in English:",
+                word_invalid: "That word is not valid. Use only letters (no numbers or special characters).",
                 pixabay_retry: "Pixabay could not find an image for that word. Try another word.",
                 found_word: "Pair found: {word}",
                 pair_found_label: "Pair found",
@@ -480,6 +481,7 @@
                 prompt_word_retry: "Anna {pair}/8 parin sana uudelleen:",
                 prompt_theme: "Anna teema:",
                 prompt_lang_theme: "Anna teema englanniksi:",
+                word_invalid: "Sana ei kelpaa. Käytä vain kirjaimia (ei numeroita tai erikoismerkkejä).",
                 pixabay_retry: "Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.",
                 found_word: "Pari löytyi: {word}",
                 pair_found_label: "Pari löytyi",
@@ -1370,7 +1372,8 @@
         socket.on("word_failed", (data) => {
             console.log("[DEBUG] word_failed vastaanotettu:", data);
             if (myName === data.player) {
-                alert(t("pixabay_retry"));
+                const failMsg = data.reason === "invalid_word" ? t("word_invalid") : t("pixabay_retry");
+                alert(failMsg);
                 let sana = prompt(t("prompt_word_retry", { pair: data.pair }));
                 if (sana && sana.trim().length > 0) {
                     socket.emit("word_given", { word: sana.trim() });

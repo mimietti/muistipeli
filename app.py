@@ -1,9 +1,8 @@
-import warnings
-
-warnings.filterwarnings("ignore", message=".*Eventlet is deprecated.*")
-
 import eventlet
 eventlet.monkey_patch()
+
+import warnings
+warnings.filterwarnings("ignore", message=".*Eventlet is deprecated.*")
 
 from flask import Flask, render_template, request, jsonify  # noqa: F401
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -645,7 +644,7 @@ def filter_theme_candidate_pool(words, room=None, excluded_display_keys=None):
 
 
 def build_theme_candidate_list(search_theme, candidate_count=24, room=None):
-    raw = fetch_theme_words(search_theme, max_results=96, require_noun=False, exclude_proper=True)
+    raw = fetch_theme_words(search_theme, max_results=96, require_noun=False, exclude_proper=False)
     filtered, seen = [], set()
     for word in raw:
         if word in seen or not is_concrete_theme_word(word):
@@ -841,7 +840,7 @@ def lang_setup_still_active(theme, room):
 
 def normalize_candidate_word(word):
     cleaned = str(word or "").strip().lower()
-    if not re.fullmatch(r"[a-z]{2,18}", cleaned):
+    if not re.fullmatch(r"[a-zäöåáéíóúàèìòùâêîôûñüæøßçğışõūēīā]{2,24}", cleaned):
         return None
     return cleaned
 
@@ -2232,7 +2231,7 @@ def handle_word_given(data):
     word = normalize_candidate_word(data["word"])
     if not word:
         print("[WARNING] Käyttäjän sana ei kelpaa, pyydetään uusi sana")
-        emit_to_room("word_failed", {"player": expected_player, "pair": room.pending_pair + 1}, room_id=room.room_id)
+        emit_to_room("word_failed", {"player": expected_player, "pair": room.pending_pair + 1, "reason": "invalid_word"}, room_id=room.room_id)
         return
     pair_index = room.pending_pair
     print(f"[INFO] Vastaanotettu sana '{word}' parille {pair_index + 1}")
