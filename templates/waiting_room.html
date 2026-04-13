@@ -592,9 +592,9 @@
             <div class="option-group">
                 <div class="option-group-label" id="labelWordSource">Words</div>
                 <div class="option-group-btns">
-                    <button class="opt-btn active" data-source="manual" id="srcManualBtn">Own words</button>
+                    <button class="opt-btn" data-source="manual" id="srcManualBtn">Own words</button>
                     <button class="opt-btn" data-source="theme" id="srcThemeBtn">Theme</button>
-                    <button class="opt-btn" data-source="random" id="srcRandomBtn">Random</button>
+                    <button class="opt-btn active" data-source="random" id="srcRandomBtn">Random</button>
                 </div>
             </div>
             <div class="option-group">
@@ -1687,7 +1687,7 @@
             });
 
             // --- Round options state ---
-            let selectedWordSource = "manual"; // "manual" | "theme" | "random"
+            let selectedWordSource = "random"; // "manual" | "theme" | "random"
             let selectedCardMode = "image_word"; // "images" | "image_word" | "words"
             let selectedLang = "es";
 

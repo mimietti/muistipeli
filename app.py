@@ -2114,21 +2114,32 @@ def handle_start_custom_game(data=None):
         return
     if room.game_mode == "random":
         def run_random_game():
-            words = fetch_random_game_words(target=8)
-            if len(words) < 8:
+            # Fetch a larger pool so we can skip words that fail without showing errors
+            candidates = fetch_random_game_words(target=24)
+            print(f"[INFO] Satunnaissana-kandidaatit: {', '.join(candidates)}")
+            pair_index = 0
+            for word in candidates:
+                if pair_index >= 8:
+                    break
+                if room.card_mode in {"image_word", "words"}:
+                    pair = append_selected_lang_pair(word, pair_index, room, source_lang="en")
+                    if not pair:
+                        print(f"[INFO] Satunnainen sana ohitettu (käännös/kuva): '{word}'")
+                        continue
+                    append_lang_learning_pair_to_grid(pair, room)
+                else:
+                    if not append_word_images_to_grid(word, room):
+                        print(f"[INFO] Satunnainen sana ohitettu (Pixabay): '{word}'")
+                        continue
+                pair_index += 1
+                room.pending_pair = pair_index
+                emit_to_room("word_accepted", {"word": word, "pair": pair_index, "total_pairs": 8}, room_id=room.room_id)
+                socketio.sleep(0)
+            if pair_index < 8:
                 emit_to_room("game_setup_error", {"reason": "Satunnaisia sanoja ei löytynyt tarpeeksi. Yritä uudelleen."}, room_id=room.room_id)
+                room.grid_data.clear()
                 reset_pending_state(room)
                 return
-            print(f"[INFO] Satunnaiset sanat: {', '.join(words)}")
-            for word in words:
-                if not append_word_images_to_grid(word, room):
-                    emit_to_room("game_setup_error", {"reason": f"Pixabay-haku epäonnistui sanalle '{word}'."}, room_id=room.room_id)
-                    room.grid_data.clear()
-                    reset_pending_state(room)
-                    return
-                room.pending_pair += 1
-                emit_to_room("word_accepted", {"word": word, "pair": room.pending_pair, "total_pairs": 8}, room_id=room.room_id)
-                socketio.sleep(0)
             launch_grid_round(room)
         socketio.start_background_task(run_random_game)
         return

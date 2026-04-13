@@ -342,20 +342,25 @@
 
         function applyHighlightOrCondense() {
             if (isHighlightMode) {
-                // Highlight mode: mark matching rows, scroll to the right section
+                // Highlight mode: mark matching rows, hide non-matching sections, scroll to match
                 document.querySelectorAll("tr[data-username]").forEach(row => {
                     if (row.dataset.username === highlightUser) {
                         row.classList.add("my-row");
                     }
                 });
-                // Scroll to the matching section (match lang if present)
+                // Find the best-matching section
                 const langAttr = highlightLang ? `[data-lang="${highlightLang}"]` : "";
                 const targetSection = document.querySelector(
                     `.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"]${langAttr}`) ||
                     document.querySelector(`.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"]`) ||
-                    document.querySelector(`.section[data-play="${highlightPlay}"][data-mode="all"]`
-                );
-                if (targetSection) {
+                    document.querySelector(`.section[data-play="${highlightPlay}"][data-mode="all"]`);
+                // Hide all other sections when navigating from a finished game
+                if (highlightUser && highlightPlay && targetSection) {
+                    document.querySelectorAll(".section").forEach(sec => {
+                        sec.style.display = (sec === targetSection) ? "" : "none";
+                    });
+                    setTimeout(() => targetSection.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
+                } else if (targetSection) {
                     setTimeout(() => targetSection.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
                 }
             } else {
