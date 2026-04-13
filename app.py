@@ -1813,8 +1813,17 @@ def on_join(data):
             room_id = DEFAULT_ROOM_ID
             assign_reconnect_token_to_room(reconnect_token, room_id)
 
-    # Solo/bot: always get a private room (create new if landing on default or occupied room)
-    if (wants_solo or wants_bot) and (
+    # Solo/bot: always get a private room (create new if landing on default or occupied by OTHER players)
+    # If the existing room already belongs to this token's player, reuse it (reconnect case).
+    existing_room_belongs_to_self = (
+        room_id != DEFAULT_ROOM_ID and
+        room_id in rooms and
+        any(
+            info.get("reconnect_token") == reconnect_token
+            for info in rooms[room_id].players.values()
+        )
+    )
+    if (wants_solo or wants_bot) and not existing_room_belongs_to_self and (
         room_id == DEFAULT_ROOM_ID or
         (room_id in rooms and get_effective_human_player_items(rooms[room_id]))
     ):
