@@ -597,8 +597,8 @@
             <div class="option-group">
                 <div class="option-group-label" id="labelCardMode">Cards</div>
                 <div class="option-group-btns">
-                    <button class="opt-btn active" data-mode="images" id="cardModeImages">🖼 Images</button>
-                    <button class="opt-btn" data-mode="image_word" id="cardModeImageWord">🖼 + 📝</button>
+                    <button class="opt-btn active" data-mode="image_word" id="cardModeImageWord">🖼 + 📝</button>
+                    <button class="opt-btn" data-mode="images" id="cardModeImages">🖼 Images</button>
                     <button class="opt-btn" data-mode="words" id="cardModeWords">📝 + 📝</button>
                 </div>
             </div>
@@ -1622,7 +1622,7 @@
 
             // --- Round options state ---
             let selectedWordSource = "manual"; // "manual" | "theme"
-            let selectedCardMode = "images";   // "images" | "image_word" | "words"
+            let selectedCardMode = "image_word"; // "images" | "image_word" | "words"
             let selectedLang = "es";
 
             function updateLangPickerVisibility() {
@@ -1644,6 +1644,8 @@
                     updateLangPickerVisibility();
                 });
             });
+
+            updateLangPickerVisibility(); // show lang picker for default image_word
 
             document.querySelectorAll(".lang-flag-btn").forEach(btn => {
                 btn.addEventListener("click", () => {
