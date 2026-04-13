@@ -198,6 +198,44 @@
         #theme-progress-list {
             display: inline;
         }
+        #image-pair-tracker {
+            display: none;
+            max-width: 860px;
+            margin: 0 auto 12px;
+            padding: 0 14px;
+            box-sizing: border-box;
+        }
+        #image-pair-tracker-label {
+            color: #fff2a8;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        #image-pair-tracker-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+        }
+        .image-pair-chip {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #f4f4f4;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.1;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+        .image-pair-chip.found {
+            background: rgba(113, 240, 161, 0.14);
+            border-color: rgba(113, 240, 161, 0.8);
+            color: #b7ffca;
+            box-shadow: 0 0 0 2px rgba(113, 240, 161, 0.28);
+        }
         .card {
             width: 100%;
             aspect-ratio: 1 / 1;
@@ -387,6 +425,10 @@
         <span id="theme-progress-list"></span>
     </div>
     <div id="grid"></div>
+    <div id="image-pair-tracker">
+        <div id="image-pair-tracker-label">Find these words</div>
+        <div id="image-pair-tracker-list"></div>
+    </div>
     <div id="translation-hint" style="display:none;">
         <div id="translation-hint-label"></div>
         <div id="translation-hint-grid"></div>
@@ -405,6 +447,7 @@
                 setup_manual: '{name} is entering words for the next round...',
                 ready_label: "Ready:",
                 remaining_label: "Remaining:",
+                image_pair_tracker_label: "Find these words",
                 translation_native: "Finnish",
                 translation_english: "English",
                 game_setup_failed: "Game setup failed.",
@@ -456,6 +499,7 @@
                 setup_manual: '{name} syöttää sanoja seuraavaa kierrosta varten...',
                 ready_label: "Valmiina:",
                 remaining_label: "Löytämättä:",
+                image_pair_tracker_label: "Etsi nämä sanat",
                 translation_native: "Suomi",
                 translation_english: "Englanti",
                 game_setup_failed: "Pelin alustus epäonnistui.",
@@ -498,6 +542,24 @@
                 theme_missing: "Teema puuttuu.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta."
+            },
+            sv: {
+                image_pair_tracker_label: "Hitta de här orden",
+            },
+            de: {
+                image_pair_tracker_label: "Finde diese Wörter",
+            },
+            fr: {
+                image_pair_tracker_label: "Trouve ces mots",
+            },
+            es: {
+                image_pair_tracker_label: "Encuentra estas palabras",
+            },
+            it: {
+                image_pair_tracker_label: "Trova queste parole",
+            },
+            pt: {
+                image_pair_tracker_label: "Encontra estas palavras",
             }
         };
 
@@ -596,6 +658,9 @@
         const setupStatus = document.getElementById("setup-status");
         const themeProgress = document.getElementById("theme-progress");
         const themeProgressList = document.getElementById("theme-progress-list");
+        const imagePairTracker = document.getElementById("image-pair-tracker");
+        const imagePairTrackerLabel = document.getElementById("image-pair-tracker-label");
+        const imagePairTrackerList = document.getElementById("image-pair-tracker-list");
         const translationHintContainer = document.getElementById("translation-hint");
         const translationHintGrid = document.getElementById("translation-hint-grid");
         const translationHintLabel = document.getElementById("translation-hint-label");
@@ -835,6 +900,53 @@
             }
             themeProgressList.textContent = acceptedWords.join(", ");
             themeProgress.style.display = "block";
+        }
+
+        function shouldShowImagePairTracker() {
+            return (window.currentCardMode || "images") === "images" && Array.isArray(cards) && cards.length > 0;
+        }
+
+        function getImagePairTrackerEntries() {
+            const pairs = new Map();
+            cards.forEach((card, index) => {
+                if (!card || card.card_type === "word") return;
+                const key = card.pair_id != null
+                    ? `pair-${card.pair_id}`
+                    : `word-${String(card.display_word || card.word || index).toLowerCase()}`;
+                if (!pairs.has(key)) {
+                    pairs.set(key, {
+                        key,
+                        label: card.display_word || card.word || "",
+                        indices: []
+                    });
+                }
+                pairs.get(key).indices.push(index);
+            });
+            return Array.from(pairs.values()).filter((entry) => entry.label);
+        }
+
+        function renderImagePairTracker() {
+            if (!shouldShowImagePairTracker()) {
+                imagePairTracker.style.display = "none";
+                imagePairTrackerList.replaceChildren();
+                return;
+            }
+            imagePairTrackerLabel.textContent = t("image_pair_tracker_label");
+            const entries = getImagePairTrackerEntries();
+            if (!entries.length) {
+                imagePairTracker.style.display = "none";
+                imagePairTrackerList.replaceChildren();
+                return;
+            }
+            const chips = entries.map((entry) => {
+                const item = document.createElement("div");
+                const found = entry.indices.length > 0 && entry.indices.every((index) => matched.has(index));
+                item.className = found ? "image-pair-chip found" : "image-pair-chip";
+                item.textContent = entry.label;
+                return item;
+            });
+            imagePairTrackerList.replaceChildren(...chips);
+            imagePairTracker.style.display = "block";
         }
 
         function addAcceptedThemeWord(word) {
@@ -1107,6 +1219,7 @@
                 if (card && cards[i]) revealCardElement(card, cards[i]);
             });
             if (!isSoloMode) updatePlayers();
+            renderImagePairTracker();
             renderTranslationHint();
         });
 
@@ -1252,6 +1365,7 @@
                     }, 3000);
                 }
             });
+            renderImagePairTracker();
             showPairFoundInHint(data.indices || [], data.word);
         });
 
@@ -1267,6 +1381,7 @@
             persistSummary(data);
             clearTranslationHint();
             document.getElementById("grid").style.display = "none";
+            imagePairTracker.style.display = "none";
             document.getElementById("players").style.display = "none";
             updateRoundActionsVisibility();
             themeProgress.style.display = "none";

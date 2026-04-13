@@ -113,7 +113,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.07 (2026-04-13)"
+APP_VERSION = "Beta v0.08 (2026-04-13)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -188,6 +188,8 @@ theme_translation_cache: dict = {}
 
 TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
 SUPPORTED_LANGUAGES = {
+    "fi": {"fi": "Suomi",     "en": "Finnish",    "flag": "🇫🇮"},
+    "en": {"fi": "Englanti",  "en": "English",    "flag": "🇬🇧"},
     "es": {"fi": "Espanja",   "en": "Spanish",    "flag": "🇪🇸"},
     "sv": {"fi": "Ruotsi",    "en": "Swedish",    "flag": "🇸🇪"},
     "de": {"fi": "Saksa",     "en": "German",     "flag": "🇩🇪"},
@@ -1128,7 +1130,13 @@ def fetch_and_save_pixabay_images(word, room, required_count=2):
         return None
 
 
-def append_word_images_to_grid(word, room):
+def get_image_pair_display_word(word, room):
+    if room.game_mode in {"theme", "random"}:
+        return get_theme_display_word(word, room=room)
+    return word
+
+
+def append_word_images_to_grid(word, room, pair_index=None, display_word=None):
     search_word = word
     if room.game_mode == "manual":
         search_word = translate_word_to_english(word, "fi" if room.ui_language == "fi" else "en") or word
@@ -1139,8 +1147,15 @@ def append_word_images_to_grid(word, room):
         print(f"[INFO] Pixabay-haku epäonnistui sanalle '{word}'")
         return False
     print(f"[INFO] Pixabaysta löytyi kuvat sanalle '{word}': {result}")
+    resolved_pair_index = room.pending_pair if pair_index is None else pair_index
+    resolved_display_word = display_word or get_image_pair_display_word(word, room)
     for path in result:
-        room.grid_data.append({"image": image_source_for_card(path), "word": word})
+        room.grid_data.append({
+            "pair_id": resolved_pair_index + 1,
+            "image": image_source_for_card(path),
+            "word": word,
+            "display_word": resolved_display_word,
+        })
     return True
 
 
@@ -1184,6 +1199,7 @@ def build_theme_pair_entry(word, room):
     return {
         "type": "theme",
         "word": word,
+        "display_word": get_theme_display_word(word, room=room),
         "images": [image_source_for_card(path) for path in result]
     }
 
@@ -1208,7 +1224,8 @@ def append_pair_entry_to_grid(entry, pair_index, room):
             room.grid_data.append({
                 "pair_id": pair_index + 1,
                 "image": image,
-                "word": entry.get("word")
+                "word": entry.get("word"),
+                "display_word": entry.get("display_word") or entry.get("word"),
             })
         return
     if entry.get("type") in {"image_word", "words", "language", "spanish"}:
