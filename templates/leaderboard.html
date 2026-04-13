@@ -95,6 +95,11 @@
         }
         .back-btn:hover { background: rgba(255,255,255,0.12); }
         .footer { margin-top: 28px; color: #444; font-size: 12px; }
+        tr.my-row td { background: rgba(124, 245, 138, 0.12); }
+        tr.my-row .name { color: #7cf58a; }
+        tr.my-row .rank { color: #7cf58a; }
+        .show-all-link { color: #7cf58a; text-decoration: none; font-size: 13px; display: block; text-align: center; padding: 10px 0 4px; }
+        .show-all-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -125,7 +130,7 @@
             ("image_word", solo_top.image_word,  "mode_image_word", "🖼📝"),
             ("words",      solo_top.words,       "mode_words",      "📝📝")
         ] %}
-        <div class="section">
+        <div class="section" data-play="solo" data-mode="{{ cm }}">
             <div class="section-title">{{ icon }} <span class="section-label" data-key="{{ title_key }}">{{ title_key }}</span></div>
             <div class="board">
                 {% if rows %}
@@ -141,7 +146,7 @@
                     </thead>
                     <tbody>
                         {% for row in rows %}
-                        <tr>
+                        <tr data-username="{{ row[0] }}">
                             <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
                             <td class="name">{{ row[0] }}</td>
                             <td class="dim">{{ (row[1] // 60)|string + ":" + "%02d"|format(row[1] % 60) if row[1] is not none else "–" }}</td>
@@ -164,7 +169,7 @@
             ("image_word", bot_top.image_word,  "mode_image_word", "🖼📝"),
             ("words",      bot_top.words,       "mode_words",      "📝📝")
         ] %}
-        <div class="section">
+        <div class="section" data-play="bot" data-mode="{{ cm }}">
             <div class="section-title">{{ icon }} <span class="section-label" data-key="{{ title_key }}">{{ title_key }}</span></div>
             <div class="board">
                 {% if rows %}
@@ -180,7 +185,7 @@
                     </thead>
                     <tbody>
                         {% for row in rows %}
-                        <tr>
+                        <tr data-username="{{ row[0] }}">
                             <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
                             <td class="name">{{ row[0] }}</td>
                             <td class="total">{{ row[1] }}</td>
@@ -196,6 +201,36 @@
             </div>
         </div>
         {% endfor %}
+
+        <div class="group-title" id="multiGroupTitle" style="margin-top:28px;">Multiplayer</div>
+        <div class="section" data-play="multi" data-mode="all">
+            <div class="board">
+                {% if multi_top %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th class="th-name" style="text-align:left;">Player</th>
+                            <th class="th-wins">Wins</th>
+                            <th class="th-rounds">Rounds</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in multi_top %}
+                        <tr data-username="{{ row[0] }}">
+                            <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+                            <td class="name">{{ row[0] }}</td>
+                            <td class="total">{{ row[1] }}</td>
+                            <td class="dim">{{ row[2] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty">–</div>
+                {% endif %}
+            </div>
+        </div>
 
         {% endif %}
 
@@ -213,34 +248,54 @@
                 th_name: "Player", th_time: "Time", th_mistakes: "Mistakes", th_total: "Total",
                 mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word",
                 noDb: "Leaderboard not available.", newGame: "▶ New game", back: "← Back to start",
-                solo_group: "Solo", bot_group: "vs Bot", th_pairs: "Pairs"
+                solo_group: "Solo", bot_group: "vs Bot", th_pairs: "Pairs",
+                multi_group: "Multiplayer", th_wins: "Wins", th_rounds: "Rounds"
             },
             fi: {
                 title: "Tulostaulu", subtitle: "Solo — 10 nopeinta, järjestetty kokonaisajan mukaan",
+                best_title: "Parhaat tulokset", best_subtitle: "Top 3 per pelityyppi",
                 th_name: "Pelaaja", th_time: "Aika", th_mistakes: "Virheet", th_total: "Yhteensä",
                 mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana",
                 noDb: "Tulostaulu ei käytössä.", newGame: "▶ Uusi peli", back: "← Takaisin alkuun",
-                solo_group: "Solo", bot_group: "vs Botti", th_pairs: "Pareja"
+                solo_group: "Solo", bot_group: "vs Botti", th_pairs: "Pareja",
+                multi_group: "Moninpeli", th_wins: "Voitot", th_rounds: "Erät",
+                show_all: "Näytä kaikki →"
             },
         };
+
+        // Extend en with missing keys
+        tr.en.best_title = "The best of the best";
+        tr.en.best_subtitle = "Top 3 per game type";
+        tr.en.show_all = "Show all →";
 
         const UI_LANGS = ["en","fi","sv","de","fr","es","it","pt"];
         function T(lang) { return tr[lang] || tr.en; }
         function getLang() { const s = localStorage.getItem("ui_language"); return UI_LANGS.includes(s) ? s : "en"; }
 
+        // --- URL params ---
+        const params = new URLSearchParams(location.search);
+        const highlightUser = params.get("highlight") || "";
+        const highlightMode = params.get("mode") || "";
+        const highlightPlay = params.get("play") || "";
+        const showAll = params.get("showall") === "1";
+        const isHighlightMode = Boolean(highlightUser) || showAll;
+
         function applyLang(lang) {
             localStorage.setItem("ui_language", lang);
             document.getElementById("uiLangSelect").value = lang;
             const t = T(lang);
-            document.getElementById("pageTitle").textContent = t.title;
-            document.getElementById("pageSubtitle").textContent = t.subtitle;
-            document.title = t.title;
+            document.getElementById("pageTitle").textContent = isHighlightMode ? t.title : t.best_title;
+            document.getElementById("pageSubtitle").textContent = isHighlightMode ? t.subtitle : t.best_subtitle;
+            document.title = isHighlightMode ? t.title : t.best_title;
             const el = (id) => document.getElementById(id);
             if (el("backBtn")) el("backBtn").textContent = t.back;
             if (el("newGameBtn")) el("newGameBtn").textContent = t.newGame;
             if (el("soloGroupTitle")) el("soloGroupTitle").textContent = t.solo_group;
             if (el("botGroupTitle")) el("botGroupTitle").textContent = t.bot_group;
+            if (el("multiGroupTitle")) el("multiGroupTitle").textContent = t.multi_group;
             document.querySelectorAll(".th-pairs").forEach(e => e.textContent = t.th_pairs);
+            document.querySelectorAll(".th-wins").forEach(e => e.textContent = t.th_wins);
+            document.querySelectorAll(".th-rounds").forEach(e => e.textContent = t.th_rounds);
             if (el("noDbText")) el("noDbText").textContent = t.noDb;
             document.querySelectorAll(".th-name").forEach(e => e.textContent = t.th_name);
             document.querySelectorAll(".th-time").forEach(e => e.textContent = t.th_time);
@@ -249,10 +304,51 @@
             document.querySelectorAll(".section-label").forEach(e => {
                 e.textContent = t[e.dataset.key] || e.dataset.key;
             });
+            document.querySelectorAll(".show-all-link").forEach(e => { e.textContent = t.show_all; });
+        }
+
+        function applyHighlightOrCondense() {
+            if (isHighlightMode) {
+                // Highlight mode: mark matching rows, scroll to the right section
+                document.querySelectorAll("tr[data-username]").forEach(row => {
+                    if (row.dataset.username === highlightUser) {
+                        row.classList.add("my-row");
+                    }
+                });
+                // Scroll to the matching section
+                const targetSection = document.querySelector(
+                    `.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"], .section[data-play="${highlightPlay}"][data-mode="all"]`
+                );
+                if (targetSection) {
+                    setTimeout(() => targetSection.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
+                }
+            } else {
+                // Condensed "best of best" mode: show top 3, add "show all" link
+                document.querySelectorAll(".section").forEach(section => {
+                    const rows = section.querySelectorAll("tbody tr");
+                    let anyHidden = false;
+                    rows.forEach((row, i) => {
+                        if (i >= 3) { row.style.display = "none"; anyHidden = true; }
+                    });
+                    if (anyHidden) {
+                        const board = section.querySelector(".board");
+                        if (board) {
+                            const play = section.dataset.play;
+                            const mode = section.dataset.mode;
+                            const link = document.createElement("a");
+                            link.className = "show-all-link";
+                            link.href = `/leaderboard?play=${play}&mode=${mode}&showall=1`;
+                            link.textContent = "Show all →";
+                            board.appendChild(link);
+                        }
+                    }
+                });
+            }
         }
 
         document.getElementById("uiLangSelect").addEventListener("change", e => applyLang(e.target.value));
         applyLang(getLang());
+        applyHighlightOrCondense();
     </script>
 </body>
 </html>

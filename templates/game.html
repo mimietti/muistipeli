@@ -1226,48 +1226,13 @@
             const points = data.points || {};
             const wins = data.round_win || {};
 
-            // Solo mode: show time + mistakes + penalty + total
-            if (isSoloMode) {
-                const PENALTY_PER_MISTAKE = 3;
-                const soloDoneSecs = data.solo_time != null ? data.solo_time : soloElapsed;
-                const soloMistakesFinal = data.solo_mistakes != null ? data.solo_mistakes : soloMistakes;
-                const penaltySecs = soloMistakesFinal * PENALTY_PER_MISTAKE;
-                const totalSecs = soloDoneSecs + penaltySecs;
-                results.innerHTML = `
-                    <div class="results-section">
-                        <div class="results-heading" style="font-size:22px; margin-bottom:20px;">🏁 ${formatSoloTime(totalSecs)}</div>
-                        <table style="width:100%; max-width:320px; margin:0 auto; font-size:16px; border-collapse:collapse;">
-                            <tr>
-                                <td style="padding:8px 12px; color:#9ec4a0; text-align:left;">${t("solo_result_time")}</td>
-                                <td style="padding:8px 12px; font-weight:700; text-align:right;">${formatSoloTime(soloDoneSecs)}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:8px 12px; color:#9ec4a0; text-align:left;">${t("solo_result_mistakes")}</td>
-                                <td style="padding:8px 12px; font-weight:700; text-align:right;">${soloMistakesFinal}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding:8px 12px; color:#ffb84d; text-align:left;">${t("solo_result_penalty", { secs: penaltySecs })}</td>
-                                <td style="padding:8px 12px; font-weight:700; color:#ffb84d; text-align:right;">+${formatSoloTime(penaltySecs)}</td>
-                            </tr>
-                            <tr style="border-top:1px solid rgba(255,255,255,0.12);">
-                                <td style="padding:10px 12px; font-weight:700; text-align:left;">${t("solo_result_total")}</td>
-                                <td style="padding:10px 12px; font-weight:700; font-size:20px; color:#7cf58a; text-align:right;">${formatSoloTime(totalSecs)}</td>
-                            </tr>
-                        </table>
-                        <p style="margin:16px 0 0; font-size:13px; color:#6a886a; line-height:1.5;">${t("solo_mistake_explanation")}</p>
-                    </div>
-                    <br>
-                    <div class="results-actions">
-                        <button id="restart-manual-btn" class="results-btn mode">${t("enter_words")}</button>
-                        <button id="restart-theme-btn" class="results-btn mode">${t("enter_theme")}</button>
-                    </div>
-                    <div class="results-actions">
-                        <button id="end-game-btn" class="results-btn end">${t("exit_game")}</button>
-                    </div>`;
-                document.body.appendChild(results);
-                document.getElementById("end-game-btn").addEventListener("click", () => navigateTo("/summary"));
-                document.getElementById("restart-manual-btn").addEventListener("click", () => { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "manual" })); } catch (_) {} navigateTo("/waiting"); });
-                document.getElementById("restart-theme-btn").addEventListener("click", () => { const theme = prompt(t("prompt_theme"), ""); if (theme) { try { sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: "theme", theme })); } catch (_) {} navigateTo("/waiting"); } });
+            // Solo/bot mode: navigate to leaderboard with highlight
+            const isBotMode = (localStorage.getItem("play_mode") || "") === "bot";
+            if (isSoloMode || isBotMode) {
+                const username = encodeURIComponent(localStorage.getItem("username") || "");
+                const cardMode = encodeURIComponent(window.currentCardMode || "images");
+                const play = isBotMode ? "bot" : "solo";
+                navigateTo(`/leaderboard?highlight=${username}&mode=${cardMode}&play=${play}`);
                 return;
             }
 
@@ -1305,7 +1270,11 @@
             document.getElementById("restart-manual-btn")?.addEventListener("click", () => queueNextRound("manual"));
             document.getElementById("restart-theme-btn")?.addEventListener("click", () => queueNextRound("theme"));
             document.getElementById("restart-lang-btn")?.addEventListener("click", () => queueNextRound("language"));
-            document.getElementById("end-game-btn")?.addEventListener("click", endGame);
+            document.getElementById("end-game-btn")?.addEventListener("click", () => {
+                const username = encodeURIComponent(localStorage.getItem("username") || "");
+                const cardMode = encodeURIComponent(window.currentCardMode || "images");
+                navigateTo(`/leaderboard?highlight=${username}&mode=${cardMode}&play=multi`);
+            });
 
             const winnerMessage = document.getElementById("winner-message");
             if (winnerMessage) winnerMessage.style.display = "none";

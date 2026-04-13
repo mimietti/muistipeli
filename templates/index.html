@@ -173,7 +173,7 @@
         <div id="lobbyStatus" class="is-empty"></div>
         <div id="error"></div>
         <div style="margin-top:18px;">
-            <a href="/leaderboard" id="leaderboardLink" style="color:#7cf58a; font-size:15px; text-decoration:none;">🏆 Leaderboard</a>
+            <a href="/leaderboard" id="leaderboardLink" style="color:#7cf58a; font-size:15px; text-decoration:none;">🏆 The best of the best</a>
         </div>
         <div class="footer-credit">© Michael Miettinen</div>
     </div>
@@ -193,7 +193,8 @@
                 reconnect_missing: "Reconnect token missing! Reload the page.",
                 connect_error: "Could not connect to the server.",
                 waiting_for_you: "{name} is waiting for you to play.",
-                waiting_other_player: "Waiting for another player..."
+                waiting_other_player: "Waiting for another player...",
+                best_of_best: "🏆 The best of the best"
             },
             fi: {
                 page_title: "Tervetuloa muistipeliin!!!",
@@ -207,7 +208,8 @@
                 reconnect_missing: "Reconnect_token puuttuu! Lataa sivu uudelleen.",
                 connect_error: "Yhteyttä ei saatu palvelimeen.",
                 waiting_for_you: "{name} odottaa sinua pelaamaan.",
-                waiting_other_player: "Odotetaan toista pelaajaa..."
+                waiting_other_player: "Odotetaan toista pelaajaa...",
+                best_of_best: "🏆 Parhaat tulokset"
             }
         };
 
@@ -246,6 +248,8 @@
                 button.setAttribute("aria-pressed", active ? "true" : "false");
             });
             document.querySelector(".footer-credit").textContent = `© Michael Miettinen • ${APP_VERSION}`;
+            const leaderboardLink = document.getElementById("leaderboardLink");
+            if (leaderboardLink) leaderboardLink.textContent = t("best_of_best");
             renderLobbyStatus(window.currentLobbyPlayers || []);
         }
 
@@ -309,6 +313,9 @@
         try { window.socket = socket; } catch (_) {}
         setLanguage(getLanguage());
         applyTranslations();
+        // Pre-fill name if remembered
+        const savedName = localStorage.getItem("username");
+        if (savedName) document.getElementById("nameInput").value = savedName;
 
         function navigateTo(path) {
             try { socket.disconnect(); } catch (_) {}

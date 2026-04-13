@@ -66,6 +66,9 @@ def _init_db():
                 cur.execute("""
                     ALTER TABLE results ADD COLUMN IF NOT EXISTS card_mode TEXT
                 """)
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS round_won INT
+                """)
         print("[DB] Tietokanta alustettu.")
     except Exception as e:
         print(f"[DB] Alustusvirhe: {e}")
@@ -76,7 +79,7 @@ _init_db()
 
 SOLO_PENALTY_PER_MISTAKE = 3  # seconds
 
-def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None):
+def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None):
     total_time = None
     if time_secs is not None and mistakes is not None:
         total_time = time_secs + mistakes * SOLO_PENALTY_PER_MISTAKE
@@ -87,9 +90,9 @@ def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mis
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode)
+                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won)
                 )
     except Exception as e:
         print(f"[DB] Tallennusvirhe: {e}")
@@ -108,7 +111,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.0.4 (2026-04-12)"
+APP_VERSION = "Beta v0.0.4 (2026-04-13)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -1213,11 +1216,14 @@ def conclude_round(winner_label, room, surrendered_by=None):
                         card_mode=room.card_mode or "images"
                     )
                 else:
+                    round_won = 1 if name == winner_label else 0
                     save_result(
                         username=name,
                         play_mode="multiplayer",
                         game_mode=room.game_mode,
-                        pairs_found=room.player_points.get(name, 0)
+                        pairs_found=room.player_points.get(name, 0),
+                        round_won=round_won,
+                        card_mode=room.card_mode or "images"
                     )
 
     emit_to_room("game_over", {
@@ -1643,6 +1649,7 @@ def leaderboard():
     conn = _get_db()
     solo_top = {"images": [], "image_word": [], "words": []}
     bot_top = {"images": [], "image_word": [], "words": []}
+    multi_top = []
     if conn:
         try:
             with conn.cursor() as cur:
@@ -1665,6 +1672,15 @@ def leaderboard():
                         LIMIT 10
                     """, (cm, cm))
                     bot_top[cm] = cur.fetchall()
+                cur.execute("""
+                    SELECT username, SUM(round_won) AS wins, COUNT(*) AS rounds
+                    FROM results
+                    WHERE play_mode = 'multiplayer' AND round_won IS NOT NULL
+                    GROUP BY username
+                    ORDER BY wins DESC, rounds ASC
+                    LIMIT 10
+                """)
+                multi_top = cur.fetchall()
         except Exception as e:
             print(f"[DB] Leaderboard query error: {e}")
         finally:
@@ -1673,6 +1689,7 @@ def leaderboard():
     return render_template("leaderboard.html",
                            solo_top=solo_top,
                            bot_top=bot_top,
+                           multi_top=multi_top,
                            db_available=bool(conn),
                            SOLO_PENALTY=SOLO_PENALTY_PER_MISTAKE)
 
