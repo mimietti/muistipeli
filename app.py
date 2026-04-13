@@ -111,7 +111,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.0.4 (2026-04-13)"
+APP_VERSION = "Beta v0.0.5 (2026-04-13)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -1647,6 +1647,7 @@ def summary():
 @app.route("/leaderboard")
 def leaderboard():
     conn = _get_db()
+    db_available = conn is not None
     solo_top = {"images": [], "image_word": [], "words": []}
     bot_top = {"images": [], "image_word": [], "words": []}
     multi_top = []
@@ -1690,7 +1691,7 @@ def leaderboard():
                            solo_top=solo_top,
                            bot_top=bot_top,
                            multi_top=multi_top,
-                           db_available=bool(conn),
+                           db_available=db_available,
                            SOLO_PENALTY=SOLO_PENALTY_PER_MISTAKE)
 
 

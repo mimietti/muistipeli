@@ -19,21 +19,11 @@
         h1 { font-size: 30px; margin-bottom: 4px; }
         .subtitle { color: #6a7a6a; font-size: 14px; margin-bottom: 24px; }
         .lang-picker { display: flex; justify-content: center; margin-bottom: 24px; }
-        .lang-select {
-            background: rgba(255,255,255,0.06);
-            color: #fff;
-            border: 1px solid rgba(255,255,255,0.14);
-            border-radius: 10px;
-            padding: 7px 14px;
-            font-size: 15px;
-            cursor: pointer;
-            outline: none;
-            appearance: none;
-            -webkit-appearance: none;
-            min-width: 150px;
-            text-align: center;
-        }
-        .lang-select option { background: #1a1a1a; color: #fff; }
+        .flag-toggle { display: inline-flex; gap: 8px; padding: 5px; border-radius: 999px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); }
+        .flag-btn { width: 44px; height: 33px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid transparent; background: transparent; cursor: pointer; transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease; }
+        .flag-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.05); }
+        .flag-btn.is-active { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.16); }
+        .flag-svg { width: 26px; height: 18px; display: block; }
         .section {
             margin-bottom: 24px;
         }
@@ -108,16 +98,32 @@
         <p class="subtitle" id="pageSubtitle">Solo — top 10, sorted by total time</p>
 
         <div class="lang-picker">
-            <select id="uiLangSelect" class="lang-select" aria-label="UI language">
-                <option value="en">🇬🇧 English</option>
-                <option value="fi">🇫🇮 Suomi</option>
-                <option value="sv">🇸🇪 Svenska</option>
-                <option value="de">🇩🇪 Deutsch</option>
-                <option value="fr">🇫🇷 Français</option>
-                <option value="es">🇪🇸 Español</option>
-                <option value="it">🇮🇹 Italiano</option>
-                <option value="pt">🇵🇹 Português</option>
-            </select>
+            <div class="flag-toggle" role="group" aria-label="UI language">
+                <button type="button" class="flag-btn" data-lang="fi" aria-label="Suomi" title="Suomi">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="18" height="11" fill="#fff"/><rect x="5" width="3" height="11" fill="#003580"/><rect y="4" width="18" height="3" fill="#003580"/></svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="en" aria-label="English" title="English">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="18" height="11" fill="#012169"/><path d="M0 0l18 11M18 0L0 11" stroke="#fff" stroke-width="2.4"/><path d="M0 0l18 11M18 0L0 11" stroke="#C8102E" stroke-width="1.2"/><path d="M9 0v11M0 5.5h18" stroke="#fff" stroke-width="3.6"/><path d="M9 0v11M0 5.5h18" stroke="#C8102E" stroke-width="2"/></svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="sv" aria-label="Svenska" title="Svenska">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="18" height="11" fill="#006AA7"/><rect x="5" width="3" height="11" fill="#FECC02"/><rect y="4" width="18" height="3" fill="#FECC02"/></svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="de" aria-label="Deutsch" title="Deutsch">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="18" height="3.67" fill="#000"/><rect y="3.67" width="18" height="3.67" fill="#DD0000"/><rect y="7.33" width="18" height="3.67" fill="#FFCE00"/></svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="fr" aria-label="Français" title="Français">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="6" height="11" fill="#002395"/><rect x="6" width="6" height="11" fill="#fff"/><rect x="12" width="6" height="11" fill="#ED2939"/></svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="es" aria-label="Español" title="Español">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="18" height="11" fill="#c60b1e"/><rect y="2.5" width="18" height="6" fill="#ffc400"/></svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="it" aria-label="Italiano" title="Italiano">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="6" height="11" fill="#009246"/><rect x="6" width="6" height="11" fill="#fff"/><rect x="12" width="6" height="11" fill="#CE2B37"/></svg>
+                </button>
+                <button type="button" class="flag-btn" data-lang="pt" aria-label="Português" title="Português">
+                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true"><rect width="7" height="11" fill="#006600"/><rect x="7" width="11" height="11" fill="#FF0000"/><circle cx="7" cy="5.5" r="2.2" fill="#FFD700" stroke="#006600" stroke-width="0.5"/></svg>
+                </button>
+            </div>
         </div>
 
         {% if not db_available %}
@@ -282,7 +288,9 @@
 
         function applyLang(lang) {
             localStorage.setItem("ui_language", lang);
-            document.getElementById("uiLangSelect").value = lang;
+            document.querySelectorAll(".flag-btn[data-lang]").forEach(btn => {
+                btn.classList.toggle("is-active", btn.dataset.lang === lang);
+            });
             const t = T(lang);
             document.getElementById("pageTitle").textContent = isHighlightMode ? t.title : t.best_title;
             document.getElementById("pageSubtitle").textContent = isHighlightMode ? t.subtitle : t.best_subtitle;
@@ -346,7 +354,9 @@
             }
         }
 
-        document.getElementById("uiLangSelect").addEventListener("change", e => applyLang(e.target.value));
+        document.querySelectorAll(".flag-btn[data-lang]").forEach(btn => {
+            btn.addEventListener("click", () => applyLang(btn.dataset.lang));
+        });
         applyLang(getLang());
         applyHighlightOrCondense();
     </script>
