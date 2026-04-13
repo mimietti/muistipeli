@@ -69,6 +69,9 @@ def _init_db():
                 cur.execute("""
                     ALTER TABLE results ADD COLUMN IF NOT EXISTS round_won INT
                 """)
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS target_language TEXT
+                """)
         print("[DB] Tietokanta alustettu.")
     except Exception as e:
         print(f"[DB] Alustusvirhe: {e}")
@@ -79,7 +82,7 @@ _init_db()
 
 SOLO_PENALTY_PER_MISTAKE = 3  # seconds
 
-def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None):
+def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None, target_language=None):
     total_time = None
     if time_secs is not None and mistakes is not None:
         total_time = time_secs + mistakes * SOLO_PENALTY_PER_MISTAKE
@@ -90,9 +93,9 @@ def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mis
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won)
+                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language)
                 )
     except Exception as e:
         print(f"[DB] Tallennusvirhe: {e}")
@@ -111,7 +114,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.0.5 (2026-04-13)"
+APP_VERSION = "Beta v0.0.6 (2026-04-13)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -1191,6 +1194,8 @@ def conclude_round(winner_label, room, surrendered_by=None):
 
     # --- Save to leaderboard ---
     if not surrendered_by:
+        card_mode = room.card_mode or "images"
+        target_lang = room.target_language if card_mode != "images" else None
         if is_solo(room) and room.player_order:
             save_result(
                 username=room.player_order[0],
@@ -1199,7 +1204,8 @@ def conclude_round(winner_label, room, surrendered_by=None):
                 pairs_found=room.player_points.get(room.player_order[0], 0),
                 time_secs=solo_time,
                 mistakes=room.solo_mistakes,
-                card_mode=room.card_mode or "images"
+                card_mode=card_mode,
+                target_language=target_lang
             )
         else:
             for name in room.player_order:
@@ -1213,7 +1219,8 @@ def conclude_round(winner_label, room, surrendered_by=None):
                         pairs_found=room.player_points.get(name, 0),
                         time_secs=bot_time,
                         mistakes=room.solo_mistakes,
-                        card_mode=room.card_mode or "images"
+                        card_mode=card_mode,
+                        target_language=target_lang
                     )
                 else:
                     round_won = 1 if name == winner_label else 0
@@ -1223,7 +1230,8 @@ def conclude_round(winner_label, room, surrendered_by=None):
                         game_mode=room.game_mode,
                         pairs_found=room.player_points.get(name, 0),
                         round_won=round_won,
-                        card_mode=room.card_mode or "images"
+                        card_mode=card_mode,
+                        target_language=target_lang
                     )
 
     emit_to_room("game_over", {
@@ -1648,31 +1656,51 @@ def summary():
 def leaderboard():
     conn = _get_db()
     db_available = conn is not None
-    solo_top = {"images": [], "image_word": [], "words": []}
-    bot_top = {"images": [], "image_word": [], "words": []}
+    # sections: list of {play, card_mode, target_language, rows}
+    sections = []
     multi_top = []
     if conn:
         try:
             with conn.cursor() as cur:
-                for cm in ("images", "image_word", "words"):
-                    cur.execute("""
-                        SELECT username, time_secs, mistakes, total_time
+                for play_mode, query in [
+                    ("solo",
+                     """SELECT card_mode, COALESCE(target_language,'') AS tl,
+                               username, time_secs, mistakes, total_time
                         FROM results
                         WHERE play_mode = 'solo' AND total_time IS NOT NULL
-                          AND (card_mode = %s OR (card_mode IS NULL AND %s = 'images'))
-                        ORDER BY total_time ASC
-                        LIMIT 10
-                    """, (cm, cm))
-                    solo_top[cm] = cur.fetchall()
-                    cur.execute("""
-                        SELECT username, pairs_found, mistakes, time_secs
+                        ORDER BY card_mode, tl, total_time ASC"""),
+                    ("bot",
+                     """SELECT card_mode, COALESCE(target_language,'') AS tl,
+                               username, pairs_found, mistakes, time_secs
                         FROM results
                         WHERE play_mode = 'bot' AND pairs_found IS NOT NULL
-                          AND (card_mode = %s OR (card_mode IS NULL AND %s = 'images'))
-                        ORDER BY pairs_found DESC, mistakes ASC NULLS LAST, time_secs ASC NULLS LAST
-                        LIMIT 10
-                    """, (cm, cm))
-                    bot_top[cm] = cur.fetchall()
+                        ORDER BY card_mode, tl, pairs_found DESC, mistakes ASC NULLS LAST, time_secs ASC NULLS LAST"""),
+                ]:
+                    cur.execute(query)
+                    rows_all = cur.fetchall()
+                    # group by (card_mode, target_language), keep top 10 each
+                    grouped = {}
+                    for row in rows_all:
+                        cm = row[0] or "images"
+                        tl = row[1] or ""
+                        key = (cm, tl)
+                        if key not in grouped:
+                            grouped[key] = []
+                        if len(grouped[key]) < 10:
+                            grouped[key].append(row[2:])  # drop cm+tl prefix
+                    # define canonical order
+                    cm_order = ["images", "image_word", "words"]
+                    seen = set()
+                    for cm in cm_order:
+                        for key in sorted(grouped.keys()):
+                            if key[0] == cm and key not in seen:
+                                seen.add(key)
+                                sections.append({
+                                    "play": play_mode,
+                                    "card_mode": key[0],
+                                    "target_language": key[1],
+                                    "rows": grouped[key]
+                                })
                 cur.execute("""
                     SELECT username, SUM(round_won) AS wins, COUNT(*) AS rounds
                     FROM results
@@ -1688,8 +1716,7 @@ def leaderboard():
             conn.close()
 
     return render_template("leaderboard.html",
-                           solo_top=solo_top,
-                           bot_top=bot_top,
+                           sections=sections,
                            multi_top=multi_top,
                            db_available=db_available,
                            SOLO_PENALTY=SOLO_PENALTY_PER_MISTAKE)

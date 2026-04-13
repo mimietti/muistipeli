@@ -1232,7 +1232,9 @@
                 const username = encodeURIComponent(localStorage.getItem("username") || "");
                 const cardMode = encodeURIComponent(window.currentCardMode || "images");
                 const play = isBotMode ? "bot" : "solo";
-                navigateTo(`/leaderboard?highlight=${username}&mode=${cardMode}&play=${play}`);
+                const targetLang = (window.currentCardMode !== "images") ? encodeURIComponent(currentTargetLanguage || "") : "";
+                const langParam = targetLang ? `&lang=${targetLang}` : "";
+                navigateTo(`/leaderboard?highlight=${username}&mode=${cardMode}&play=${play}${langParam}`);
                 return;
             }
 
@@ -1273,7 +1275,9 @@
             document.getElementById("end-game-btn")?.addEventListener("click", () => {
                 const username = encodeURIComponent(localStorage.getItem("username") || "");
                 const cardMode = encodeURIComponent(window.currentCardMode || "images");
-                navigateTo(`/leaderboard?highlight=${username}&mode=${cardMode}&play=multi`);
+                const targetLang = (window.currentCardMode !== "images") ? encodeURIComponent(currentTargetLanguage || "") : "";
+                const langParam = targetLang ? `&lang=${targetLang}` : "";
+                navigateTo(`/leaderboard?highlight=${username}&mode=${cardMode}&play=multi${langParam}`);
             });
 
             const winnerMessage = document.getElementById("winner-message");

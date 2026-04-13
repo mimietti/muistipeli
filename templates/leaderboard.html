@@ -88,6 +88,7 @@
         tr.my-row td { background: rgba(124, 245, 138, 0.12); }
         tr.my-row .name { color: #7cf58a; }
         tr.my-row .rank { color: #7cf58a; }
+        .lang-tag { font-size: 12px; font-weight: 600; color: #aaa; margin-left: 6px; vertical-align: middle; }
         .show-all-link { color: #7cf58a; text-decoration: none; font-size: 13px; display: block; text-align: center; padding: 10px 0 4px; }
         .show-all-link:hover { text-decoration: underline; }
     </style>
@@ -130,83 +131,89 @@
         <div class="board"><div class="empty" id="noDbText">Leaderboard not available.</div></div>
         {% else %}
 
+        {% set solo_sections = sections | selectattr("play", "equalto", "solo") | list %}
+        {% set bot_sections  = sections | selectattr("play", "equalto", "bot")  | list %}
+
+        {% set cm_icons = {"images": "🖼", "image_word": "🖼📝", "words": "📝📝"} %}
+        {% set cm_keys  = {"images": "mode_images", "image_word": "mode_image_word", "words": "mode_words"} %}
+
         <div class="group-title" id="soloGroupTitle">Solo</div>
-        {% for cm, rows, title_key, icon in [
-            ("images",     solo_top.images,     "mode_images",     "🖼"),
-            ("image_word", solo_top.image_word,  "mode_image_word", "🖼📝"),
-            ("words",      solo_top.words,       "mode_words",      "📝📝")
-        ] %}
-        <div class="section" data-play="solo" data-mode="{{ cm }}">
-            <div class="section-title">{{ icon }} <span class="section-label" data-key="{{ title_key }}">{{ title_key }}</span></div>
-            <div class="board">
-                {% if rows %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th class="th-name" style="text-align:left;">Player</th>
-                            <th class="th-time">Time</th>
-                            <th class="th-mistakes">Mistakes</th>
-                            <th class="th-total">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in rows %}
-                        <tr data-username="{{ row[0] }}">
-                            <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
-                            <td class="name">{{ row[0] }}</td>
-                            <td class="dim">{{ (row[1] // 60)|string + ":" + "%02d"|format(row[1] % 60) if row[1] is not none else "–" }}</td>
-                            <td class="dim">{{ row[2] if row[2] is not none else "–" }}</td>
-                            <td class="total">{{ (row[3] // 60)|string + ":" + "%02d"|format(row[3] % 60) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <div class="empty section-empty">–</div>
-                {% endif %}
+        {% if solo_sections %}
+            {% for sec in solo_sections %}
+            <div class="section" data-play="solo" data-mode="{{ sec.card_mode }}" data-lang="{{ sec.target_language }}">
+                <div class="section-title">
+                    {{ cm_icons[sec.card_mode] }}
+                    <span class="section-label" data-key="{{ cm_keys[sec.card_mode] }}">{{ cm_keys[sec.card_mode] }}</span>
+                    {% if sec.target_language %}<span class="lang-tag" data-lang="{{ sec.target_language }}"></span>{% endif %}
+                </div>
+                <div class="board">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th class="th-name" style="text-align:left;">Player</th>
+                                <th class="th-time">Time</th>
+                                <th class="th-mistakes">Mistakes</th>
+                                <th class="th-total">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in sec.rows %}
+                            <tr data-username="{{ row[0] }}">
+                                <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+                                <td class="name">{{ row[0] }}</td>
+                                <td class="dim">{{ (row[1] // 60)|string + ":" + "%02d"|format(row[1] % 60) if row[1] is not none else "–" }}</td>
+                                <td class="dim">{{ row[2] if row[2] is not none else "–" }}</td>
+                                <td class="total">{{ (row[3] // 60)|string + ":" + "%02d"|format(row[3] % 60) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        {% endfor %}
+            {% endfor %}
+        {% else %}
+        <div class="board"><div class="empty">–</div></div>
+        {% endif %}
 
         <div class="group-title" id="botGroupTitle" style="margin-top:28px;">vs Bot</div>
-        {% for cm, rows, title_key, icon in [
-            ("images",     bot_top.images,     "mode_images",     "🖼"),
-            ("image_word", bot_top.image_word,  "mode_image_word", "🖼📝"),
-            ("words",      bot_top.words,       "mode_words",      "📝📝")
-        ] %}
-        <div class="section" data-play="bot" data-mode="{{ cm }}">
-            <div class="section-title">{{ icon }} <span class="section-label" data-key="{{ title_key }}">{{ title_key }}</span></div>
-            <div class="board">
-                {% if rows %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th class="th-name" style="text-align:left;">Player</th>
-                            <th class="th-pairs">Pairs</th>
-                            <th class="th-mistakes">Mistakes</th>
-                            <th class="th-time">Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in rows %}
-                        <tr data-username="{{ row[0] }}">
-                            <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
-                            <td class="name">{{ row[0] }}</td>
-                            <td class="total">{{ row[1] }}</td>
-                            <td class="dim">{{ row[2] if row[2] is not none else "–" }}</td>
-                            <td class="dim">{{ (row[3] // 60)|string + ":" + "%02d"|format(row[3] % 60) if row[3] is not none else "–" }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <div class="empty section-empty">–</div>
-                {% endif %}
+        {% if bot_sections %}
+            {% for sec in bot_sections %}
+            <div class="section" data-play="bot" data-mode="{{ sec.card_mode }}" data-lang="{{ sec.target_language }}">
+                <div class="section-title">
+                    {{ cm_icons[sec.card_mode] }}
+                    <span class="section-label" data-key="{{ cm_keys[sec.card_mode] }}">{{ cm_keys[sec.card_mode] }}</span>
+                    {% if sec.target_language %}<span class="lang-tag" data-lang="{{ sec.target_language }}"></span>{% endif %}
+                </div>
+                <div class="board">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th class="th-name" style="text-align:left;">Player</th>
+                                <th class="th-pairs">Pairs</th>
+                                <th class="th-mistakes">Mistakes</th>
+                                <th class="th-time">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in sec.rows %}
+                            <tr data-username="{{ row[0] }}">
+                                <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+                                <td class="name">{{ row[0] }}</td>
+                                <td class="total">{{ row[1] }}</td>
+                                <td class="dim">{{ row[2] if row[2] is not none else "–" }}</td>
+                                <td class="dim">{{ (row[3] // 60)|string + ":" + "%02d"|format(row[3] % 60) if row[3] is not none else "–" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        {% endfor %}
+            {% endfor %}
+        {% else %}
+        <div class="board"><div class="empty">–</div></div>
+        {% endif %}
 
         <div class="group-title" id="multiGroupTitle" style="margin-top:28px;">Multiplayer</div>
         <div class="section" data-play="multi" data-mode="all">
@@ -283,8 +290,23 @@
         const highlightUser = params.get("highlight") || "";
         const highlightMode = params.get("mode") || "";
         const highlightPlay = params.get("play") || "";
+        const highlightLang = params.get("lang") || "";
         const showAll = params.get("showall") === "1";
         const isHighlightMode = Boolean(highlightUser) || showAll;
+
+        const LANG_NAMES = {
+            es: { fi: "Espanja",   en: "Spanish",    sv: "Spanska",   de: "Spanisch",    fr: "Espagnol",  it: "Spagnolo",   pt: "Espanhol"   },
+            sv: { fi: "Ruotsi",    en: "Swedish",    sv: "Svenska",   de: "Schwedisch",  fr: "Suédois",   it: "Svedese",    pt: "Sueco"      },
+            de: { fi: "Saksa",     en: "German",     sv: "Tyska",     de: "Deutsch",     fr: "Allemand",  it: "Tedesco",    pt: "Alemão"     },
+            fr: { fi: "Ranska",    en: "French",     sv: "Franska",   de: "Französisch", fr: "Français",  it: "Francese",   pt: "Francês"    },
+            it: { fi: "Italia",    en: "Italian",    sv: "Italienska",de: "Italienisch", fr: "Italien",   it: "Italiano",   pt: "Italiano"   },
+            pt: { fi: "Portugali", en: "Portuguese", sv: "Portugisiska",de:"Portugiesisch",fr:"Portugais",it: "Portoghese", pt: "Português"  },
+            fi: { fi: "Suomi",     en: "Finnish",    sv: "Finska",    de: "Finnisch",    fr: "Finnois",   it: "Finlandese", pt: "Finlandês"  },
+            en: { fi: "Englanti",  en: "English",    sv: "Engelska",  de: "Englisch",    fr: "Anglais",   it: "Inglese",    pt: "Inglês"     },
+        };
+        function getLangName(code, uiLang) {
+            return (LANG_NAMES[code] || {})[uiLang] || (LANG_NAMES[code] || {}).en || code.toUpperCase();
+        }
 
         function applyLang(lang) {
             localStorage.setItem("ui_language", lang);
@@ -313,6 +335,9 @@
                 e.textContent = t[e.dataset.key] || e.dataset.key;
             });
             document.querySelectorAll(".show-all-link").forEach(e => { e.textContent = t.show_all; });
+            document.querySelectorAll(".lang-tag[data-lang]").forEach(e => {
+                e.textContent = "· " + getLangName(e.dataset.lang, lang);
+            });
         }
 
         function applyHighlightOrCondense() {
@@ -323,9 +348,12 @@
                         row.classList.add("my-row");
                     }
                 });
-                // Scroll to the matching section
+                // Scroll to the matching section (match lang if present)
+                const langAttr = highlightLang ? `[data-lang="${highlightLang}"]` : "";
                 const targetSection = document.querySelector(
-                    `.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"], .section[data-play="${highlightPlay}"][data-mode="all"]`
+                    `.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"]${langAttr}`) ||
+                    document.querySelector(`.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"]`) ||
+                    document.querySelector(`.section[data-play="${highlightPlay}"][data-mode="all"]`
                 );
                 if (targetSection) {
                     setTimeout(() => targetSection.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
@@ -343,9 +371,10 @@
                         if (board) {
                             const play = section.dataset.play;
                             const mode = section.dataset.mode;
+                            const sLang = section.dataset.lang || "";
                             const link = document.createElement("a");
                             link.className = "show-all-link";
-                            link.href = `/leaderboard?play=${play}&mode=${mode}&showall=1`;
+                            link.href = `/leaderboard?play=${play}&mode=${mode}&showall=1${sLang ? "&lang=" + sLang : ""}`;
                             link.textContent = "Show all →";
                             board.appendChild(link);
                         }
