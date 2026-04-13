@@ -56,6 +56,50 @@
         .button-row button {
             margin-top: 0;
         }
+        .mode-btn {
+            width: 88px;
+            height: 72px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 18px;
+            border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+            transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+        }
+        .mode-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 16px 32px rgba(0,0,0,0.24);
+        }
+        .mode-btn svg {
+            width: 34px;
+            height: 34px;
+            fill: currentColor;
+        }
+        .mode-btn.multiplayer {
+            background: #32cd32;
+            color: #fff;
+        }
+        .mode-btn.bot {
+            background: #2fd42f;
+            color: #fff;
+        }
+        .mode-btn.solo {
+            background: #5b9bd5;
+            color: #fff;
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
 
         #error {
             color: red;
@@ -207,9 +251,24 @@
         <input type="text" id="nameInput" placeholder="Your name" />
         <br>
         <div class="button-row">
-            <button id="joinBtn" onclick="joinGame(false)">Play with another player</button>
-            <button id="joinBotBtn" onclick="joinGame(true)">Play against bot</button>
-            <button id="joinSoloBtn" onclick="joinGame('solo')" style="background:#5b9bd5; color:#fff;">Play solo</button>
+            <button id="joinBtn" class="mode-btn multiplayer" type="button" onclick="joinGame(false)" aria-label="Play with another player" title="Play with another player">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 11a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm8 0a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7ZM2.5 20.5A5.5 5.5 0 0 1 8 15h0a5.5 5.5 0 0 1 5.5 5.5v.5h-11v-.5Zm10 0A5.5 5.5 0 0 1 18 15h0a5.5 5.5 0 0 1 5.5 5.5v.5h-11v-.5Z"/>
+                </svg>
+                <span class="sr-only" id="joinBtnText">Play with another player</span>
+            </button>
+            <button id="joinBotBtn" class="mode-btn bot" type="button" onclick="joinGame(true)" aria-label="Play against bot" title="Play against bot">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M11 2h2v2h3a3 3 0 0 1 3 3v3.5A3.5 3.5 0 0 1 22 14v4a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4v-4a3.5 3.5 0 0 1 3-3.5V7a3 3 0 0 1 3-3h3V2Zm-3 7h8V7H8v2Zm1.75 7a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Zm4.5 0a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5ZM8 19h8v-2H8v2Z"/>
+                </svg>
+                <span class="sr-only" id="joinBotBtnText">Play against bot</span>
+            </button>
+            <button id="joinSoloBtn" class="mode-btn solo" type="button" onclick="joinGame('solo')" aria-label="Play solo" title="Play solo">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 12a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0 2c4.418 0 8 2.239 8 5v2H4v-2c0-2.761 3.582-5 8-5Z"/>
+                </svg>
+                <span class="sr-only" id="joinSoloBtnText">Play solo</span>
+            </button>
         </div>
         <div id="lobbyStatus" class="is-empty"></div>
         <div id="error"></div>
@@ -223,7 +282,7 @@
         const APP_VERSION = {{ app_version|tojson }};
         const translations = {
             en: {
-                page_title: "Welcome to study languages in a new way or play a new kind of memory game!",
+                page_title: "Welcome! Study languages in a new way or play a new kind of memory game!",
                 intro_text: "The game is similar to a traditional memory game where you turn over two cards at a time. In this version, you need to figure out which cards form a pair. Depending on the game type, a pair can be two different pictures connected by the same word, or a combination of a picture card and a word card.",
                 join: "Play with another player",
                 join_bot: "Play against bot",
@@ -235,40 +294,112 @@
                 connect_error: "Could not connect to the server.",
                 waiting_for_you: "{name} is waiting for you to play.",
                 waiting_other_player: "Waiting for another player...",
-                best_of_best: "🏆 The best of the best"
+                best_of_best: "?? The best of the best"
             },
             fi: {
-                page_title: "Tervetuloa opiskelemaan kieliä uudella tavalla tai pelaamaan uudenlaista muistipeliä!",
-                intro_text: "Peli muistuttaa perinteistä muistipeliä, jossa käännetään kaksi korttia kerrallaan. Tässä pelissä pitää päätellä, mitkä kortit muodostavat parin. Pelityypistä riippuen pari voi olla kaksi eri kuvaa, joita yhdistää sama sana, tai kuva- ja sanakortin yhdistelmä.",
+                page_title: "Tervetuloa opiskelemaan kieli? uudella tavalla tai pelaamaan uudenlaista muistipeli?!",
+                intro_text: "Peli muistuttaa perinteist? muistipeli?, jossa k??nnet??n kaksi korttia kerrallaan. T?ss? peliss? pit?? p??tell?, mitk? kortit muodostavat parin. Pelityypist? riippuen pari voi olla kaksi eri kuvaa, joita yhdist?? sama sana, tai kuva- ja sanakortin yhdistelm?.",
                 join: "Pelaa toisen kanssa",
                 join_bot: "Pelaa bottia vastaan",
                 join_solo: "Pelaa yksin",
                 name_placeholder: "Nimesi",
                 language: "Kieli",
-                enter_name_first: "Syötä nimi ensin.",
-                reconnect_missing: "Reconnect_token puuttuu! Lataa sivu uudelleen.",
-                connect_error: "Yhteyttä ei saatu palvelimeen.",
+                enter_name_first: "Sy?t? nimi ensin.",
+                reconnect_missing: "Reconnect-token puuttuu! Lataa sivu uudelleen.",
+                connect_error: "Yhteytt? ei saatu palvelimeen.",
                 waiting_for_you: "{name} odottaa sinua pelaamaan.",
                 waiting_other_player: "Odotetaan toista pelaajaa...",
-                best_of_best: "🏆 Parhaat tulokset"
+                best_of_best: "?? Parhaat tulokset"
             },
             sv: {
-                page_title: "Välkommen att studera språk på ett nytt sätt eller spela ett nytt slags memoryspel!"
+                page_title: "V?lkommen! L?r dig spr?k p? ett nytt s?tt eller spela en ny sorts memoryspel!",
+                intro_text: "Spelet liknar ett traditionellt memory d?r du v?nder tv? kort ?t g?ngen. I den h?r versionen beh?ver du lista ut vilka kort som bildar ett par. Beroende p? speltyp kan ett par vara tv? olika bilder som h?r ihop med samma ord, eller en kombination av ett bildkort och ett ordkort.",
+                join: "Spela med en annan spelare",
+                join_bot: "Spela mot botten",
+                join_solo: "Spela ensam",
+                name_placeholder: "Ditt namn",
+                language: "Spr?k",
+                enter_name_first: "Skriv in ditt namn f?rst.",
+                reconnect_missing: "Reconnect-token saknas! Ladda om sidan.",
+                connect_error: "Kunde inte ansluta till servern.",
+                waiting_for_you: "{name} v?ntar p? att du ska spela.",
+                waiting_other_player: "V?ntar p? en annan spelare...",
+                best_of_best: "?? De b?sta resultaten"
             },
             de: {
-                page_title: "Willkommen! Lerne Sprachen auf neue Weise oder spiele eine neue Art von Memory!"
+                page_title: "Willkommen! Lerne Sprachen auf neue Weise oder spiele eine neue Art von Memory!",
+                intro_text: "Das Spiel ?hnelt einem klassischen Memory, bei dem man immer zwei Karten aufdeckt. In dieser Version musst du herausfinden, welche Karten ein Paar bilden. Je nach Spieltyp kann ein Paar aus zwei verschiedenen Bildern bestehen, die durch dasselbe Wort verbunden sind, oder aus einer Bildkarte und einer Wortkarte.",
+                join: "Mit anderer Person spielen",
+                join_bot: "Gegen Bot spielen",
+                join_solo: "Allein spielen",
+                name_placeholder: "Dein Name",
+                language: "Sprache",
+                enter_name_first: "Gib zuerst deinen Namen ein.",
+                reconnect_missing: "Reconnect-Token fehlt! Lade die Seite neu.",
+                connect_error: "Verbindung zum Server fehlgeschlagen.",
+                waiting_for_you: "{name} wartet auf dich.",
+                waiting_other_player: "Warten auf eine andere Person...",
+                best_of_best: "?? Die Besten"
             },
             fr: {
-                page_title: "Bienvenue pour apprendre les langues autrement ou jouer à une nouvelle version du jeu de mémoire !"
+                page_title: "Bienvenue ! Apprenez les langues autrement ou jouez ? une nouvelle version du memory !",
+                intro_text: "Le jeu ressemble ? un memory traditionnel o? l?on retourne deux cartes ? la fois. Dans cette version, il faut comprendre quelles cartes forment une paire. Selon le type de jeu, une paire peut ?tre compos?e de deux images diff?rentes li?es par le m?me mot, ou d?une carte image et d?une carte mot.",
+                join: "Jouer avec une autre personne",
+                join_bot: "Jouer contre le bot",
+                join_solo: "Jouer en solo",
+                name_placeholder: "Votre nom",
+                language: "Langue",
+                enter_name_first: "Entrez d?abord votre nom.",
+                reconnect_missing: "Jeton de reconnexion manquant ! Rechargez la page.",
+                connect_error: "Connexion au serveur impossible.",
+                waiting_for_you: "{name} vous attend pour jouer.",
+                waiting_other_player: "En attente d?une autre personne...",
+                best_of_best: "?? Les meilleurs scores"
             },
             es: {
-                page_title: "¡Bienvenido a estudiar idiomas de una forma nueva o a jugar a un nuevo tipo de juego de memoria!"
+                page_title: "?Bienvenido! Aprende idiomas de una forma nueva o juega a un nuevo tipo de memory.",
+                intro_text: "El juego se parece a un memory tradicional en el que se giran dos cartas a la vez. En esta versi?n debes descubrir qu? cartas forman una pareja. Seg?n el tipo de juego, una pareja puede ser dos im?genes diferentes unidas por la misma palabra, o una combinaci?n de una carta con imagen y una carta con palabra.",
+                join: "Jugar con otra persona",
+                join_bot: "Jugar contra el bot",
+                join_solo: "Jugar en solitario",
+                name_placeholder: "Tu nombre",
+                language: "Idioma",
+                enter_name_first: "Escribe tu nombre primero.",
+                reconnect_missing: "?Falta el token de reconexi?n! Recarga la p?gina.",
+                connect_error: "No se pudo conectar con el servidor.",
+                waiting_for_you: "{name} te est? esperando para jugar.",
+                waiting_other_player: "Esperando a otra persona...",
+                best_of_best: "?? Los mejores resultados"
             },
             it: {
-                page_title: "Benvenuto per studiare le lingue in un modo nuovo o per giocare a un nuovo tipo di memory!"
+                page_title: "Benvenuto! Studia le lingue in un modo nuovo oppure gioca a un nuovo tipo di memory!",
+                intro_text: "Il gioco ricorda un memory tradizionale in cui si girano due carte alla volta. In questa versione bisogna capire quali carte formano una coppia. A seconda del tipo di gioco, una coppia pu? essere composta da due immagini diverse collegate dalla stessa parola, oppure da una carta immagine e una carta parola.",
+                join: "Gioca con un?altra persona",
+                join_bot: "Gioca contro il bot",
+                join_solo: "Gioca da solo",
+                name_placeholder: "Il tuo nome",
+                language: "Lingua",
+                enter_name_first: "Inserisci prima il tuo nome.",
+                reconnect_missing: "Token di riconnessione mancante! Ricarica la pagina.",
+                connect_error: "Impossibile connettersi al server.",
+                waiting_for_you: "{name} ti sta aspettando per giocare.",
+                waiting_other_player: "In attesa di un?altra persona...",
+                best_of_best: "?? I migliori risultati"
             },
             pt: {
-                page_title: "Bem-vindo para estudar línguas de uma nova forma ou jogar um novo tipo de jogo da memória!"
+                page_title: "Bem-vindo! Aprende l?nguas de uma nova forma ou joga um novo tipo de jogo da mem?ria!",
+                intro_text: "O jogo ? parecido com um jogo da mem?ria tradicional em que se viram duas cartas de cada vez. Nesta vers?o, tens de descobrir quais cartas formam um par. Dependendo do tipo de jogo, um par pode ser duas imagens diferentes ligadas pela mesma palavra, ou uma combina??o de uma carta com imagem e uma carta com palavra.",
+                join: "Jogar com outra pessoa",
+                join_bot: "Jogar contra o bot",
+                join_solo: "Jogar sozinho",
+                name_placeholder: "O teu nome",
+                language: "Idioma",
+                enter_name_first: "Escreve primeiro o teu nome.",
+                reconnect_missing: "Falta o token de reconex?o! Atualiza a p?gina.",
+                connect_error: "N?o foi poss?vel ligar ao servidor.",
+                waiting_for_you: "{name} est? ? tua espera para jogar.",
+                waiting_other_player: "? espera de outra pessoa...",
+                best_of_best: "?? Os melhores resultados"
             }
         };
 
@@ -299,10 +430,19 @@
             document.title = t("page_title");
             document.getElementById("pageTitle").textContent = t("page_title");
             document.getElementById("introText").textContent = t("intro_text");
-            document.getElementById("joinBtn").textContent = t("join");
-            document.getElementById("joinBotBtn").textContent = t("join_bot");
-            document.getElementById("joinSoloBtn").textContent = t("join_solo");
             document.getElementById("nameInput").placeholder = t("name_placeholder");
+            const joinBtn = document.getElementById("joinBtn");
+            const joinBotBtn = document.getElementById("joinBotBtn");
+            const joinSoloBtn = document.getElementById("joinSoloBtn");
+            joinBtn.setAttribute("aria-label", t("join"));
+            joinBtn.setAttribute("title", t("join"));
+            joinBotBtn.setAttribute("aria-label", t("join_bot"));
+            joinBotBtn.setAttribute("title", t("join_bot"));
+            joinSoloBtn.setAttribute("aria-label", t("join_solo"));
+            joinSoloBtn.setAttribute("title", t("join_solo"));
+            document.getElementById("joinBtnText").textContent = t("join");
+            document.getElementById("joinBotBtnText").textContent = t("join_bot");
+            document.getElementById("joinSoloBtnText").textContent = t("join_solo");
             document.querySelectorAll(".flag-btn").forEach((button) => {
                 const active = button.dataset.lang === getLanguage();
                 button.classList.toggle("is-active", active);
