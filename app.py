@@ -170,6 +170,8 @@ class RoomState:
     solo_start_time: float = 0.0
     solo_mistakes: int = 0
     solo_seen_cards: set = field(default_factory=set)
+    rematch_votes: set = field(default_factory=set)
+    summary_sids: dict = field(default_factory=dict)  # username -> sid
 
 
 # --- Global indexes (not game state) ---
@@ -1263,6 +1265,7 @@ def launch_grid_round(room):
         "card_mode": room.card_mode,
         "target_language": room.target_language,
         "native_language": room.native_language,
+        "room_id": room.room_id,
     }, room_id=room.room_id)
     schedule_bot_turn_if_needed(room)
 
@@ -2399,6 +2402,80 @@ def handle_surrender_round(data=None):
 
 
 # ---------------------------------------------------------------------------
+# Socket events – summary / rematch
+# ---------------------------------------------------------------------------
+
+def _broadcast_rematch_status(room):
+    emit_to_room("rematch_status", {
+        "votes": list(room.rematch_votes),
+        "players": list(room.summary_sids.keys()),
+    }, room_id=room.room_id)
+
+
+@socketio.on("join_summary")
+def on_join_summary(data):
+    reconnect_token = data.get("reconnect_token")
+    username = data.get("username")
+    if not reconnect_token or not username:
+        return
+    room_id = get_room_id_for_reconnect_token(reconnect_token)
+    room = rooms.get(room_id)
+    if not room or room.status != "results":
+        emit("summary_error", {"reason": "room_not_found"})
+        return
+    sid = request.sid
+    _sid_to_room_id[sid] = room_id
+    try:
+        join_room(room_id)
+    except Exception:
+        pass
+    room.summary_sids[username] = sid
+    _broadcast_rematch_status(room)
+
+
+@socketio.on("want_rematch")
+def on_want_rematch(data):
+    reconnect_token = data.get("reconnect_token")
+    username = data.get("username")
+    if not reconnect_token or not username:
+        return
+    room_id = get_room_id_for_reconnect_token(reconnect_token)
+    room = rooms.get(room_id)
+    if not room or room.status != "results":
+        return
+    room.rematch_votes.add(username)
+    present = set(room.summary_sids.keys())
+    _broadcast_rematch_status(room)
+    if present and room.rematch_votes >= present:
+        # All present players want rematch — reset and let them return to waiting room
+        room.rematch_votes.clear()
+        room.summary_sids.clear()
+        room.status = "waiting"
+        emit_to_room("rematch_ready", {}, room_id=room_id)
+
+
+@socketio.on("leave_summary")
+def on_leave_summary(data):
+    reconnect_token = data.get("reconnect_token")
+    username = data.get("username")
+    if not reconnect_token or not username:
+        return
+    room_id = get_room_id_for_reconnect_token(reconnect_token)
+    room = rooms.get(room_id)
+    if not room:
+        return
+    sid = request.sid
+    room.summary_sids.pop(username, None)
+    room.rematch_votes.discard(username)
+    _sid_to_room_id.pop(sid, None)
+    try:
+        leave_room(room_id)
+    except Exception:
+        pass
+    _broadcast_rematch_status(room)
+
+
+# ---------------------------------------------------------------------------
 # Socket events – connect / disconnect
 # ---------------------------------------------------------------------------
 
@@ -2417,6 +2494,11 @@ def on_disconnect():
     player_info["connected"] = False
     player_info["disconnected_at"] = time.monotonic()
     leave_matchmaking_queue(sid)
+    # Clean up summary state if player disconnects from summary
+    if username in room.summary_sids and room.summary_sids.get(username) == sid:
+        room.summary_sids.pop(username, None)
+        room.rematch_votes.discard(username)
+        _broadcast_rematch_status(room)
     try:
         leave_room(room.room_id)
     except Exception:

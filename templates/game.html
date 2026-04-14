@@ -753,6 +753,7 @@
             window.location.href = "/";
         }
         const reconnectToken = getReconnectToken();
+        let currentRoomId = null;
         if (!reconnectToken) {
             alert("Reconnect_token puuttuu! Lataa sivu uudelleen.");
             location.reload();
@@ -765,6 +766,13 @@
         function persistSummary(data) {
             try {
                 localStorage.setItem("memory_summary_round_wins", JSON.stringify((data && data.round_win) || {}));
+                sessionStorage.setItem("summary_result", JSON.stringify({
+                    winner: data.winner,
+                    points: data.points || {},
+                    round_win: data.round_win || {},
+                    room_id: currentRoomId,
+                    my_name: myName,
+                }));
             } catch (_) {}
         }
 
@@ -1160,11 +1168,13 @@
         // Älä auto-käynnistä peliä tässä näkymässä; odota odotushuoneessa aloitusta
         socket.on("player_joined", (data) => {
             console.log("[DEBUG] player_joined(game):", data.players);
+            if (data.room_id) currentRoomId = data.room_id;
             // Vain UI-päivitystä varten; varsinainen aloitus tehdään odotushuoneessa
         });
 
         // Kun peli käynnistyy, aseta front-flag
         socket.on("init_grid", (data) => {
+            if (data.room_id) currentRoomId = data.room_id;
             gameOverShown = false;
             if (gridRetryTimer) {
                 clearTimeout(gridRetryTimer);
@@ -1441,11 +1451,9 @@
             document.getElementById("restart-theme-btn")?.addEventListener("click", () => queueNextRound("theme"));
             document.getElementById("restart-lang-btn")?.addEventListener("click", () => queueNextRound("language"));
             document.getElementById("end-game-btn")?.addEventListener("click", () => {
-                const username = encodeURIComponent(localStorage.getItem("username") || "");
-                const cardMode = encodeURIComponent(window.currentCardMode || "images");
-                const targetLang = (window.currentCardMode !== "images") ? encodeURIComponent(currentTargetLanguage || "") : "";
-                const langParam = targetLang ? `&lang=${targetLang}` : "";
-                navigateTo(`/leaderboard?highlight=${username}&mode=${cardMode}&play=multi${langParam}`);
+                // Go to summary for rematch option (don't call leave_game — room stays alive)
+                try { socket.disconnect(); } catch (_) {}
+                window.location.href = "/summary";
             });
 
             const winnerMessage = document.getElementById("winner-message");
@@ -1550,7 +1558,7 @@
             console.log("[DEBUG] Peli lopetetaan.");
             setTimeout(() => {
                 try { socket.disconnect(); } catch (_) {}
-                window.location.href = "/summary";
+                window.location.href = "/";
             }, 120);
         }
 
