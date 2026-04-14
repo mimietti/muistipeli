@@ -885,9 +885,15 @@ def append_selected_lang_pair(word, pair_index, room, source_lang=None):
         return False
     native_lang = room.native_language or "fi"
     # native_word is the word in UI language — if src IS the native lang, use the input word directly
-    native_word = word if src == native_lang else (
-        translate_word(word, src, native_lang) if native_lang != "en" else translate_word(word, src, "en")
-    )
+    if src == native_lang:
+        native_word = word
+    elif native_lang == "en":
+        native_word = translate_word(word, src, "en")
+    else:
+        native_word = translate_word(word, src, native_lang)
+    if not native_word:
+        print(f"[INFO] Käännös ({src}→{native_lang}) ei kelpaa sanalle '{word}', ohitetaan")
+        return False
     # english_word for Pixabay search
     english_word = word if src == "en" else (translate_word(word, src, "en") or word)
     print(f"[INFO] Kokeillaan {target_lang}-pariksi '{word}' ({src}) -> '{target_word}' parille {pair_index + 1}")
