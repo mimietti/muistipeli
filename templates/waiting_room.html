@@ -636,6 +636,14 @@
                     </button>
                 </div>
             </div>
+            <div class="option-group" id="botDifficultyPicker" style="display:none;">
+                <div class="option-group-label" id="labelBotDifficulty">Bot difficulty</div>
+                <div class="option-group-btns">
+                    <button class="opt-btn" data-bot-difficulty="easy" id="botDifficultyEasy">Easy</button>
+                    <button class="opt-btn" data-bot-difficulty="medium" id="botDifficultyMedium">Medium</button>
+                    <button class="opt-btn" data-bot-difficulty="hard" id="botDifficultyHard">Hard</button>
+                </div>
+            </div>
             <button id="startRoundBtn">Start</button>
         </div>
         <div id="setupStatus">
@@ -672,8 +680,10 @@
         const translations = {
             en: {
                 page_title: "Waiting Room",
+                page_title_bot: "Duel with Memory Bot",
                 language: "Language",
                 intro_text: "The game starts from the waiting room once two players are connected. The second player can choose the word source and card type for the round.",
+                intro_text_bot: "Choose the round settings for your duel with Memory Bot. The game starts as soon as you finish your selections and press Start.",
                 welcome_player: "Welcome, {name}!",
                 spectator_player: "Welcome, {name}!",
                 status_waiting_for_player: "Status: waiting for another player.",
@@ -744,6 +754,10 @@
                 label_word_source: "Words",
                 label_card_mode: "Cards",
                 label_lang: "Target language",
+                label_bot_difficulty: "Bot difficulty",
+                bot_difficulty_easy: "Easy",
+                bot_difficulty_medium: "Medium",
+                bot_difficulty_hard: "Hard",
                 queue_bot_hint: "Tired of waiting?",
                 queue_play_bot: "🤖 Play against bot",
                 card_mode_images: "Images",
@@ -753,8 +767,10 @@
             },
             fi: {
                 page_title: "Odotushuone",
+                page_title_bot: "Kaksintaistelu Muistibotin kanssa",
                 language: "Kieli",
                 intro_text: "Peli alkaa odotushuoneesta, kun kaksi pelaajaa on paikalla. Toisena liittynyt pelaaja voi valita sananlähteen ja korttityypin seuraavaan erään.",
+                intro_text_bot: "Valitse erän asetukset kaksintaisteluun Muistibotin kanssa. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
                 welcome_player: "Tervetuloa, {name}!",
                 spectator_player: "Tervetuloa, {name}!",
                 status_waiting_for_player: "Status: odotetaan toista pelaajaa.",
@@ -826,6 +842,10 @@
                 label_word_source: "Sanat",
                 label_card_mode: "Kortit",
                 label_lang: "Opiskeltava kieli",
+                label_bot_difficulty: "Botin vaikeusaste",
+                bot_difficulty_easy: "Helppo",
+                bot_difficulty_medium: "Keskitaso",
+                bot_difficulty_hard: "Vaikea",
                 queue_bot_hint: "Etkö jaksa odottaa?",
                 queue_play_bot: "🤖 Pelaa bottia vastaan",
                 card_mode_images: "Kuvat",
@@ -930,11 +950,13 @@
             it: { fi: "Italia",    en: "Italian"    },
             pt: { fi: "Portugali", en: "Portuguese" },
         };
-        const LANG_FLAGS = { es:"🇪🇸", sv:"🇸🇪", de:"🇩🇪", fr:"🇫🇷", it:"🇮🇹", pt:"🇵🇹" };
+            const LANG_FLAGS = { es:"🇪🇸", sv:"🇸🇪", de:"🇩🇪", fr:"🇫🇷", it:"🇮🇹", pt:"🇵🇹" };
 
         function applyTranslations() {
+            const playMode = localStorage.getItem("play_mode") || "";
+            const isBotMode = playMode === "bot";
             document.documentElement.lang = getLanguage();
-            document.title = t("page_title");
+            document.title = t(isBotMode ? "page_title_bot" : "page_title");
             document.querySelectorAll(".flag-btn[data-ui-lang]").forEach(btn => {
                 const active = btn.dataset.uiLang === getLanguage();
                 btn.classList.toggle("is-active", active);
@@ -945,15 +967,19 @@
             el("labelWordSource").textContent = t("label_word_source");
             el("labelCardMode").textContent = t("label_card_mode");
             el("labelLang").textContent = t("label_lang");
+            el("labelBotDifficulty").textContent = t("label_bot_difficulty");
             el("srcManualBtn").textContent = t("enter_words");
             el("srcThemeBtn").textContent = t("enter_theme");
             el("srcRandomBtn").textContent = t("enter_random");
             el("cardModeImages").textContent = "🖼 " + t("card_mode_images");
             el("cardModeImageWord").textContent = "🖼 📝 " + t("card_mode_image_word");
             el("cardModeWords").textContent = "📝 📝 " + t("card_mode_words");
+            el("botDifficultyEasy").textContent = t("bot_difficulty_easy");
+            el("botDifficultyMedium").textContent = t("bot_difficulty_medium");
+            el("botDifficultyHard").textContent = t("bot_difficulty_hard");
             el("startRoundBtn").textContent = t("start_round");
-            el("pageTitle").textContent = t("page_title");
-            el("introText").textContent = t("intro_text");
+            el("pageTitle").textContent = t(isBotMode ? "page_title_bot" : "page_title");
+            el("introText").textContent = t(isBotMode ? "intro_text_bot" : "intro_text");
             el("exitGameBtn").textContent = t("exit_game");
             el("changeNameBtn").textContent = t("change_name");
             const queueBotHintEl = document.getElementById("queueBotHint");
@@ -1462,6 +1488,8 @@
                 localStorage.setItem("bot_mode", "1");
                 localStorage.setItem("play_mode", "bot");
                 hidePlayModeSelect();
+                applyTranslations();
+                updateBotDifficultyVisibility();
                 if (!hasJoined) { emitJoin(); hasJoined = true; }
             });
 
@@ -1469,6 +1497,8 @@
                 localStorage.setItem("bot_mode", "0");
                 localStorage.setItem("play_mode", "queue");
                 hidePlayModeSelect();
+                applyTranslations();
+                updateBotDifficultyVisibility();
                 if (!hasJoined) { emitJoin(); hasJoined = true; }
                 // join_queue emitted after first lobby event confirms player is registered
             });
@@ -1483,6 +1513,8 @@
                 queueJoined = false;
                 localStorage.setItem("bot_mode", "1");
                 localStorage.setItem("play_mode", "bot");
+                applyTranslations();
+                updateBotDifficultyVisibility();
                 if (!hasJoined) { emitJoin(); hasJoined = true; }
                 else {
                     // Re-join as bot
@@ -1588,7 +1620,11 @@
                 try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
-                socket.emit("start_custom_game", { mode: "manual", ui_language: getLanguage() });
+                const payload = { mode: "manual", ui_language: getLanguage() };
+                if ((localStorage.getItem("play_mode") || "") === "bot") {
+                    payload.bot_difficulty = selectedBotDifficulty;
+                }
+                socket.emit("start_custom_game", payload);
             }
 
             function startThemeRound(prefill = "") {
@@ -1611,7 +1647,11 @@
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
                 renderSetupStatus({ active: true, mode: "theme", theme });
-                socket.emit("start_custom_game", { mode: "theme", theme, ui_language: getLanguage() });
+                const payload = { mode: "theme", theme, ui_language: getLanguage() };
+                if ((localStorage.getItem("play_mode") || "") === "bot") {
+                    payload.bot_difficulty = selectedBotDifficulty;
+                }
+                socket.emit("start_custom_game", payload);
             }
 
             function startLanguageRound(targetLang, prefill = "", cardMode = "image_word") {
@@ -1636,7 +1676,11 @@
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
                 renderSetupStatus({ active: true, mode: "language", theme });
-                socket.emit("start_custom_game", { mode: "theme", card_mode: cardMode, target_language: targetLang, theme, ui_language: getLanguage() });
+                const payload = { mode: "theme", card_mode: cardMode, target_language: targetLang, theme, ui_language: getLanguage() };
+                if ((localStorage.getItem("play_mode") || "") === "bot") {
+                    payload.bot_difficulty = selectedBotDifficulty;
+                }
+                socket.emit("start_custom_game", payload);
             }
 
             function startLangManualRound(targetLang, cardMode = "image_word") {
@@ -1654,7 +1698,11 @@
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
                 renderSetupStatus({ active: true, mode: "lang_manual" });
-                socket.emit("start_custom_game", { mode: "manual", card_mode: cm, target_language: targetLang, ui_language: getLanguage() });
+                const payload = { mode: "manual", card_mode: cm, target_language: targetLang, ui_language: getLanguage() };
+                if ((localStorage.getItem("play_mode") || "") === "bot") {
+                    payload.bot_difficulty = selectedBotDifficulty;
+                }
+                socket.emit("start_custom_game", payload);
             }
 
             function startRandomRound(targetLang, cardMode = "images") {
@@ -1666,6 +1714,9 @@
                 const payload = { mode: "random", card_mode: cm, ui_language: getLanguage() };
                 if (cm !== "images") {
                     payload.target_language = targetLang;
+                }
+                if ((localStorage.getItem("play_mode") || "") === "bot") {
+                    payload.bot_difficulty = selectedBotDifficulty;
                 }
                 console.log("[DEBUG] Aloitetaan satunnaispeli", payload);
                 try { sessionStorage.setItem("game_setup_mode", "random"); } catch (e) {}
@@ -1721,10 +1772,18 @@
                 ? localStorage.getItem("preferred_card_mode")
                 : "image_word"; // "images" | "image_word" | "words"
             let selectedLang = "es";
+            let selectedBotDifficulty = ["easy", "medium", "hard"].includes(localStorage.getItem("bot_difficulty"))
+                ? localStorage.getItem("bot_difficulty")
+                : "easy";
 
             function updateLangPickerVisibility() {
                 const needsLang = selectedCardMode !== "images";
                 document.getElementById("langPicker").style.display = needsLang ? "block" : "none";
+            }
+
+            function updateBotDifficultyVisibility() {
+                const isBotMode = (localStorage.getItem("play_mode") || "") === "bot";
+                document.getElementById("botDifficultyPicker").style.display = isBotMode ? "block" : "none";
             }
 
             document.querySelectorAll("#srcManualBtn, #srcThemeBtn, #srcRandomBtn").forEach(btn => {
@@ -1748,6 +1807,19 @@
             });
             document.getElementById("cardModePicker").style.display = "none";
             updateLangPickerVisibility();
+            updateBotDifficultyVisibility();
+
+            document.querySelectorAll("#botDifficultyEasy, #botDifficultyMedium, #botDifficultyHard").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    selectedBotDifficulty = btn.dataset.botDifficulty;
+                    try { localStorage.setItem("bot_difficulty", selectedBotDifficulty); } catch (e) {}
+                    document.querySelectorAll("#botDifficultyEasy, #botDifficultyMedium, #botDifficultyHard").forEach(b => b.classList.toggle("active", b === btn));
+                });
+            });
+
+            document.querySelectorAll("#botDifficultyEasy, #botDifficultyMedium, #botDifficultyHard").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.botDifficulty === selectedBotDifficulty);
+            });
 
             document.querySelectorAll(".lang-flag-btn").forEach(btn => {
                 btn.addEventListener("click", () => {

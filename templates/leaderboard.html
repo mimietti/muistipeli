@@ -19,6 +19,21 @@
         h1 { font-size: 30px; margin-bottom: 4px; }
         .subtitle { color: #6a7a6a; font-size: 14px; margin-bottom: 24px; }
         .lang-picker { display: flex; justify-content: center; margin-bottom: 24px; }
+        .top-nav {
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 12px;
+        }
+        .top-back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #7cf58a;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .top-back-link:hover { text-decoration: underline; }
         .flag-toggle { display: inline-flex; gap: 8px; padding: 5px; border-radius: 999px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); }
         .flag-btn { width: 44px; height: 33px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid transparent; background: transparent; cursor: pointer; transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease; }
         .flag-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.05); }
@@ -95,6 +110,9 @@
 </head>
 <body>
     <div class="shell">
+        <div class="top-nav">
+            <a href="/" class="top-back-link" id="topBackBtn">← Back to start</a>
+        </div>
         <h1 id="pageTitle">Leaderboard</h1>
         <p class="subtitle" id="pageSubtitle">Solo — top 10, sorted by total time</p>
 
@@ -231,6 +249,7 @@
                             <tr>
                                 <th>#</th>
                                 <th class="th-name" style="text-align:left;">Player</th>
+                                <th class="th-difficulty">Difficulty</th>
                                 <th class="th-pairs">Pairs</th>
                                 <th class="th-mistakes">Mistakes</th>
                                 <th class="th-time">Time</th>
@@ -238,12 +257,13 @@
                         </thead>
                         <tbody>
                             {% for row in sec.rows %}
-                            <tr data-username="{{ row[0] }}">
+                            <tr data-username="{{ row[1] }}">
                                 <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
-                                <td class="name">{{ row[0] }}</td>
-                                <td class="total">{{ row[1] }}</td>
-                                <td class="dim">{{ row[2] if row[2] is not none else "–" }}</td>
-                                <td class="dim">{{ (row[3] // 60)|string + ":" + "%02d"|format(row[3] % 60) if row[3] is not none else "–" }}</td>
+                                <td class="name">{{ row[1] }}</td>
+                                <td class="dim difficulty-label" data-difficulty="{{ row[0] }}">{{ row[0] }}</td>
+                                <td class="total">{{ row[2] }}</td>
+                                <td class="dim">{{ row[3] if row[3] is not none else "?" }}</td>
+                                <td class="dim">{{ (row[4] // 60)|string + ":" + "%02d"|format(row[4] % 60) if row[4] is not none else "?" }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -299,6 +319,8 @@
             en: {
                 title: "Leaderboard", subtitle: "Solo — top 10, sorted by total time",
                 th_name: "Player", th_time: "Time", th_mistakes: "Mistakes", th_total: "Total",
+                th_difficulty: "Difficulty",
+                difficulty_easy: "Easy", difficulty_medium: "Medium", difficulty_hard: "Hard",
                 mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word",
                 noDb: "Leaderboard not available.", newGame: "▶ New game", back: "← Back to start",
                 solo_group: "Solo", random_group: "Random", bot_group: "vs Bot", th_pairs: "Pairs",
@@ -308,6 +330,8 @@
                 title: "Tulostaulu", subtitle: "Solo — 10 nopeinta, järjestetty kokonaisajan mukaan",
                 best_title: "Parhaat tulokset", best_subtitle: "Top 3 per pelityyppi",
                 th_name: "Pelaaja", th_time: "Aika", th_mistakes: "Virheet", th_total: "Yhteensä",
+                th_difficulty: "Vaikeustaso",
+                difficulty_easy: "Helppo", difficulty_medium: "Keskitaso", difficulty_hard: "Vaikea",
                 mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana",
                 noDb: "Tulostaulu ei käytössä.", newGame: "▶ Uusi peli", back: "← Takaisin alkuun",
                 solo_group: "Solo", random_group: "Satunnaiset", bot_group: "vs Botti", th_pairs: "Pareja",
@@ -358,6 +382,7 @@
             document.getElementById("pageSubtitle").textContent = isHighlightMode ? t.subtitle : t.best_subtitle;
             document.title = isHighlightMode ? t.title : t.best_title;
             const el = (id) => document.getElementById(id);
+            if (el("topBackBtn")) el("topBackBtn").textContent = t.back;
             if (el("backBtn")) el("backBtn").textContent = t.back;
             if (el("newGameBtn")) el("newGameBtn").textContent = t.newGame;
             if (el("soloGroupTitle")) el("soloGroupTitle").textContent = t.solo_group;
@@ -365,6 +390,7 @@
             if (el("botGroupTitle")) el("botGroupTitle").textContent = t.bot_group;
             if (el("multiGroupTitle")) el("multiGroupTitle").textContent = t.multi_group;
             document.querySelectorAll(".th-pairs").forEach(e => e.textContent = t.th_pairs);
+            document.querySelectorAll(".th-difficulty").forEach(e => e.textContent = t.th_difficulty);
             document.querySelectorAll(".th-wins").forEach(e => e.textContent = t.th_wins);
             document.querySelectorAll(".th-rounds").forEach(e => e.textContent = t.th_rounds);
             if (el("noDbText")) el("noDbText").textContent = t.noDb;
@@ -378,6 +404,9 @@
             document.querySelectorAll(".show-all-link").forEach(e => { e.textContent = t.show_all; });
             document.querySelectorAll(".lang-tag[data-lang]").forEach(e => {
                 e.textContent = "· " + getLangName(e.dataset.lang, lang);
+            });
+            document.querySelectorAll(".difficulty-label[data-difficulty]").forEach(e => {
+                e.textContent = t[`difficulty_${e.dataset.difficulty}`] || e.dataset.difficulty;
             });
         }
 

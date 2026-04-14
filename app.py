@@ -71,6 +71,9 @@ def _init_db():
                 cur.execute("""
                     ALTER TABLE results ADD COLUMN IF NOT EXISTS target_language TEXT
                 """)
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS bot_difficulty TEXT
+                """)
         print("[DB] Tietokanta alustettu.")
     except Exception as e:
         print(f"[DB] Alustusvirhe: {e}")
@@ -81,7 +84,7 @@ _init_db()
 
 SOLO_PENALTY_PER_MISTAKE = 3  # seconds
 
-def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None, target_language=None):
+def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None, target_language=None, bot_difficulty=None):
     total_time = None
     if time_secs is not None and mistakes is not None:
         total_time = time_secs + mistakes * SOLO_PENALTY_PER_MISTAKE
@@ -92,9 +95,9 @@ def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mis
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language)
+                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty)
                 )
     except Exception as e:
         print(f"[DB] Tallennusvirhe: {e}")
@@ -117,6 +120,12 @@ APP_VERSION = "Beta v0.08 (2026-04-14)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
+FINAL_PAIR_REVEAL_SECONDS = 3.2
+BOT_MEMORY_USE_PROBABILITY = {
+    "easy": 0.0,
+    "medium": 0.55,
+    "hard": 0.9,
+}
 DEFAULT_ROOM_ID = "default"
 MAX_PLAYERS = 2
 
@@ -165,6 +174,8 @@ class RoomState:
     lang_generation_in_progress: bool = False
     theme_generation_in_progress: bool = False
     bot_turn_scheduled: bool = False
+    bot_difficulty: str = "easy"
+    bot_memory: dict = field(default_factory=dict)  # card_index -> pair_id
     current_click_sid: str | None = None
     last_tokens: set = field(default_factory=set)
     solo_start_time: float = 0.0
@@ -279,6 +290,7 @@ def reset_pending_state(room):
     room.theme_generation_in_progress = False
     room.current_click_sid = None
     room.bot_turn_scheduled = False
+    room.bot_memory = {}
     room.game_mode = "manual"
     room.ui_language = "en"
     if not room.grid_data:
@@ -477,13 +489,23 @@ def schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS):
             ]
             if len(available) < 2:
                 return
-            first_i, second_i = random.sample(available, 2)
+            first_i, second_i = choose_bot_turn_indices(room, available)
             process_card_click(first_i, bot_sid, bot_info, room)
             socketio.sleep(BOT_SECOND_FLIP_DELAY_SECONDS)
             if (room.grid_data and room.player_order
                     and room.turn < len(room.player_order)
                     and is_bot_player(room.player_order[room.turn], room)):
-                process_card_click(second_i, bot_sid, bot_info, room)
+                if second_i not in room.matched_indices and second_i not in room.revealed_cards:
+                    process_card_click(second_i, bot_sid, bot_info, room)
+                else:
+                    remaining = [
+                        i for i in range(len(room.grid_data))
+                        if i not in room.matched_indices and i not in room.revealed_cards
+                    ]
+                    if remaining:
+                        fallback_i = choose_bot_second_index(room, first_i, remaining)
+                        if fallback_i is not None:
+                            process_card_click(fallback_i, bot_sid, bot_info, room)
         finally:
             room.bot_turn_scheduled = False
             if (room.grid_data and room.player_order
@@ -492,6 +514,69 @@ def schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS):
                 schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS)
 
     socketio.start_background_task(bot_take_turn)
+
+
+def get_bot_memory_probability(room):
+    return BOT_MEMORY_USE_PROBABILITY.get(room.bot_difficulty or "easy", 0.0)
+
+
+def remember_card_for_bot(room, index):
+    if index < 0 or index >= len(room.grid_data):
+        return
+    card = room.grid_data[index]
+    pair_id = card.get("pair_id", card.get("word"))
+    if pair_id:
+        room.bot_memory[index] = pair_id
+
+
+def forget_matched_cards_from_bot_memory(room):
+    if not room.bot_memory:
+        return
+    for idx in list(room.bot_memory.keys()):
+        if idx in room.matched_indices:
+            room.bot_memory.pop(idx, None)
+
+
+def get_known_bot_pairs(room, available=None):
+    available_set = set(available) if available is not None else None
+    pair_to_indices = defaultdict(list)
+    for idx, pair_id in room.bot_memory.items():
+        if idx in room.matched_indices:
+            continue
+        if available_set is not None and idx not in available_set:
+            continue
+        pair_to_indices[pair_id].append(idx)
+    return [indices[:2] for indices in pair_to_indices.values() if len(indices) >= 2]
+
+
+def choose_bot_second_index(room, first_i, available):
+    if not available:
+        return None
+    pair_id = room.bot_memory.get(first_i)
+    probability = get_bot_memory_probability(room)
+    if pair_id and random.random() < probability:
+        candidates = [
+            idx for idx, known_pair in room.bot_memory.items()
+            if known_pair == pair_id and idx != first_i and idx in available and idx not in room.matched_indices
+        ]
+        if candidates:
+            return random.choice(candidates)
+    return random.choice(available)
+
+
+def choose_bot_turn_indices(room, available):
+    probability = get_bot_memory_probability(room)
+    known_pairs = get_known_bot_pairs(room, available)
+    if known_pairs and random.random() < probability:
+        chosen = random.choice(known_pairs)
+        first_i = random.choice(chosen)
+    else:
+        first_i = random.choice(available)
+    remaining = [idx for idx in available if idx != first_i]
+    second_i = choose_bot_second_index(room, first_i, remaining)
+    if second_i is None:
+        second_i = random.choice(remaining)
+    return first_i, second_i
 
 
 # ---------------------------------------------------------------------------
@@ -1246,6 +1331,7 @@ def launch_grid_round(room):
     room.matched_indices = set()
     room.revealed_cards = []
     room.turn = 0
+    room.bot_memory = {}
     room.player_points = {name: 0 for name in room.player_order}
     has_bot = any(info.get("is_bot") for info in room.players.values())
     if is_solo(room) or has_bot:
@@ -1313,7 +1399,8 @@ def conclude_round(winner_label, room, surrendered_by=None):
                         time_secs=bot_time,
                         mistakes=room.solo_mistakes,
                         card_mode=card_mode,
-                        target_language=target_lang
+                        target_language=target_lang,
+                        bot_difficulty=room.bot_difficulty
                     )
                 else:
                     round_won = 1 if name == winner_label else 0
@@ -1345,6 +1432,7 @@ def conclude_round(winner_label, room, surrendered_by=None):
     room.turn = 0
     room.current_click_sid = None
     room.bot_turn_scheduled = False
+    room.bot_memory = {}
     room.player_points = {}
     room.status = "results"
     reset_pending_state(room)
@@ -1508,6 +1596,7 @@ def process_card_click(index, resolved_sid, clicker, room):
         return
     room.revealed_cards.append(index)
     emit_to_room("reveal_card", {"index": index, "card": room.grid_data[index]}, room_id=room.room_id)
+    remember_card_for_bot(room, index)
 
     if len(room.revealed_cards) == 2:
         idx1, idx2 = room.revealed_cards
@@ -1518,6 +1607,7 @@ def process_card_click(index, resolved_sid, clicker, room):
 
         if match_key1 == match_key2:
             room.matched_indices.update(room.revealed_cards)
+            forget_matched_cards_from_bot_memory(room)
             debug(f"[DEBUG] Pari löytyi: {word1}")
             emit_to_room("pair_found", {"indices": room.revealed_cards, "word": word1}, room_id=room.room_id)
             room.revealed_cards = []
@@ -1535,7 +1625,11 @@ def process_card_click(index, resolved_sid, clicker, room):
                     max_pts = max(room.player_points.values())
                     winners = [n for n, p in room.player_points.items() if p == max_pts]
                     winner_label = winners[0] if len(winners) == 1 else "Tasapeli"
-                    conclude_round(winner_label, room)
+                    def conclude_after_last_pair():
+                        socketio.sleep(FINAL_PAIR_REVEAL_SECONDS)
+                        conclude_round(winner_label, room)
+                    socketio.start_background_task(conclude_after_last_pair)
+                    return
                 else:
                     print("[ERROR] Ei voittajaa, player_points on tyhjää.")
         else:
@@ -1772,11 +1866,20 @@ def leaderboard():
                      (bot_name,)),
                     ("bot",
                      """SELECT card_mode, COALESCE(target_language,'') AS tl,
+                               COALESCE(bot_difficulty, 'easy') AS bd,
                                username, pairs_found, mistakes, time_secs
                         FROM results
                         WHERE play_mode = 'bot' AND game_mode != 'random' AND pairs_found IS NOT NULL
                           AND username != %s
-                        ORDER BY card_mode, tl, pairs_found DESC, mistakes ASC NULLS LAST, time_secs ASC NULLS LAST""",
+                        ORDER BY card_mode, tl,
+                                 CASE COALESCE(bot_difficulty, 'easy')
+                                   WHEN 'hard' THEN 0
+                                   WHEN 'medium' THEN 1
+                                   ELSE 2
+                                 END ASC,
+                                 pairs_found DESC,
+                                 mistakes ASC NULLS LAST,
+                                 time_secs ASC NULLS LAST""",
                      (bot_name,)),
                     ("random",
                      """SELECT card_mode, COALESCE(target_language,'') AS tl,
@@ -1798,7 +1901,7 @@ def leaderboard():
                         if key not in grouped:
                             grouped[key] = []
                         if len(grouped[key]) < 10:
-                            grouped[key].append(row[2:])  # drop cm+tl prefix
+                            grouped[key].append(row[2:])  # drop grouping prefix
                     # define canonical order
                     cm_order = ["images", "image_word", "words"]
                     seen = set()
@@ -2094,6 +2197,7 @@ def handle_start_custom_game(data=None):
     theme = str(data.get("theme", "")).strip()
     ui_language = str(data.get("ui_language", "")).strip().lower()
     card_mode = str(data.get("card_mode", "")).strip().lower()
+    bot_difficulty = str(data.get("bot_difficulty", room.bot_difficulty or "easy")).strip().lower()
     # "spanish" / "language" legacy: word_source=theme + card_mode=image_word
     if mode in {"spanish", "language"}:
         mode = "theme"
@@ -2109,6 +2213,10 @@ def handle_start_custom_game(data=None):
     room.ui_language = ui_language if ui_language in all_ui_langs else "en"
     room.native_language = room.ui_language
     room.card_mode = card_mode
+    if room.play_mode == "bot":
+        room.bot_difficulty = bot_difficulty if bot_difficulty in BOT_MEMORY_USE_PROBABILITY else "easy"
+    else:
+        room.bot_difficulty = "easy"
     if card_mode in {"image_word", "words"}:
         tl = str(data.get("target_language", "es")).strip().lower()
         room.target_language = tl if tl in SUPPORTED_LANGUAGES else "es"
@@ -2120,6 +2228,7 @@ def handle_start_custom_game(data=None):
     room.pending_pair = 0
     room.pending_player = None
     room.grid_data.clear()
+    room.bot_memory = {}
     room.game_mode = mode
     room.pending_theme = theme if mode == "theme" else None
     room.pending_search_theme = translate_theme_to_english(theme, room.ui_language) if mode == "theme" else None
