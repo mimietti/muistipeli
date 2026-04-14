@@ -178,7 +178,7 @@
                         </thead>
                         <tbody>
                             {% for row in sec.rows %}
-                            <tr data-username="{{ row[0] }}">
+                            <tr data-username="{{ row[0] }}" data-total="{{ row[3] }}">
                                 <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
                                 <td class="name">{{ row[0] }}</td>
                                 <td class="dim">{{ (row[1] // 60)|string + ":" + "%02d"|format(row[1] % 60) if row[1] is not none else "–" }}</td>
@@ -217,7 +217,7 @@
                         </thead>
                         <tbody>
                             {% for row in sec.rows %}
-                            <tr data-username="{{ row[0] }}">
+                            <tr data-username="{{ row[0] }}" data-total="{{ row[3] }}">
                                 <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
                                 <td class="name">{{ row[0] }}</td>
                                 <td class="dim">{{ (row[1] // 60)|string + ":" + "%02d"|format(row[1] % 60) if row[1] is not none else "–" }}</td>
@@ -257,7 +257,7 @@
                         </thead>
                         <tbody>
                             {% for row in sec.rows %}
-                            <tr data-username="{{ row[1] }}">
+                            <tr data-username="{{ row[1] }}" data-pairs="{{ row[2] }}">
                                 <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
                                 <td class="name">{{ row[1] }}</td>
                                 <td class="dim difficulty-label" data-difficulty="{{ row[0] }}">{{ row[0] }}</td>
@@ -368,6 +368,8 @@
         const highlightMode = params.get("mode") || "";
         const highlightPlay = params.get("play") || "";
         const highlightLang = params.get("lang") || "";
+        const highlightTotal = params.get("total") !== null ? parseInt(params.get("total")) : null;
+        const highlightPairs = params.get("pairs") !== null ? parseInt(params.get("pairs")) : null;
         const showAll = params.get("showall") === "1";
         const isHighlightMode = Boolean(highlightUser) || showAll;
 
@@ -427,7 +429,14 @@
             if (isHighlightMode) {
                 // Highlight mode: mark matching rows, hide non-matching sections, scroll to match
                 document.querySelectorAll("tr[data-username]").forEach(row => {
-                    if (row.dataset.username === highlightUser) {
+                    if (row.dataset.username !== highlightUser) return;
+                    // If discriminator params are present, only highlight the exact result
+                    const rowTotal = row.dataset.total !== undefined ? parseInt(row.dataset.total) : null;
+                    const rowPairs = row.dataset.pairs !== undefined ? parseInt(row.dataset.pairs) : null;
+                    const matchesTotal = highlightTotal !== null && rowTotal !== null && rowTotal === highlightTotal;
+                    const matchesPairs = highlightPairs !== null && rowPairs !== null && rowPairs === highlightPairs;
+                    const hasDiscriminator = highlightTotal !== null || highlightPairs !== null;
+                    if (!hasDiscriminator || matchesTotal || matchesPairs) {
                         row.classList.add("my-row");
                     }
                 });
