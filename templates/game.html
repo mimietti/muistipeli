@@ -564,6 +564,11 @@
         };
 
         const UI_LANGS = ["en","fi","sv","de","fr","es","it","pt"];
+        const DIFFICULTY_LABELS = {
+            easy:   { en: "Easy",   fi: "Helppo",      sv: "Lätt",        de: "Leicht",      fr: "Facile",        es: "Fácil",       it: "Facile",      pt: "Fácil" },
+            medium: { en: "Medium", fi: "Keskitaso",   sv: "Medel",       de: "Mittel",      fr: "Intermédiaire", es: "Intermedio",  it: "Medio",       pt: "Médio" },
+            hard:   { en: "Hard",   fi: "Vaikea",      sv: "Svår",        de: "Schwer",      fr: "Difficile",     es: "Difícil",     it: "Difficile",   pt: "Difícil" }
+        };
 
         function getLanguage() {
             const stored = localStorage.getItem("ui_language");
@@ -577,6 +582,11 @@
                 value = value.replaceAll(`{${name}}`, String(replacement));
             });
             return value;
+        }
+
+        function getDifficultyLabel(code, lang = getLanguage()) {
+            const labels = DIFFICULTY_LABELS[code] || DIFFICULTY_LABELS.easy;
+            return labels[lang] || labels.en;
         }
 
         function localizeServerMessage(message) {
@@ -670,6 +680,9 @@
         let currentTurn = null;
         let currentTranslationHint = null;
         let isSoloMode = false;
+        let currentBotDifficulty = (function() {
+            try { return sessionStorage.getItem("bot_difficulty") || "easy"; } catch (_) { return "easy"; }
+        })();
         let currentTargetLanguage = (function() {
             try { return sessionStorage.getItem("game_setup_lang") || "es"; } catch (_) { return "es"; }
         })();
@@ -1215,6 +1228,10 @@
             if (data.card_mode) window.currentCardMode = data.card_mode;
             if (data.target_language) currentTargetLanguage = data.target_language;
             if (data.native_language) currentNativeLanguage = data.native_language;
+            if (data.bot_difficulty) {
+                currentBotDifficulty = data.bot_difficulty;
+                try { sessionStorage.setItem("bot_difficulty", currentBotDifficulty); } catch (_) {}
+            }
             if (isSoloMode) {
                 startSoloTimer();
                 document.getElementById("players").style.display = "none";
@@ -1615,10 +1632,15 @@
             const players = JSON.parse(sessionStorage.getItem("players")) || [];
             const playersDiv = document.getElementById("players");
             playersDiv.innerHTML = "";
+            const isBotMode = (localStorage.getItem("play_mode") || "") === "bot";
 
             players.forEach(name => {
                 const span = document.createElement("span");
-                span.textContent = name + " ";
+                let displayName = name;
+                if (isBotMode && name === "Muistibotti") {
+                    displayName = `${name} · ${getDifficultyLabel(currentBotDifficulty)}`;
+                }
+                span.textContent = displayName + " ";
                 if (name === currentTurn) {
                     span.classList.add("active");
                 }

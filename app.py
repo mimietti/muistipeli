@@ -537,26 +537,38 @@ def forget_matched_cards_from_bot_memory(room):
             room.bot_memory.pop(idx, None)
 
 
-def get_known_bot_pairs(room, available=None):
+def snapshot_bot_memory(room, available=None):
     available_set = set(available) if available is not None else None
-    pair_to_indices = defaultdict(list)
+    snapshot = {}
     for idx, pair_id in room.bot_memory.items():
         if idx in room.matched_indices:
             continue
+        if available_set is not None and idx not in available_set:
+            continue
+        snapshot[idx] = pair_id
+    return snapshot
+
+
+def get_known_bot_pairs(room, available=None, memory_snapshot=None):
+    available_set = set(available) if available is not None else None
+    pair_to_indices = defaultdict(list)
+    source = memory_snapshot if memory_snapshot is not None else snapshot_bot_memory(room, available)
+    for idx, pair_id in source.items():
         if available_set is not None and idx not in available_set:
             continue
         pair_to_indices[pair_id].append(idx)
     return [indices[:2] for indices in pair_to_indices.values() if len(indices) >= 2]
 
 
-def choose_bot_second_index(room, first_i, available):
+def choose_bot_second_index(room, first_i, available, memory_snapshot=None):
     if not available:
         return None
-    pair_id = room.bot_memory.get(first_i)
+    source = memory_snapshot if memory_snapshot is not None else snapshot_bot_memory(room)
+    pair_id = source.get(first_i)
     probability = get_bot_memory_probability(room)
     if pair_id and random.random() < probability:
         candidates = [
-            idx for idx, known_pair in room.bot_memory.items()
+            idx for idx, known_pair in source.items()
             if known_pair == pair_id and idx != first_i and idx in available and idx not in room.matched_indices
         ]
         if candidates:
@@ -565,15 +577,16 @@ def choose_bot_second_index(room, first_i, available):
 
 
 def choose_bot_turn_indices(room, available):
+    memory_snapshot = snapshot_bot_memory(room, available)
     probability = get_bot_memory_probability(room)
-    known_pairs = get_known_bot_pairs(room, available)
+    known_pairs = get_known_bot_pairs(room, available, memory_snapshot=memory_snapshot)
     if known_pairs and random.random() < probability:
         chosen = random.choice(known_pairs)
         first_i = random.choice(chosen)
     else:
         first_i = random.choice(available)
     remaining = [idx for idx in available if idx != first_i]
-    second_i = choose_bot_second_index(room, first_i, remaining)
+    second_i = choose_bot_second_index(room, first_i, remaining, memory_snapshot=memory_snapshot)
     if second_i is None:
         second_i = random.choice(remaining)
     return first_i, second_i
@@ -1351,6 +1364,7 @@ def launch_grid_round(room):
         "card_mode": room.card_mode,
         "target_language": room.target_language,
         "native_language": room.native_language,
+        "bot_difficulty": room.bot_difficulty,
         "room_id": room.room_id,
     }, room_id=room.room_id)
     schedule_bot_turn_if_needed(room)
@@ -1948,6 +1962,7 @@ def on_join(data):
     reconnect_token = data.get("reconnect_token")
     wants_bot = bool((data or {}).get("bot_mode"))
     wants_solo = bool((data or {}).get("solo_mode"))
+    requested_play_mode = "solo" if wants_solo else ("bot" if wants_bot else "queue")
 
     if not reconnect_token:
         print(f"[WARNING] HYLÄTTY join ilman reconnect_tokenia: {username}")
@@ -1965,6 +1980,19 @@ def on_join(data):
             for info in rooms[room_id].players.values()
         )
     )
+
+    if existing_room_belongs_to_self and room_id in rooms:
+        existing_room = rooms[room_id]
+        existing_has_bot = any(is_bot_player(info) for info in existing_room.players.values())
+        should_rotate_private_room = (
+            existing_room.play_mode != requested_play_mode
+            or (requested_play_mode == "solo" and existing_has_bot)
+        )
+        if should_rotate_private_room:
+            prefix = "solo" if wants_solo else ("bot" if wants_bot else "room")
+            room_id = f"{prefix}-{str(uuid.uuid4())[:8]}"
+            assign_reconnect_token_to_room(reconnect_token, room_id)
+            existing_room_belongs_to_self = False
 
     if not wants_bot and not wants_solo and not existing_room_belongs_to_self:
         if room_id != DEFAULT_ROOM_ID and (

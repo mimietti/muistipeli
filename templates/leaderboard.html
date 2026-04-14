@@ -346,8 +346,21 @@
         tr.en.show_all = "Show all →";
 
         const UI_LANGS = ["en","fi","sv","de","fr","es","it","pt"];
+        const DIFFICULTY_LABELS = {
+            easy:   { en: "Easy",   fi: "Helppo",      sv: "Lätt",        de: "Leicht",      fr: "Facile",        es: "Fácil",       it: "Facile",      pt: "Fácil" },
+            medium: { en: "Medium", fi: "Keskitaso",   sv: "Medel",       de: "Mittel",      fr: "Intermédiaire", es: "Intermedio",  it: "Medio",       pt: "Médio" },
+            hard:   { en: "Hard",   fi: "Vaikea",      sv: "Svår",        de: "Schwer",      fr: "Difficile",     es: "Difícil",     it: "Difficile",   pt: "Difícil" }
+        };
+        const DIFFICULTY_HEADER = {
+            en: "Difficulty", fi: "Vaikeustaso", sv: "Svårighetsgrad", de: "Schwierigkeit",
+            fr: "Difficulté", es: "Dificultad", it: "Difficoltà", pt: "Dificuldade"
+        };
         function T(lang) { return tr[lang] || tr.en; }
         function getLang() { const s = localStorage.getItem("ui_language"); return UI_LANGS.includes(s) ? s : "en"; }
+        function getDifficultyLabel(code, lang) {
+            const labels = DIFFICULTY_LABELS[code] || DIFFICULTY_LABELS.easy;
+            return labels[lang] || labels.en;
+        }
 
         // --- URL params ---
         const params = new URLSearchParams(location.search);
@@ -390,7 +403,7 @@
             if (el("botGroupTitle")) el("botGroupTitle").textContent = t.bot_group;
             if (el("multiGroupTitle")) el("multiGroupTitle").textContent = t.multi_group;
             document.querySelectorAll(".th-pairs").forEach(e => e.textContent = t.th_pairs);
-            document.querySelectorAll(".th-difficulty").forEach(e => e.textContent = t.th_difficulty);
+            document.querySelectorAll(".th-difficulty").forEach(e => e.textContent = DIFFICULTY_HEADER[lang] || DIFFICULTY_HEADER.en);
             document.querySelectorAll(".th-wins").forEach(e => e.textContent = t.th_wins);
             document.querySelectorAll(".th-rounds").forEach(e => e.textContent = t.th_rounds);
             if (el("noDbText")) el("noDbText").textContent = t.noDb;
@@ -406,7 +419,7 @@
                 e.textContent = "· " + getLangName(e.dataset.lang, lang);
             });
             document.querySelectorAll(".difficulty-label[data-difficulty]").forEach(e => {
-                e.textContent = t[`difficulty_${e.dataset.difficulty}`] || e.dataset.difficulty;
+                e.textContent = getDifficultyLabel(e.dataset.difficulty, lang);
             });
         }
 

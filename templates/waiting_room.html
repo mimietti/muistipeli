@@ -681,9 +681,11 @@
             en: {
                 page_title: "Waiting Room",
                 page_title_bot: "Duel with Memory Bot",
+                page_title_solo: "Solo Game",
                 language: "Language",
                 intro_text: "The game starts from the waiting room once two players are connected. The second player can choose the word source and card type for the round.",
                 intro_text_bot: "Choose the round settings for your duel with Memory Bot. The game starts as soon as you finish your selections and press Start.",
+                intro_text_solo: "Choose the round settings for your solo game. The game starts as soon as you finish your selections and press Start.",
                 welcome_player: "Welcome, {name}!",
                 spectator_player: "Welcome, {name}!",
                 status_waiting_for_player: "Status: waiting for another player.",
@@ -768,9 +770,11 @@
             fi: {
                 page_title: "Odotushuone",
                 page_title_bot: "Kaksintaistelu Muistibotin kanssa",
+                page_title_solo: "Yksinpeli",
                 language: "Kieli",
                 intro_text: "Peli alkaa odotushuoneesta, kun kaksi pelaajaa on paikalla. Toisena liittynyt pelaaja voi valita sananlähteen ja korttityypin seuraavaan erään.",
                 intro_text_bot: "Valitse erän asetukset kaksintaisteluun Muistibotin kanssa. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
+                intro_text_solo: "Valitse erän asetukset yksinpeliin. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
                 welcome_player: "Tervetuloa, {name}!",
                 spectator_player: "Tervetuloa, {name}!",
                 status_waiting_for_player: "Status: odotetaan toista pelaajaa.",
@@ -856,6 +860,11 @@
         };
 
         const UI_LANGS = ["en","fi","sv","de","fr","es","it","pt"];
+        const DIFFICULTY_LABELS = {
+            easy:   { en: "Easy",   fi: "Helppo",      sv: "Lätt",        de: "Leicht",      fr: "Facile",      es: "Fácil",       it: "Facile",      pt: "Fácil" },
+            medium: { en: "Medium", fi: "Keskitaso",   sv: "Medel",       de: "Mittel",      fr: "Intermédiaire", es: "Intermedio", it: "Medio",       pt: "Médio" },
+            hard:   { en: "Hard",   fi: "Vaikea",      sv: "Svår",        de: "Schwer",      fr: "Difficile",   es: "Difícil",     it: "Difficile",   pt: "Difícil" }
+        };
 
         function getLanguage() {
             const stored = localStorage.getItem("ui_language");
@@ -887,6 +896,11 @@
                 value = value.replaceAll(`{${name}}`, String(replacement));
             });
             return value;
+        }
+
+        function getDifficultyLabel(code, lang = getLanguage()) {
+            const labels = DIFFICULTY_LABELS[code] || DIFFICULTY_LABELS.easy;
+            return labels[lang] || labels.en;
         }
 
         function localizeServerMessage(message) {
@@ -955,8 +969,11 @@
         function applyTranslations() {
             const playMode = localStorage.getItem("play_mode") || "";
             const isBotMode = playMode === "bot";
+            const isSoloMode = playMode === "solo";
+            const titleKey = isSoloMode ? "page_title_solo" : (isBotMode ? "page_title_bot" : "page_title");
+            const introKey = isSoloMode ? "intro_text_solo" : (isBotMode ? "intro_text_bot" : "intro_text");
             document.documentElement.lang = getLanguage();
-            document.title = t(isBotMode ? "page_title_bot" : "page_title");
+            document.title = t(titleKey);
             document.querySelectorAll(".flag-btn[data-ui-lang]").forEach(btn => {
                 const active = btn.dataset.uiLang === getLanguage();
                 btn.classList.toggle("is-active", active);
@@ -974,12 +991,12 @@
             el("cardModeImages").textContent = "🖼 " + t("card_mode_images");
             el("cardModeImageWord").textContent = "🖼 📝 " + t("card_mode_image_word");
             el("cardModeWords").textContent = "📝 📝 " + t("card_mode_words");
-            el("botDifficultyEasy").textContent = t("bot_difficulty_easy");
-            el("botDifficultyMedium").textContent = t("bot_difficulty_medium");
-            el("botDifficultyHard").textContent = t("bot_difficulty_hard");
+            el("botDifficultyEasy").textContent = getDifficultyLabel("easy");
+            el("botDifficultyMedium").textContent = getDifficultyLabel("medium");
+            el("botDifficultyHard").textContent = getDifficultyLabel("hard");
             el("startRoundBtn").textContent = t("start_round");
-            el("pageTitle").textContent = t(isBotMode ? "page_title_bot" : "page_title");
-            el("introText").textContent = t(isBotMode ? "intro_text_bot" : "intro_text");
+            el("pageTitle").textContent = t(titleKey);
+            el("introText").textContent = t(introKey);
             el("exitGameBtn").textContent = t("exit_game");
             el("changeNameBtn").textContent = t("change_name");
             const queueBotHintEl = document.getElementById("queueBotHint");
@@ -1404,12 +1421,18 @@
                 const lastJoinedToken = payload && payload.last_joined_token;
                 const myToken = getReconnectToken();
                 const queueSearchActive = isQueueSearchLobby(payload, rawPlayersInfo);
+                const isSoloMode = (localStorage.getItem("play_mode") || "") === "solo";
                 let players = rawPlayers;
                 let playersInfo = rawPlayersInfo;
                 if (queueSearchActive) {
                     const myInfo = rawPlayersInfo.find(p => p && p.reconnect_token === myToken);
                     playersInfo = myInfo ? [myInfo] : [];
                     players = myInfo ? [myInfo.username] : [];
+                } else if (isSoloMode) {
+                    const myInfo = rawPlayersInfo.find(p => p && p.reconnect_token === myToken);
+                    const myName = (myInfo && myInfo.username) || (localStorage.getItem("username") || "").trim();
+                    playersInfo = myInfo ? [myInfo] : [];
+                    players = myName ? [myName] : [];
                 }
                 console.log("[DEBUG] Pelaajat (ordered):", rawPlayers, "visible:", players);
                 const playersDiv = document.getElementById("players");
@@ -1424,7 +1447,7 @@
                     });
                 }
 
-                const isSolo = localStorage.getItem("play_mode") === "solo";
+                const isSolo = isSoloMode;
                 const canStart = isSolo
                     ? players.length >= 1
                     : (() => {
