@@ -430,6 +430,8 @@ def resolve_player_for_event(data=None):
             if reconnect_token and info.get("reconnect_token") == reconnect_token:
                 updated = {**info, "connected": True, "disconnected_at": None}
                 r.players[sid] = updated
+                if r.current_click_sid == existing_sid:
+                    r.current_click_sid = sid
                 if existing_sid != sid and existing_sid in r.players:
                     del r.players[existing_sid]
                     _sid_to_room_id.pop(existing_sid, None)
@@ -438,6 +440,8 @@ def resolve_player_for_event(data=None):
             if username_hint and info.get("username") == username_hint:
                 updated = {**info, "connected": True, "disconnected_at": None}
                 r.players[sid] = updated
+                if r.current_click_sid == existing_sid:
+                    r.current_click_sid = sid
                 if existing_sid != sid and existing_sid in r.players:
                     del r.players[existing_sid]
                     _sid_to_room_id.pop(existing_sid, None)

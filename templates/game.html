@@ -805,11 +805,12 @@
             try { localStorage.removeItem("reconnect_token"); } catch (_) {}
         }
         // Liity peliin reconnect_tokenin kanssa
+        const currentPlayMode = localStorage.getItem("play_mode") || "";
         const joinPayload = {
             username: myName,
             reconnect_token: reconnectToken,
-            bot_mode: false,
-            solo_mode: (localStorage.getItem("play_mode") || "") === "solo"
+            bot_mode: currentPlayMode === "bot",
+            solo_mode: currentPlayMode === "solo"
         };
         console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
         socket.emit("join", joinPayload);
@@ -1615,7 +1616,7 @@
                 div.dataset.index = String(index);
                 div.addEventListener("click", () => {
                     console.log(`[DEBUG] Klikattiin korttia: ${index}`);
-                    if (myName === currentTurn && !matched.has(index)) {
+                    if ((isSoloMode || myName === currentTurn) && !matched.has(index)) {
                         socket.emit("card_clicked", {
                             index,
                             username: myName,
