@@ -951,6 +951,8 @@ def translate_word(word, source_lang, target_lang):
     normalized_word = normalize_candidate_word(word)
     if not normalized_word:
         return None
+    if source_lang == target_lang:
+        return normalized_word
     cache_key = (normalized_word, source_lang, target_lang)
     if cache_key in translation_cache:
         return translation_cache[cache_key]
