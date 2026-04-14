@@ -1869,7 +1869,7 @@ def leaderboard():
                                COALESCE(bot_difficulty, 'easy') AS bd,
                                username, pairs_found, mistakes, time_secs
                         FROM results
-                        WHERE play_mode = 'bot' AND game_mode != 'random' AND pairs_found IS NOT NULL
+                        WHERE play_mode = 'bot' AND pairs_found IS NOT NULL
                           AND username != %s
                         ORDER BY card_mode, tl,
                                  CASE COALESCE(bot_difficulty, 'easy')
@@ -1885,7 +1885,7 @@ def leaderboard():
                      """SELECT card_mode, COALESCE(target_language,'') AS tl,
                                username, time_secs, mistakes, total_time
                         FROM results
-                        WHERE game_mode = 'random' AND total_time IS NOT NULL
+                        WHERE game_mode = 'random' AND play_mode != 'bot' AND total_time IS NOT NULL
                           AND username != %s
                         ORDER BY card_mode, tl, total_time ASC""",
                      (bot_name,)),
