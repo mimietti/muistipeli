@@ -131,8 +131,9 @@
         <div class="board"><div class="empty" id="noDbText">Leaderboard not available.</div></div>
         {% else %}
 
-        {% set solo_sections = sections | selectattr("play", "equalto", "solo") | list %}
-        {% set bot_sections  = sections | selectattr("play", "equalto", "bot")  | list %}
+        {% set solo_sections   = sections | selectattr("play", "equalto", "solo")   | list %}
+        {% set random_sections = sections | selectattr("play", "equalto", "random") | list %}
+        {% set bot_sections    = sections | selectattr("play", "equalto", "bot")    | list %}
 
         {% set cm_icons = {"images": "🖼", "image_word": "🖼📝", "words": "📝📝"} %}
         {% set cm_keys  = {"images": "mode_images", "image_word": "mode_image_word", "words": "mode_words"} %}
@@ -141,6 +142,45 @@
         {% if solo_sections %}
             {% for sec in solo_sections %}
             <div class="section" data-play="solo" data-mode="{{ sec.card_mode }}" data-lang="{{ sec.target_language }}">
+                <div class="section-title">
+                    {{ cm_icons[sec.card_mode] }}
+                    <span class="section-label" data-key="{{ cm_keys[sec.card_mode] }}">{{ cm_keys[sec.card_mode] }}</span>
+                    {% if sec.target_language %}<span class="lang-tag" data-lang="{{ sec.target_language }}"></span>{% endif %}
+                </div>
+                <div class="board">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th class="th-name" style="text-align:left;">Player</th>
+                                <th class="th-time">Time</th>
+                                <th class="th-mistakes">Mistakes</th>
+                                <th class="th-total">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in sec.rows %}
+                            <tr data-username="{{ row[0] }}">
+                                <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+                                <td class="name">{{ row[0] }}</td>
+                                <td class="dim">{{ (row[1] // 60)|string + ":" + "%02d"|format(row[1] % 60) if row[1] is not none else "–" }}</td>
+                                <td class="dim">{{ row[2] if row[2] is not none else "–" }}</td>
+                                <td class="total">{{ (row[3] // 60)|string + ":" + "%02d"|format(row[3] % 60) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="board"><div class="empty">–</div></div>
+        {% endif %}
+
+        <div class="group-title" id="randomGroupTitle" style="margin-top:28px;" data-key="group_random">Random</div>
+        {% if random_sections %}
+            {% for sec in random_sections %}
+            <div class="section" data-play="random" data-mode="{{ sec.card_mode }}" data-lang="{{ sec.target_language }}">
                 <div class="section-title">
                     {{ cm_icons[sec.card_mode] }}
                     <span class="section-label" data-key="{{ cm_keys[sec.card_mode] }}">{{ cm_keys[sec.card_mode] }}</span>
@@ -261,7 +301,7 @@
                 th_name: "Player", th_time: "Time", th_mistakes: "Mistakes", th_total: "Total",
                 mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word",
                 noDb: "Leaderboard not available.", newGame: "▶ New game", back: "← Back to start",
-                solo_group: "Solo", bot_group: "vs Bot", th_pairs: "Pairs",
+                solo_group: "Solo", random_group: "Random", bot_group: "vs Bot", th_pairs: "Pairs",
                 multi_group: "Multiplayer", th_wins: "Wins", th_rounds: "Rounds"
             },
             fi: {
@@ -270,7 +310,7 @@
                 th_name: "Pelaaja", th_time: "Aika", th_mistakes: "Virheet", th_total: "Yhteensä",
                 mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana",
                 noDb: "Tulostaulu ei käytössä.", newGame: "▶ Uusi peli", back: "← Takaisin alkuun",
-                solo_group: "Solo", bot_group: "vs Botti", th_pairs: "Pareja",
+                solo_group: "Solo", random_group: "Satunnaiset", bot_group: "vs Botti", th_pairs: "Pareja",
                 multi_group: "Moninpeli", th_wins: "Voitot", th_rounds: "Erät",
                 show_all: "Näytä kaikki →"
             },
@@ -321,6 +361,7 @@
             if (el("backBtn")) el("backBtn").textContent = t.back;
             if (el("newGameBtn")) el("newGameBtn").textContent = t.newGame;
             if (el("soloGroupTitle")) el("soloGroupTitle").textContent = t.solo_group;
+            if (el("randomGroupTitle")) el("randomGroupTitle").textContent = t.random_group;
             if (el("botGroupTitle")) el("botGroupTitle").textContent = t.bot_group;
             if (el("multiGroupTitle")) el("multiGroupTitle").textContent = t.multi_group;
             document.querySelectorAll(".th-pairs").forEach(e => e.textContent = t.th_pairs);
@@ -361,7 +402,7 @@
                         sec.style.display = (sec === targetSection) ? "" : "none";
                     });
                     // Hide group titles that don't belong to the visible play mode
-                    const titleMap = { solo: "soloGroupTitle", bot: "botGroupTitle", multi: "multiGroupTitle" };
+                    const titleMap = { solo: "soloGroupTitle", random: "randomGroupTitle", bot: "botGroupTitle", multi: "multiGroupTitle" };
                     Object.entries(titleMap).forEach(([play, id]) => {
                         const el = document.getElementById(id);
                         if (el) el.style.display = (play === visiblePlay) ? "" : "none";

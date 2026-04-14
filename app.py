@@ -113,7 +113,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.08 (2026-04-13)"
+APP_VERSION = "Beta v0.08 (2026-04-14)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -1763,7 +1763,7 @@ def leaderboard():
                      """SELECT card_mode, COALESCE(target_language,'') AS tl,
                                username, time_secs, mistakes, total_time
                         FROM results
-                        WHERE play_mode = 'solo' AND total_time IS NOT NULL
+                        WHERE play_mode = 'solo' AND game_mode != 'random' AND total_time IS NOT NULL
                           AND username != %s
                         ORDER BY card_mode, tl, total_time ASC""",
                      (bot_name,)),
@@ -1771,9 +1771,17 @@ def leaderboard():
                      """SELECT card_mode, COALESCE(target_language,'') AS tl,
                                username, pairs_found, mistakes, time_secs
                         FROM results
-                        WHERE play_mode = 'bot' AND pairs_found IS NOT NULL
+                        WHERE play_mode = 'bot' AND game_mode != 'random' AND pairs_found IS NOT NULL
                           AND username != %s
                         ORDER BY card_mode, tl, pairs_found DESC, mistakes ASC NULLS LAST, time_secs ASC NULLS LAST""",
+                     (bot_name,)),
+                    ("random",
+                     """SELECT card_mode, COALESCE(target_language,'') AS tl,
+                               username, time_secs, mistakes, total_time
+                        FROM results
+                        WHERE game_mode = 'random' AND total_time IS NOT NULL
+                          AND username != %s
+                        ORDER BY card_mode, tl, total_time ASC""",
                      (bot_name,)),
                 ]:
                     cur.execute(query, args)
