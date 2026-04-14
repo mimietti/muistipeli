@@ -2175,7 +2175,11 @@ def handle_grid_request():
         "points": room.player_points,
         "solo": is_solo(room),
         "game_mode": room.game_mode,
+        "card_mode": room.card_mode,
         "target_language": room.target_language,
+        "native_language": room.native_language,
+        "bot_difficulty": room.bot_difficulty,
+        "room_id": room.room_id,
     })
     schedule_bot_turn_if_needed(room)
 
