@@ -74,6 +74,9 @@ def _init_db():
                 cur.execute("""
                     ALTER TABLE results ADD COLUMN IF NOT EXISTS bot_difficulty TEXT
                 """)
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS round_result TEXT
+                """)
         print("[DB] Tietokanta alustettu.")
     except Exception as e:
         print(f"[DB] Alustusvirhe: {e}")
@@ -84,7 +87,7 @@ _init_db()
 
 SOLO_PENALTY_PER_MISTAKE = 3  # seconds
 
-def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None, target_language=None, bot_difficulty=None):
+def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None, target_language=None, bot_difficulty=None, round_result=None):
     total_time = None
     if time_secs is not None and mistakes is not None:
         total_time = time_secs + mistakes * SOLO_PENALTY_PER_MISTAKE
@@ -95,9 +98,9 @@ def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mis
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty)
+                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty, round_result)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty, round_result)
                 )
     except Exception as e:
         print(f"[DB] Tallennusvirhe: {e}")
@@ -118,6 +121,7 @@ RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300"
 PAGE_TRANSITION_GRACE_SECONDS = 5
 APP_VERSION = "Beta v0.08 (2026-04-16)"
 BOT_USERNAME = "Muistibotti"
+ADMIN_TIE_GRANT_KEY = "mt-tie-20260416-7f3a9c2d"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
 FINAL_PAIR_REVEAL_SECONDS = 3.2
@@ -1441,6 +1445,7 @@ def conclude_round(winner_label, room, surrendered_by=None):
                     )
                 else:
                     round_won = 1 if name == winner_label else 0
+                    round_result = "tie" if winner_label in {"Tasapeli", "Tie"} else ("win" if name == winner_label else "loss")
                     save_result(
                         username=name,
                         play_mode="multiplayer",
@@ -1448,7 +1453,8 @@ def conclude_round(winner_label, room, surrendered_by=None):
                         pairs_found=room.player_points.get(name, 0),
                         round_won=round_won,
                         card_mode=card_mode,
-                        target_language=target_lang
+                        target_language=target_lang,
+                        round_result=round_result
                     )
 
     emit_to_room("game_over", {
@@ -1883,6 +1889,60 @@ def release_notes():
     return render_template("release_notes.html")
 
 
+@app.route("/admin/grant-multiplayer-ties")
+def grant_multiplayer_ties():
+    key = (request.args.get("key") or "").strip()
+    if key != ADMIN_TIE_GRANT_KEY:
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+
+    conn = _get_db()
+    if not conn:
+        return jsonify({"ok": False, "error": "db_unavailable"}), 503
+
+    usernames = ("Miguel", "Temppu")
+    inserted = []
+    skipped = []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS round_result TEXT
+                """)
+                for username in usernames:
+                    cur.execute("""
+                        SELECT 1
+                        FROM results
+                        WHERE username = %s
+                          AND play_mode = 'multiplayer'
+                          AND game_mode = 'admin_tie_grant'
+                          AND round_result = 'tie'
+                        LIMIT 1
+                    """, (username,))
+                    if cur.fetchone():
+                        skipped.append(username)
+                        continue
+                    cur.execute("""
+                        INSERT INTO results (
+                            username, play_mode, game_mode, pairs_found,
+                            round_won, card_mode, round_result
+                        )
+                        VALUES (%s, 'multiplayer', 'admin_tie_grant', 0, 0, 'images', 'tie')
+                    """, (username,))
+                    inserted.append(username)
+    except Exception as e:
+        print(f"[DB] Tasapelilisäys epäonnistui: {e}")
+        return jsonify({"ok": False, "error": "db_write_failed"}), 500
+    finally:
+        conn.close()
+
+    return jsonify({
+        "ok": True,
+        "inserted": inserted,
+        "skipped": skipped,
+        "count": len(inserted),
+    })
+
+
 @app.route("/leaderboard")
 def leaderboard():
     conn = _get_db()
@@ -1955,12 +2015,18 @@ def leaderboard():
                                     "rows": grouped[key]
                                 })
                 cur.execute("""
-                    SELECT username, SUM(round_won) AS wins, COUNT(*) AS rounds
+                    SELECT username,
+                           SUM(CASE
+                                 WHEN COALESCE(round_result, CASE WHEN round_won = 1 THEN 'win' ELSE 'loss' END) = 'win'
+                                 THEN 1 ELSE 0
+                               END) AS wins,
+                           SUM(CASE WHEN round_result = 'tie' THEN 1 ELSE 0 END) AS ties,
+                           COUNT(*) AS rounds
                     FROM results
                     WHERE play_mode = 'multiplayer' AND round_won IS NOT NULL
                       AND username != %s
                     GROUP BY username
-                    ORDER BY wins DESC, rounds ASC
+                    ORDER BY wins DESC, ties DESC, rounds ASC
                     LIMIT 10
                 """, (bot_name,))
                 multi_top = cur.fetchall()

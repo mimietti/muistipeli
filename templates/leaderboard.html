@@ -285,6 +285,7 @@
                             <th>#</th>
                             <th class="th-name" style="text-align:left;">Player</th>
                             <th class="th-wins">Wins</th>
+                            <th class="th-ties">Ties</th>
                             <th class="th-rounds">Rounds</th>
                         </tr>
                     </thead>
@@ -295,6 +296,7 @@
                             <td class="name">{{ row[0] }}</td>
                             <td class="total">{{ row[1] }}</td>
                             <td class="dim">{{ row[2] }}</td>
+                            <td class="dim">{{ row[3] }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -324,7 +326,7 @@
                 mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word",
                 noDb: "Leaderboard not available.", newGame: "▶ New game", back: "← Back to start",
                 solo_group: "Solo", random_group: "Random", bot_group: "vs Bot", th_pairs: "Pairs",
-                multi_group: "Multiplayer", th_wins: "Wins", th_rounds: "Rounds"
+                multi_group: "Multiplayer", th_wins: "Wins", th_ties: "Ties", th_rounds: "Rounds"
             },
             fi: {
                 title: "Tulostaulu", subtitle: "Solo — 10 nopeinta, järjestetty kokonaisajan mukaan",
@@ -335,7 +337,7 @@
                 mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana",
                 noDb: "Tulostaulu ei käytössä.", newGame: "▶ Uusi peli", back: "← Takaisin alkuun",
                 solo_group: "Solo", random_group: "Satunnaiset", bot_group: "vs Botti", th_pairs: "Pareja",
-                multi_group: "Moninpeli", th_wins: "Voitot", th_rounds: "Erät",
+                multi_group: "Moninpeli", th_wins: "Voitot", th_ties: "Tasapelit", th_rounds: "Erät",
                 show_all: "Näytä kaikki →"
             },
         };
@@ -407,6 +409,7 @@
             document.querySelectorAll(".th-pairs").forEach(e => e.textContent = t.th_pairs);
             document.querySelectorAll(".th-difficulty").forEach(e => e.textContent = DIFFICULTY_HEADER[lang] || DIFFICULTY_HEADER.en);
             document.querySelectorAll(".th-wins").forEach(e => e.textContent = t.th_wins);
+            document.querySelectorAll(".th-ties").forEach(e => e.textContent = t.th_ties || "Ties");
             document.querySelectorAll(".th-rounds").forEach(e => e.textContent = t.th_rounds);
             if (el("noDbText")) el("noDbText").textContent = t.noDb;
             document.querySelectorAll(".th-name").forEach(e => e.textContent = t.th_name);
