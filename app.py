@@ -1388,6 +1388,7 @@ def launch_grid_round(room):
         "solo": is_solo(room),
         "game_mode": room.game_mode,
         "card_mode": room.card_mode,
+        "image_pair_tracker": build_image_pair_tracker_entries(room),
         "target_language": room.target_language,
         "native_language": room.native_language,
         "bot_difficulty": room.bot_difficulty,
@@ -1464,6 +1465,23 @@ def conclude_round(winner_label, room, surrendered_by=None):
         "solo_time": solo_time,
         "solo_mistakes": room.solo_mistakes if is_solo(room) else None
     }, room_id=room.room_id)
+
+
+def build_image_pair_tracker_entries(room):
+    if (room.card_mode or "images") != "images":
+        return []
+    entries = []
+    by_key = {}
+    for index, card in enumerate(room.grid_data or []):
+        key = card.get("pair_id", card.get("word"))
+        label = card.get("display_word") or card.get("word") or ""
+        if not key or not label:
+            continue
+        if key not in by_key:
+            by_key[key] = {"key": str(key), "label": label, "indices": []}
+            entries.append(by_key[key])
+        by_key[key]["indices"].append(index)
+    return entries
 
     try:
         room.grid_data.clear()
@@ -2208,6 +2226,7 @@ def handle_grid_request():
         "solo": is_solo(room),
         "game_mode": room.game_mode,
         "card_mode": room.card_mode,
+        "image_pair_tracker": build_image_pair_tracker_entries(room),
         "target_language": room.target_language,
         "native_language": room.native_language,
         "bot_difficulty": room.bot_difficulty,
@@ -2229,6 +2248,7 @@ def handle_ready_for_game():
             "players": room.player_order,
             "game_mode": room.game_mode,
             "card_mode": room.card_mode,
+            "image_pair_tracker": build_image_pair_tracker_entries(room),
             "target_language": room.target_language,
             "native_language": room.native_language,
         })

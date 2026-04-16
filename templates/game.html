@@ -676,6 +676,7 @@
         const translationHintLabel = document.getElementById("translation-hint-label");
         let cards = [];
         let matched = new Set();
+        let imagePairTrackerEntries = [];
         let revealedOrder = [];
         let currentTurn = null;
         let currentTranslationHint = null;
@@ -929,6 +930,9 @@
         }
 
         function getImagePairTrackerEntries() {
+            if (Array.isArray(imagePairTrackerEntries) && imagePairTrackerEntries.length > 0) {
+                return imagePairTrackerEntries;
+            }
             const pairs = new Map();
             cards.forEach((card, index) => {
                 if (!card || card.card_type === "word") return;
@@ -1010,10 +1014,15 @@
                 return;
             }
             const payload = { mode };
+            const currentMode = window.currentCardMode || "images";
+            payload.card_mode = currentMode;
             if (modeUsesTheme(mode)) {
                 payload.theme = getLastRoundTheme();
             }
-            if (mode === "language") {
+            if (currentMode !== "images") {
+                payload.target_lang = currentTargetLanguage;
+            }
+            if (mode === "language" && !payload.target_lang) {
                 payload.target_lang = currentTargetLanguage;
             }
             try { sessionStorage.setItem("queued_next_round", JSON.stringify(payload)); } catch (e) {}
@@ -1223,6 +1232,7 @@
             currentTurn = data.turn;
             sessionStorage.setItem("players", JSON.stringify(data.players));
             matched = data.matched ? new Set(data.matched) : new Set();
+            imagePairTrackerEntries = Array.isArray(data.image_pair_tracker) ? data.image_pair_tracker : [];
             revealedOrder = [];
             currentTranslationHint = null;
             isSoloMode = Boolean(data.solo);
