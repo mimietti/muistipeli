@@ -1467,6 +1467,7 @@
                 <div class="results-actions" style="${canChooseNextRound ? "" : "display:none;"}">
                     <button id="restart-manual-btn" class="results-btn mode">${t("enter_words")}</button>
                     <button id="restart-theme-btn" class="results-btn mode">${t("enter_theme")}</button>
+                    <button id="restart-random-btn" class="results-btn mode">${t("enter_random")}</button>
                     <button id="restart-lang-btn" class="results-btn mode">${getTargetLanguageLabel()}</button>
                 </div>
                 <div class="results-actions">
@@ -1476,6 +1477,7 @@
             document.body.appendChild(results);
             document.getElementById("restart-manual-btn")?.addEventListener("click", () => queueNextRound("manual"));
             document.getElementById("restart-theme-btn")?.addEventListener("click", () => queueNextRound("theme"));
+            document.getElementById("restart-random-btn")?.addEventListener("click", () => queueNextRound("random"));
             document.getElementById("restart-lang-btn")?.addEventListener("click", () => queueNextRound("language"));
             document.getElementById("end-game-btn")?.addEventListener("click", () => {
                 // Go to summary for rematch option (don't call leave_game — room stays alive)
