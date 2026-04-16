@@ -1488,6 +1488,10 @@
             const playModeSelectEl = document.getElementById("playModeSelect");
             const queueStatusEl = document.getElementById("queueStatus");
             const queueTextEl = document.getElementById("queueText");
+            const queueSpinnerEl = document.querySelector("#queueStatus .queue-spinner");
+            const leaveQueueBtnEl = document.getElementById("leaveQueueBtn");
+            const queueBotHintEl = document.getElementById("queueBotHint");
+            const queueBotBtnEl = document.getElementById("queueBotBtn");
 
             function showPlayModeSelect() {
                 document.getElementById("playModeText").textContent = t("play_mode_prompt");
@@ -1506,12 +1510,28 @@
                 queueStatusEl.style.display = "block";
                 playModeSelectEl.style.display = "none";
                 queueTextEl.textContent = text || t("queue_searching");
-                const queueBotBtnEl = document.getElementById("queueBotBtn");
+                if (queueSpinnerEl) queueSpinnerEl.style.display = "";
+                if (leaveQueueBtnEl) leaveQueueBtnEl.style.display = "inline-flex";
+                if (queueBotHintEl) queueBotHintEl.style.display = "";
                 if (queueBotBtnEl) queueBotBtnEl.style.display = "inline-block";
+            }
+
+            function showQueueMessage(text) {
+                queueStatusEl.style.display = "block";
+                playModeSelectEl.style.display = "none";
+                queueTextEl.textContent = text || "";
+                if (queueSpinnerEl) queueSpinnerEl.style.display = "none";
+                if (leaveQueueBtnEl) leaveQueueBtnEl.style.display = "none";
+                if (queueBotHintEl) queueBotHintEl.style.display = "none";
+                if (queueBotBtnEl) queueBotBtnEl.style.display = "none";
             }
 
             function hideQueueStatus() {
                 queueStatusEl.style.display = "none";
+                if (queueSpinnerEl) queueSpinnerEl.style.display = "";
+                if (leaveQueueBtnEl) leaveQueueBtnEl.style.display = "inline-flex";
+                if (queueBotHintEl) queueBotHintEl.style.display = "";
+                if (queueBotBtnEl) queueBotBtnEl.style.display = "none";
             }
 
             document.getElementById("botModeBtn").addEventListener("click", () => {
@@ -1570,9 +1590,7 @@
             socket.on("match_found", (data) => {
                 queueJoined = false;
                 localStorage.removeItem("play_mode");
-                hideQueueStatus();
-                queueTextEl.textContent = t("match_found_msg");
-                queueStatusEl.style.display = "block";
+                showQueueMessage(t("match_found_msg"));
                 setTimeout(() => { queueStatusEl.style.display = "none"; }, 2000);
             });
 
