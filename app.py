@@ -1900,8 +1900,9 @@ def grant_multiplayer_ties():
         return jsonify({"ok": False, "error": "db_unavailable"}), 503
 
     usernames = ("Miguel", "Temppu")
-    inserted = []
+    updated = []
     skipped = []
+    deleted_admin_rows = 0
     try:
         with conn:
             with conn.cursor() as cur:
@@ -1910,25 +1911,48 @@ def grant_multiplayer_ties():
                 """)
                 for username in usernames:
                     cur.execute("""
-                        SELECT 1
-                        FROM results
+                        DELETE FROM results
                         WHERE username = %s
                           AND play_mode = 'multiplayer'
                           AND game_mode = 'admin_tie_grant'
+                    """, (username,))
+                    deleted_admin_rows += cur.rowcount or 0
+
+                    cur.execute("""
+                        SELECT id
+                        FROM results
+                        WHERE username = %s
+                          AND play_mode = 'multiplayer'
+                          AND game_mode != 'admin_tie_grant'
                           AND round_result = 'tie'
+                        ORDER BY created_at DESC, id DESC
                         LIMIT 1
                     """, (username,))
-                    if cur.fetchone():
+                    existing_tie = cur.fetchone()
+                    if existing_tie:
                         skipped.append(username)
                         continue
+
                     cur.execute("""
-                        INSERT INTO results (
-                            username, play_mode, game_mode, pairs_found,
-                            round_won, card_mode, round_result
+                        UPDATE results
+                        SET round_result = 'tie'
+                        WHERE id = (
+                            SELECT id
+                            FROM results
+                            WHERE username = %s
+                              AND play_mode = 'multiplayer'
+                              AND game_mode != 'admin_tie_grant'
+                              AND round_won = 0
+                            ORDER BY created_at DESC, id DESC
+                            LIMIT 1
                         )
-                        VALUES (%s, 'multiplayer', 'admin_tie_grant', 0, 0, 'images', 'tie')
+                        RETURNING id
                     """, (username,))
-                    inserted.append(username)
+                    row = cur.fetchone()
+                    if row:
+                        updated.append(username)
+                    else:
+                        skipped.append(username)
     except Exception as e:
         print(f"[DB] Tasapelilisäys epäonnistui: {e}")
         return jsonify({"ok": False, "error": "db_write_failed"}), 500
@@ -1937,9 +1961,10 @@ def grant_multiplayer_ties():
 
     return jsonify({
         "ok": True,
-        "inserted": inserted,
+        "updated": updated,
         "skipped": skipped,
-        "count": len(inserted),
+        "deleted_admin_rows": deleted_admin_rows,
+        "count": len(updated),
     })
 
 
