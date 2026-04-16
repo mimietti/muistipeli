@@ -1792,6 +1792,7 @@ def try_match_from_queue():
     p2 = matchmaking_queue.pop(0)
     room_id = str(uuid.uuid4())[:8]
     room = create_room(room_id)
+    room.play_mode = "queue"
     print(f"[INFO] Matchmaking: {p1['username']} vs {p2['username']} -> huone {room_id}")
     for entry in [p1, p2]:
         sid = entry["sid"]
