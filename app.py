@@ -119,7 +119,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.08 (2026-04-16)"
+APP_VERSION = "Beta v0.09 (2026-04-16)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -158,6 +158,7 @@ class RoomState:
     native_language: str = "fi"
     target_language: str = "es"
     image_mode: str = "pixabay"
+    word_filter_mode: str = "clear"
     players: dict = field(default_factory=dict)
     player_order: list = field(default_factory=list)
     grid_data: list = field(default_factory=list)
@@ -227,6 +228,18 @@ ABSTRACT_THEME_WORDS = {
     "knowledge", "logic", "love", "peace", "power", "quality", "spirit", "strategy",
     "strength", "success", "theory", "thought", "truth", "value", "vision", "wisdom"
 }
+CLEAR_PICTURE_WORD_BLACKLIST = ABSTRACT_THEME_WORDS | {
+    "authority", "bodily", "carriage", "consistence", "consistency", "creation",
+    "entity", "essence", "ethos", "existence", "expanse", "function",
+    "horticulture", "leverage", "macrocosm", "natural", "object", "overall",
+    "part", "personality", "physical", "place", "playing", "position", "power",
+    "quality", "repertoire", "role", "situation", "spot", "substance", "such",
+    "toolkit", "universe", "vegetation", "vehicular", "wild", "world"
+}
+CLEAR_PICTURE_WORD_SUFFIXES = (
+    "ability", "acity", "ality", "ance", "ence", "hood", "ibility", "ion",
+    "ism", "ity", "ment", "ness", "ology", "ship", "sion", "tude"
+)
 
 RANDOM_WORD_THEMES = [
     "animal", "food", "sport", "nature", "vehicle", "furniture",
@@ -759,10 +772,11 @@ def filter_theme_candidate_pool(words, room=None, excluded_display_keys=None):
 
 
 def build_theme_candidate_list(search_theme, candidate_count=24, room=None):
-    raw = fetch_theme_words(search_theme, max_results=96, require_noun=False, exclude_proper=False)
+    require_noun = getattr(room, "word_filter_mode", "clear") == "clear"
+    raw = fetch_theme_words(search_theme, max_results=96, require_noun=require_noun, exclude_proper=False)
     filtered, seen = [], set()
     for word in raw:
-        if word in seen or not is_concrete_theme_word(word):
+        if word in seen or not is_word_allowed_for_filter_mode(word, room):
             continue
         seen.add(word)
         filtered.append(word)
@@ -986,19 +1000,39 @@ def is_concrete_theme_word(word):
     return word not in ABSTRACT_THEME_WORDS
 
 
-def fetch_random_game_words(target=8):
+def is_word_allowed_for_filter_mode(word, room=None):
+    normalized = normalize_candidate_word(word)
+    if not normalized:
+        return False
+    filter_mode = getattr(room, "word_filter_mode", "clear")
+    if filter_mode != "clear":
+        return is_concrete_theme_word(normalized)
+    if normalized in CLEAR_PICTURE_WORD_BLACKLIST:
+        return False
+    if not is_concrete_theme_word(normalized):
+        return False
+    if any(normalized.endswith(suffix) for suffix in CLEAR_PICTURE_WORD_SUFFIXES):
+        return False
+    if len(normalized) > 15 and normalized.endswith(("al", "ic", "ous")):
+        return False
+    return True
+
+
+def fetch_random_game_words(target=8, room=None):
     """Pick `target` distinct concrete words from random themes."""
+    require_noun = getattr(room, "word_filter_mode", "clear") == "clear"
     themes = random.sample(RANDOM_WORD_THEMES, min(len(RANDOM_WORD_THEMES), target * 2))
     pool = []
     seen = set()
     for theme in themes:
-        words = fetch_theme_words(theme, max_results=20, require_noun=True, exclude_proper=True)
+        words = fetch_theme_words(theme, max_results=20, require_noun=require_noun, exclude_proper=True)
         for w in words:
-            if w and w not in seen and is_concrete_theme_word(w):
+            if w and w not in seen and is_word_allowed_for_filter_mode(w, room):
                 seen.add(w)
                 pool.append(w)
         if len(pool) >= target * 4:
             break
+    pool, _ = filter_theme_candidate_pool(pool, room=room)
     if len(pool) < target:
         return pool
     return random.sample(pool, target)
@@ -2286,6 +2320,7 @@ def handle_start_custom_game(data=None):
     ui_language = str(data.get("ui_language", "")).strip().lower()
     card_mode = str(data.get("card_mode", "")).strip().lower()
     bot_difficulty = str(data.get("bot_difficulty", room.bot_difficulty or "easy")).strip().lower()
+    word_filter_mode = str(data.get("word_filter_mode", room.word_filter_mode or "clear")).strip().lower()
     # "spanish" / "language" legacy: word_source=theme + card_mode=image_word
     if mode in {"spanish", "language"}:
         mode = "theme"
@@ -2305,6 +2340,7 @@ def handle_start_custom_game(data=None):
         room.bot_difficulty = bot_difficulty if bot_difficulty in BOT_MEMORY_USE_PROBABILITY else "easy"
     else:
         room.bot_difficulty = "easy"
+    room.word_filter_mode = word_filter_mode if word_filter_mode in {"clear", "broad"} else "clear"
     if card_mode in {"image_word", "words"}:
         tl = str(data.get("target_language", "es")).strip().lower()
         room.target_language = tl if tl in SUPPORTED_LANGUAGES else "es"
@@ -2342,7 +2378,7 @@ def handle_start_custom_game(data=None):
     if room.game_mode == "random":
         def run_random_game():
             # Fetch a larger pool so we can skip words that fail without showing errors
-            candidates = fetch_random_game_words(target=24)
+            candidates = fetch_random_game_words(target=24, room=room)
             print(f"[INFO] Satunnaissana-kandidaatit: {', '.join(candidates)}")
             pair_index = 0
             for word in candidates:

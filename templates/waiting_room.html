@@ -636,6 +636,13 @@
                     </button>
                 </div>
             </div>
+            <div class="option-group" id="wordFilterPicker">
+                <div class="option-group-label" id="labelWordFilterMode">Word style</div>
+                <div class="option-group-btns">
+                    <button class="opt-btn active" data-word-filter-mode="clear" id="wordFilterClear">Clear picture words</button>
+                    <button class="opt-btn" data-word-filter-mode="broad" id="wordFilterBroad">Broader vocabulary</button>
+                </div>
+            </div>
             <div class="option-group" id="botDifficultyPicker" style="display:none;">
                 <div class="option-group-label" id="labelBotDifficulty">Bot difficulty</div>
                 <div class="option-group-btns">
@@ -683,15 +690,15 @@
                 page_title_bot: "Duel with Memory Bot",
                 page_title_solo: "Solo Game",
                 language: "Language",
-                intro_text: "The game starts from the waiting room once two players are connected. The second player can choose the word source and card type for the round.",
+                intro_text: "The game starts when both players are here. The second player can choose the word source and card type for the next round.",
                 intro_text_bot: "Choose the round settings for your duel with Memory Bot. The game starts as soon as you finish your selections and press Start.",
                 intro_text_solo: "Choose the round settings for your solo game. The game starts as soon as you finish your selections and press Start.",
                 welcome_player: "Welcome, {name}!",
                 spectator_player: "Welcome, {name}!",
-                status_waiting_for_player: "Status: waiting for another player.",
-                status_choose_round: "Status: choose how the next round starts.",
-                status_room_full: "Status: both player slots are full.",
-                start_options: "Choose how words are provided for this round.",
+                status_waiting_for_player: "Waiting for another player.",
+                status_choose_round: "Choose how the next round starts.",
+                status_room_full: "Both player slots are full.",
+                start_options: "Choose how words are selected for this round.",
                 enter_words: "Enter your own words",
                 enter_theme: "Enter theme",
                 study_spanish: "Study Spanish",
@@ -721,7 +728,7 @@
                 setup_progress_pairs: "{count}/{total} pairs ready",
                 theme_selection_title: 'Theme: "{theme}"',
                 theme_selection_help: "We preselected 8 usable words. Each player can swap up to 4 of them before the round starts.",
-                theme_selection_turn_you: "Choose one of the selected words to replace.",
+                theme_selection_turn_you: "Choose a selected word to replace.",
                 theme_selection_turn_other: "{name} is editing the shared word set.",
                 theme_selection_progress: "Selections: {count}/8",
                 theme_selection_counts: "{name}: {count}/{limit} swaps used",
@@ -757,7 +764,10 @@
                 label_word_source: "Word selection",
                 label_card_mode: "Cards",
                 label_lang: "Target language",
+                label_word_filter_mode: "Word style",
                 label_bot_difficulty: "Bot difficulty",
+                word_filter_clear: "Clear picture words",
+                word_filter_broad: "Broader vocabulary",
                 bot_difficulty_easy: "Easy",
                 bot_difficulty_medium: "Medium",
                 bot_difficulty_hard: "Hard",
@@ -773,15 +783,15 @@
                 page_title_bot: "Kaksintaistelu Muistibotin kanssa",
                 page_title_solo: "Yksinpeli",
                 language: "Kieli",
-                intro_text: "Peli alkaa odotushuoneesta, kun kaksi pelaajaa on paikalla. Toisena liittynyt pelaaja voi valita sanavalintansa ja korttityypin seuraavaan erään.",
+                intro_text: "Peli alkaa, kun molemmat pelaajat ovat paikalla. Toisena liittynyt pelaaja voi valita sanavalinnan ja korttityypin seuraavaan erään.",
                 intro_text_bot: "Valitse erän asetukset kaksintaisteluun Muistibotin kanssa. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
                 intro_text_solo: "Valitse erän asetukset yksinpeliin. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
                 welcome_player: "Tervetuloa, {name}!",
                 spectator_player: "Tervetuloa, {name}!",
-                status_waiting_for_player: "Status: odotetaan toista pelaajaa.",
-                status_choose_round: "Status: valitse, miten seuraava erä alkaa.",
-                status_room_full: "Status: molemmat pelaajapaikat ovat varattuina.",
-                start_options: "Valitse miten sanat annetaan tähän erään.",
+                status_waiting_for_player: "Odotetaan toista pelaajaa.",
+                status_choose_round: "Valitse, miten seuraava erä alkaa.",
+                status_room_full: "Molemmat pelaajapaikat ovat varattuina.",
+                start_options: "Valitse, miten sanat annetaan tähän erään.",
                 enter_words: "Syötä omat sanat",
                 enter_theme: "Syötä teema",
                 study_spanish: "Opiskele espanjaa",
@@ -812,7 +822,7 @@
                 setup_progress_pairs: "{count}/{total} paria valmiina",
                 theme_selection_title: 'Teema: "{theme}"',
                 theme_selection_help: "Valitsimme valmiiksi 8 käyttökelpoista sanaa. Molemmat pelaajat voivat vaihtaa niistä enintään 4 ennen erän alkua.",
-                theme_selection_turn_you: "Valitse ensin vaihdettava sana valituista sanoista.",
+                theme_selection_turn_you: "Valitse valituista sanoista vaihdettava sana.",
                 theme_selection_turn_other: "{name} muokkaa yhteistä sanalistaa.",
                 theme_selection_progress: "Valinnat: {count}/8",
                 theme_selection_counts: "{name}: {count}/{limit} vaihtoa käytetty",
@@ -848,7 +858,10 @@
                 label_word_source: "Sanavalinta",
                 label_card_mode: "Kortit",
                 label_lang: "Opiskeltava kieli",
+                label_word_filter_mode: "Sanatyyppi",
                 label_bot_difficulty: "Botin vaikeusaste",
+                word_filter_clear: "Selkeät kuvasanat",
+                word_filter_broad: "Laajempi sanavalinta",
                 bot_difficulty_easy: "Helppo",
                 bot_difficulty_medium: "Keskitaso",
                 bot_difficulty_hard: "Vaikea",
@@ -858,6 +871,36 @@
                 enter_random: "Satunnaiset",
                 setup_status_random: "Etsitään satunnaisia sanoja...",
                 start_round: "Aloita"
+            },
+            sv: {
+                label_word_filter_mode: "Ordtyp",
+                word_filter_clear: "Tydliga bildord",
+                word_filter_broad: "Bredare ordval"
+            },
+            de: {
+                label_word_filter_mode: "Wortstil",
+                word_filter_clear: "Klare Bildwörter",
+                word_filter_broad: "Breitere Wortauswahl"
+            },
+            fr: {
+                label_word_filter_mode: "Style des mots",
+                word_filter_clear: "Mots faciles à illustrer",
+                word_filter_broad: "Vocabulaire plus large"
+            },
+            es: {
+                label_word_filter_mode: "Tipo de palabras",
+                word_filter_clear: "Palabras fáciles de ilustrar",
+                word_filter_broad: "Vocabulario más amplio"
+            },
+            it: {
+                label_word_filter_mode: "Stile delle parole",
+                word_filter_clear: "Parole facili da rappresentare",
+                word_filter_broad: "Vocabolario più ampio"
+            },
+            pt: {
+                label_word_filter_mode: "Estilo das palavras",
+                word_filter_clear: "Palavras fáceis de ilustrar",
+                word_filter_broad: "Vocabulário mais amplo"
             }
         };
 
@@ -986,6 +1029,7 @@
             el("labelWordSource").textContent = t("label_word_source");
             el("labelCardMode").textContent = t("label_card_mode");
             el("labelLang").textContent = t("label_lang");
+            el("labelWordFilterMode").textContent = t("label_word_filter_mode");
             el("labelBotDifficulty").textContent = t("label_bot_difficulty");
             el("srcManualBtn").textContent = t("enter_words");
             el("srcThemeBtn").textContent = t("enter_theme");
@@ -993,6 +1037,8 @@
             el("cardModeImages").textContent = "🖼 " + t("card_mode_images");
             el("cardModeImageWord").textContent = "🖼 📝 " + t("card_mode_image_word");
             el("cardModeWords").textContent = "📝 📝 " + t("card_mode_words");
+            el("wordFilterClear").textContent = t("word_filter_clear");
+            el("wordFilterBroad").textContent = t("word_filter_broad");
             el("botDifficultyEasy").textContent = getDifficultyLabel("easy");
             el("botDifficultyMedium").textContent = getDifficultyLabel("medium");
             el("botDifficultyHard").textContent = getDifficultyLabel("hard");
@@ -1695,7 +1741,7 @@
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
                 renderSetupStatus({ active: true, mode: "theme", theme });
-                const payload = { mode: "theme", theme, ui_language: getLanguage() };
+                const payload = { mode: "theme", theme, ui_language: getLanguage(), word_filter_mode: selectedWordFilterMode };
                 if ((localStorage.getItem("play_mode") || "") === "bot") {
                     payload.bot_difficulty = selectedBotDifficulty;
                 }
@@ -1724,7 +1770,7 @@
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
                 renderSetupStatus({ active: true, mode: "language", theme });
-                const payload = { mode: "theme", card_mode: cardMode, target_language: targetLang, theme, ui_language: getLanguage() };
+                const payload = { mode: "theme", card_mode: cardMode, target_language: targetLang, theme, ui_language: getLanguage(), word_filter_mode: selectedWordFilterMode };
                 if ((localStorage.getItem("play_mode") || "") === "bot") {
                     payload.bot_difficulty = selectedBotDifficulty;
                 }
@@ -1759,7 +1805,7 @@
                     return;
                 }
                 const cm = cardMode || "images";
-                const payload = { mode: "random", card_mode: cm, ui_language: getLanguage() };
+                const payload = { mode: "random", card_mode: cm, ui_language: getLanguage(), word_filter_mode: selectedWordFilterMode };
                 if (cm !== "images") {
                     payload.target_language = targetLang;
                 }
@@ -1832,6 +1878,9 @@
                 ? localStorage.getItem("preferred_card_mode")
                 : "image_word"; // "images" | "image_word" | "words"
             let selectedLang = "es";
+            let selectedWordFilterMode = ["clear", "broad"].includes(localStorage.getItem("preferred_word_filter_mode"))
+                ? localStorage.getItem("preferred_word_filter_mode")
+                : "clear";
             let selectedBotDifficulty = ["easy", "medium", "hard"].includes(localStorage.getItem("bot_difficulty"))
                 ? localStorage.getItem("bot_difficulty")
                 : "easy";
@@ -1846,10 +1895,16 @@
                 document.getElementById("botDifficultyPicker").style.display = isBotMode ? "block" : "none";
             }
 
+            function updateWordFilterVisibility() {
+                const showWordFilter = selectedWordSource === "theme" || selectedWordSource === "random";
+                document.getElementById("wordFilterPicker").style.display = showWordFilter ? "block" : "none";
+            }
+
             document.querySelectorAll("#srcManualBtn, #srcThemeBtn, #srcRandomBtn").forEach(btn => {
                 btn.addEventListener("click", () => {
                     selectedWordSource = btn.dataset.source;
                     document.querySelectorAll("#srcManualBtn, #srcThemeBtn, #srcRandomBtn").forEach(b => b.classList.toggle("active", b === btn));
+                    updateWordFilterVisibility();
                 });
             });
 
@@ -1866,8 +1921,21 @@
                 btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
             });
             document.getElementById("cardModePicker").style.display = "none";
+            updateWordFilterVisibility();
             updateLangPickerVisibility();
             updateBotDifficultyVisibility();
+
+            document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    selectedWordFilterMode = btn.dataset.wordFilterMode;
+                    try { localStorage.setItem("preferred_word_filter_mode", selectedWordFilterMode); } catch (e) {}
+                    document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach(b => b.classList.toggle("active", b === btn));
+                });
+            });
+
+            document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.wordFilterMode === selectedWordFilterMode);
+            });
 
             document.querySelectorAll("#botDifficultyEasy, #botDifficultyMedium, #botDifficultyHard").forEach(btn => {
                 btn.addEventListener("click", () => {
