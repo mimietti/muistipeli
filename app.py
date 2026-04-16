@@ -116,7 +116,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.08 (2026-04-14)"
+APP_VERSION = "Beta v0.08 (2026-04-16)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -1814,7 +1814,8 @@ def try_match_from_queue():
         "room_id": room_id,
         "players": [p1["username"], p2["username"]]
     }, room_id=room_id)
-    emit_to_room("lobby", build_lobby_payload(room), room_id=room_id)
+    payload = build_lobby_payload(room)
+    emit_to_room("player_joined", payload, room_id=room_id)
 
 
 # ---------------------------------------------------------------------------
