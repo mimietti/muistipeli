@@ -1023,8 +1023,13 @@ def fetch_theme_words(theme, max_results=60, require_noun=False, exclude_proper=
 
     print(f"[INFO] Haetaan Datamusesta teemasanat teemalle '{theme}'")
     all_words, seen = [], set()
-    query_variants = [{"ml": theme, "max": max_results, "md": "p"}]
-    fallback_variant = {"topics": theme, "max": max_results, "md": "p"}
+    # rel_trg = words triggered by (associative): "sport" -> football, basketball, swimming
+    # topics  = topic filter: broader set of thematically related words
+    # ml      = means like (synonyms): fallback only, tends to return abstract words
+    query_variants = [
+        {"rel_trg": theme, "max": max_results, "md": "p"},
+        {"topics": theme, "max": max_results, "md": "p"},
+    ]
     target_min = min(max_results, 32)
 
     for index, params in enumerate(query_variants):
@@ -1049,7 +1054,7 @@ def fetch_theme_words(theme, max_results=60, require_noun=False, exclude_proper=
             all_words.append(word)
 
         if index == 0 and len(all_words) < target_min:
-            query_variants.append(fallback_variant)
+            query_variants.append({"ml": theme, "max": max_results, "md": "p"})
 
     preview = ", ".join(all_words[:12]) if all_words else "(ei sanoja)"
     print(f"[INFO] Datamuse ehdotti teemalle '{theme}' {len(all_words)} sanaa: {preview}")
