@@ -121,7 +121,6 @@ RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300"
 PAGE_TRANSITION_GRACE_SECONDS = 5
 APP_VERSION = "Beta v0.08 (2026-04-16)"
 BOT_USERNAME = "Muistibotti"
-ADMIN_TIE_GRANT_KEY = "mt-tie-20260416-7f3a9c2d"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
 FINAL_PAIR_REVEAL_SECONDS = 3.2
@@ -1887,85 +1886,6 @@ def summary():
 @app.route("/release-notes")
 def release_notes():
     return render_template("release_notes.html")
-
-
-@app.route("/admin/grant-multiplayer-ties")
-def grant_multiplayer_ties():
-    key = (request.args.get("key") or "").strip()
-    if key != ADMIN_TIE_GRANT_KEY:
-        return jsonify({"ok": False, "error": "forbidden"}), 403
-
-    conn = _get_db()
-    if not conn:
-        return jsonify({"ok": False, "error": "db_unavailable"}), 503
-
-    usernames = ("Miguel", "Temppu")
-    updated = []
-    skipped = []
-    deleted_admin_rows = 0
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    ALTER TABLE results ADD COLUMN IF NOT EXISTS round_result TEXT
-                """)
-                for username in usernames:
-                    cur.execute("""
-                        DELETE FROM results
-                        WHERE username = %s
-                          AND play_mode = 'multiplayer'
-                          AND game_mode = 'admin_tie_grant'
-                    """, (username,))
-                    deleted_admin_rows += cur.rowcount or 0
-
-                    cur.execute("""
-                        SELECT id
-                        FROM results
-                        WHERE username = %s
-                          AND play_mode = 'multiplayer'
-                          AND game_mode != 'admin_tie_grant'
-                          AND round_result = 'tie'
-                        ORDER BY created_at DESC, id DESC
-                        LIMIT 1
-                    """, (username,))
-                    existing_tie = cur.fetchone()
-                    if existing_tie:
-                        skipped.append(username)
-                        continue
-
-                    cur.execute("""
-                        UPDATE results
-                        SET round_result = 'tie'
-                        WHERE id = (
-                            SELECT id
-                            FROM results
-                            WHERE username = %s
-                              AND play_mode = 'multiplayer'
-                              AND game_mode != 'admin_tie_grant'
-                              AND round_won = 0
-                            ORDER BY created_at DESC, id DESC
-                            LIMIT 1
-                        )
-                        RETURNING id
-                    """, (username,))
-                    row = cur.fetchone()
-                    if row:
-                        updated.append(username)
-                    else:
-                        skipped.append(username)
-    except Exception as e:
-        print(f"[DB] Tasapelilisäys epäonnistui: {e}")
-        return jsonify({"ok": False, "error": "db_write_failed"}), 500
-    finally:
-        conn.close()
-
-    return jsonify({
-        "ok": True,
-        "updated": updated,
-        "skipped": skipped,
-        "deleted_admin_rows": deleted_admin_rows,
-        "count": len(updated),
-    })
 
 
 @app.route("/leaderboard")
