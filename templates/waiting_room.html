@@ -711,6 +711,7 @@
                 theme_missing: "Theme is missing.",
                 pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
+                theme_timeout: 'No words found for theme "{theme}" in time. Please try a different theme.',
                 setup_status_title: "Preparing next round",
                 setup_status_finding_words: 'Finding words that match "{theme}"...',
                 setup_status_drawing_cards: 'Drawing cards for "{theme}"...',
@@ -801,6 +802,7 @@
                 theme_missing: "Teema puuttuu.",
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
+                theme_timeout: 'Teemalle "{theme}" ei löytynyt sanoja ajoissa. Kokeile toista teemaa.',
                 setup_status_title: "Valmistellaan seuraavaa erää",
                 setup_status_finding_words: 'Haetaan teemaan sopivia sanoja teemalle "{theme}"...',
                 setup_status_drawing_cards: 'Piirretään kortteja teemalle "{theme}"...',
@@ -1987,6 +1989,15 @@
                         }
                     }, 0);
                 }
+            });
+            socket.on("theme_timeout", (data) => {
+                const theme = (data && data.theme) || "";
+                const msg = t("theme_timeout").replace("{theme}", theme);
+                renderSetupStatus({ active: false });
+                window.currentThemeSelectionState = { active: false };
+                renderThemeSelection(window.currentThemeSelectionState);
+                updateLobbyFromPayload(window.latestLobbyPayload || {});
+                alert(msg);
             });
             socket.on("game_aborted", (data) => {
                 const reason = localizeServerMessage((data && data.reason) || t("game_aborted"));

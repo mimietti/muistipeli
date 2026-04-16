@@ -798,6 +798,9 @@ def prepare_theme_selection(starter_name, room):
     }, room_id=room.room_id)
     socketio.sleep(0)
 
+    generation_start = time.monotonic()
+    THEME_FIRST_WORD_TIMEOUT = 10  # seconds
+
     for word in candidates:
         if len(selected_words) >= 8:
             remaining_candidates.append(word)
@@ -811,6 +814,11 @@ def prepare_theme_selection(starter_name, room):
         if pair_entry is None:
             rejected_words.append(word)
             room.theme_rejected_words.add(word)
+            if not selected_words and (time.monotonic() - generation_start) > THEME_FIRST_WORD_TIMEOUT:
+                print(f"[WARNING] Teemalle '{room.pending_theme}' ei löytynyt yhtään sanaa {THEME_FIRST_WORD_TIMEOUT}s kuluessa.")
+                reset_pending_state(room)
+                emit_to_room("theme_timeout", {"theme": room.pending_theme}, room_id=room.room_id)
+                return
             continue
         display_word = get_theme_display_word(word, pair_entry, room)
         display_key = normalize_display_label(display_word)
