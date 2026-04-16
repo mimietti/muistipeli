@@ -1001,6 +1001,7 @@
             el("introText").textContent = t(introKey);
             el("exitGameBtn").textContent = t("exit_game");
             el("changeNameBtn").textContent = t("change_name");
+            el("leaveQueueBtn").textContent = t("queue_leave");
             const queueBotHintEl = document.getElementById("queueBotHint");
             const queueBotBtnEl = document.getElementById("queueBotBtn");
             if (queueBotHintEl) queueBotHintEl.textContent = t("queue_bot_hint");
@@ -1772,18 +1773,30 @@
                 }
                 queuedNextRoundHandled = true;
                 clearQueuedNextRound();
+                const queuedCardMode = queued.card_mode || sessionStorage.getItem("game_setup_card_mode") || "images";
+                const queuedTargetLang = queued.target_lang || sessionStorage.getItem("game_setup_lang") || "es";
                 if (queued.mode === "manual") {
+                    if (queuedCardMode !== "images") {
+                        startLangManualRound(queuedTargetLang, queuedCardMode);
+                        return;
+                    }
                     startManualRound();
                     return;
                 }
                 if (queued.mode === "theme") {
+                    if (queuedCardMode !== "images") {
+                        startLanguageRound(queuedTargetLang, queued.theme || "", queuedCardMode);
+                        return;
+                    }
                     startThemeRound(queued.theme || "");
                     return;
                 }
+                if (queued.mode === "random") {
+                    startRandomRound(queuedTargetLang, queuedCardMode);
+                    return;
+                }
                 if (queued.mode === "language" || queued.mode === "spanish") {
-                    const lang = queued.target_lang || sessionStorage.getItem("game_setup_lang") || "es";
-                    const cm = queued.card_mode || sessionStorage.getItem("game_setup_card_mode") || "image_word";
-                    startLanguageRound(lang, queued.theme || "", cm);
+                    startLanguageRound(queuedTargetLang, queued.theme || "", queuedCardMode);
                 }
             }
 
