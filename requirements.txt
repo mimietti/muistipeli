@@ -6,7 +6,8 @@ urllib3==2.6.3
 requests==2.33.1
 flask
 flask-socketio
-eventlet
+gevent
+gevent-websocket
 pillow
 python-dotenv
 gunicorn<25

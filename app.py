@@ -1,8 +1,6 @@
-import eventlet
-eventlet.monkey_patch()
-
-import warnings
-warnings.filterwarnings("ignore", message=".*Eventlet is deprecated.*")
+import gevent
+import gevent.monkey
+gevent.monkey.patch_all()
 
 from flask import Flask, render_template, request, jsonify  # noqa: F401
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -110,7 +108,7 @@ def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mis
 app = Flask(__name__)
 socketio = SocketIO(
     app,
-    async_mode='eventlet',
+    async_mode='gevent',
     cors_allowed_origins="*",
     logger=False,
     engineio_logger=False,
@@ -2755,7 +2753,7 @@ def on_disconnect():
     emit_to_room("player_joined", payload, room_id=room.room_id)
 
     def remove_later(sid_to_remove, uname, expected_token, r):
-        eventlet.sleep(RECONNECT_GRACE_SECONDS)
+        gevent.sleep(RECONNECT_GRACE_SECONDS)
         if sid_to_remove not in r.players:
             return
         current_token = r.players[sid_to_remove].get("reconnect_token")
