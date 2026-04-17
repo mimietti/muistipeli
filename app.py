@@ -150,7 +150,7 @@ class RoomState:
     room_id: str
     status: str = "waiting"          # waiting | setup | playing | results
     game_mode: str = "manual"        # word source: manual | theme | language(legacy)
-    card_mode: str = "images"        # card display: images | image_word | words
+    card_mode: str = "image_word"    # card display: images | image_word | words
     play_mode: str = "local"         # local | bot | queue | solo
     ui_language: str = "en"
     native_language: str = "fi"
@@ -960,7 +960,7 @@ def next_theme_picker_name(current_name, room):
 def lang_setup_still_active(theme, room):
     if room.pending_pair is None or room.pending_pair == 0 and not room.grid_data:
         return False
-    if room.game_mode != "theme" or (room.card_mode or "images") == "images":
+    if room.game_mode != "theme" or (room.card_mode or "image_word") == "images":
         return False
     if room.pending_theme != theme:
         return False
@@ -1365,7 +1365,7 @@ def build_theme_pair_entry(word, room):
 
 
 def build_pair_entry_for_mode(word, pair_index, room):
-    card_mode = room.card_mode or "images"
+    card_mode = room.card_mode or "image_word"
     if card_mode == "images":
         return build_theme_pair_entry(word, room)
     if card_mode in {"image_word", "words"}:
@@ -1448,7 +1448,7 @@ def conclude_round(winner_label, room, surrendered_by=None):
 
     # --- Save to leaderboard ---
     if not surrendered_by:
-        card_mode = room.card_mode or "images"
+        card_mode = room.card_mode or "image_word"
         target_lang = room.target_language if card_mode != "images" else None
         if is_solo(room) and room.player_order:
             save_result(
@@ -1502,7 +1502,7 @@ def conclude_round(winner_label, room, surrendered_by=None):
 
 
 def build_image_pair_tracker_entries(room):
-    if (room.card_mode or "images") != "images":
+    if (room.card_mode or "image_word") != "images":
         return []
     entries = []
     by_key = {}
@@ -1779,7 +1779,7 @@ def ask_next_word(room):
         if theme_selection_active(room):
             emit_theme_selection_state(room)
             return
-        card_mode = room.card_mode or "images"
+        card_mode = room.card_mode or "image_word"
         if card_mode == "images":
             print(f"[INFO] Generoidaan teemasanat teemalle '{room.pending_theme}'")
             for p in room.players.values():
