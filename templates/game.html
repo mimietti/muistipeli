@@ -1000,6 +1000,12 @@
             return sessionStorage.getItem("last_round_theme") || "";
         }
 
+        function getCurrentWordFilterMode() {
+            return sessionStorage.getItem("word_filter_mode")
+                || localStorage.getItem("preferred_word_filter_mode")
+                || "clear";
+        }
+
         function modeUsesTheme(mode) {
             return mode === "theme" || mode === "language" || mode === "spanish";
         }
@@ -1016,6 +1022,7 @@
             const payload = { mode };
             const currentMode = window.currentCardMode || "images";
             payload.card_mode = currentMode;
+            payload.word_filter_mode = getCurrentWordFilterMode();
             if (modeUsesTheme(mode)) {
                 payload.theme = getLastRoundTheme();
             }
@@ -1239,6 +1246,13 @@
             if (data.card_mode) window.currentCardMode = data.card_mode;
             if (data.target_language) currentTargetLanguage = data.target_language;
             if (data.native_language) currentNativeLanguage = data.native_language;
+            if (data.word_filter_mode) {
+                try { sessionStorage.setItem("word_filter_mode", data.word_filter_mode); } catch (_) {}
+                try { localStorage.setItem("preferred_word_filter_mode", data.word_filter_mode); } catch (_) {}
+            }
+            if (data.play_mode) {
+                try { localStorage.setItem("play_mode", data.play_mode); } catch (_) {}
+            }
             if (data.bot_difficulty) {
                 currentBotDifficulty = data.bot_difficulty;
                 try { sessionStorage.setItem("bot_difficulty", currentBotDifficulty); } catch (_) {}
@@ -1340,8 +1354,25 @@
             const failedTheme = sessionStorage.getItem("game_setup_theme") || "";
             if (failedMode === "theme" || failedMode === "language" || failedMode === "spanish") {
                 const failedLang = sessionStorage.getItem("game_setup_lang") || "es";
+                const failedCardMode = sessionStorage.getItem("game_setup_card_mode") || (window.currentCardMode || "images");
+                const failedWordFilter = getCurrentWordFilterMode();
                 try {
-                    sessionStorage.setItem("queued_next_round", JSON.stringify({ mode: failedMode === "spanish" ? "language" : failedMode, theme: failedTheme, target_lang: failedLang }));
+                    sessionStorage.setItem("queued_next_round", JSON.stringify({
+                        mode: failedMode === "spanish" ? "language" : failedMode,
+                        theme: failedTheme,
+                        target_lang: failedLang,
+                        card_mode: failedCardMode,
+                        word_filter_mode: failedWordFilter
+                    }));
+                } catch (e) {}
+            } else if (failedMode === "random") {
+                try {
+                    sessionStorage.setItem("queued_next_round", JSON.stringify({
+                        mode: "random",
+                        card_mode: window.currentCardMode || "images",
+                        target_lang: currentTargetLanguage,
+                        word_filter_mode: getCurrentWordFilterMode()
+                    }));
                 } catch (e) {}
             }
             try { sessionStorage.removeItem("game_setup_mode"); } catch (e) {}

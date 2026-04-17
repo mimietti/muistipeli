@@ -119,7 +119,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.09 (2026-04-16)"
+APP_VERSION = "Beta v0.09 (2026-04-17)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -1420,12 +1420,14 @@ def launch_grid_round(room):
         "turn": room.player_order[0] if room.player_order else None,
         "players": room.player_order,
         "solo": is_solo(room),
+        "play_mode": room.play_mode,
         "game_mode": room.game_mode,
         "card_mode": room.card_mode,
         "image_pair_tracker": build_image_pair_tracker_entries(room),
         "target_language": room.target_language,
         "native_language": room.native_language,
         "bot_difficulty": room.bot_difficulty,
+        "word_filter_mode": room.word_filter_mode,
         "room_id": room.room_id,
     }, room_id=room.room_id)
     schedule_bot_turn_if_needed(room)
@@ -1900,6 +1902,11 @@ def build_lobby_payload(room):
     last_token = infos[-1]["reconnect_token"] if infos else None
     return {
         "room_id": room.room_id,
+        "play_mode": room.play_mode,
+        "card_mode": room.card_mode,
+        "target_language": room.target_language,
+        "bot_difficulty": room.bot_difficulty,
+        "word_filter_mode": room.word_filter_mode,
         "players": usernames,
         "players_info": infos,
         "last_joined_token": last_token
@@ -2258,12 +2265,14 @@ def handle_grid_request():
         "revealed": room.revealed_cards,
         "points": room.player_points,
         "solo": is_solo(room),
+        "play_mode": room.play_mode,
         "game_mode": room.game_mode,
         "card_mode": room.card_mode,
         "image_pair_tracker": build_image_pair_tracker_entries(room),
         "target_language": room.target_language,
         "native_language": room.native_language,
         "bot_difficulty": room.bot_difficulty,
+        "word_filter_mode": room.word_filter_mode,
         "room_id": room.room_id,
     })
     schedule_bot_turn_if_needed(room)
@@ -2280,11 +2289,14 @@ def handle_ready_for_game():
             "cards": room.grid_data,
             "turn": current_player_name,
             "players": room.player_order,
+            "play_mode": room.play_mode,
             "game_mode": room.game_mode,
             "card_mode": room.card_mode,
             "image_pair_tracker": build_image_pair_tracker_entries(room),
             "target_language": room.target_language,
             "native_language": room.native_language,
+            "bot_difficulty": room.bot_difficulty,
+            "word_filter_mode": room.word_filter_mode,
         })
 
 

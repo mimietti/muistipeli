@@ -766,6 +766,7 @@
                 label_lang: "Target language",
                 label_word_filter_mode: "Word style",
                 label_bot_difficulty: "Bot difficulty",
+                bot_difficulty_summary: "Difficulty: {difficulty}",
                 word_filter_clear: "Clear picture words",
                 word_filter_broad: "Broader vocabulary",
                 bot_difficulty_easy: "Easy",
@@ -860,6 +861,7 @@
                 label_lang: "Opiskeltava kieli",
                 label_word_filter_mode: "Sanatyyppi",
                 label_bot_difficulty: "Botin vaikeusaste",
+                bot_difficulty_summary: "Vaikeusaste: {difficulty}",
                 word_filter_clear: "Selkeät kuvasanat",
                 word_filter_broad: "Laajempi sanavalinta",
                 bot_difficulty_easy: "Helppo",
@@ -873,31 +875,37 @@
                 start_round: "Aloita"
             },
             sv: {
+                bot_difficulty_summary: "Svårighetsgrad: {difficulty}",
                 label_word_filter_mode: "Ordtyp",
                 word_filter_clear: "Tydliga bildord",
                 word_filter_broad: "Bredare ordval"
             },
             de: {
+                bot_difficulty_summary: "Schwierigkeit: {difficulty}",
                 label_word_filter_mode: "Wortstil",
                 word_filter_clear: "Klare Bildwörter",
                 word_filter_broad: "Breitere Wortauswahl"
             },
             fr: {
+                bot_difficulty_summary: "Difficulté : {difficulty}",
                 label_word_filter_mode: "Style des mots",
                 word_filter_clear: "Mots faciles à illustrer",
                 word_filter_broad: "Vocabulaire plus large"
             },
             es: {
+                bot_difficulty_summary: "Dificultad: {difficulty}",
                 label_word_filter_mode: "Tipo de palabras",
                 word_filter_clear: "Palabras fáciles de ilustrar",
                 word_filter_broad: "Vocabulario más amplio"
             },
             it: {
+                bot_difficulty_summary: "Difficoltà: {difficulty}",
                 label_word_filter_mode: "Stile delle parole",
                 word_filter_clear: "Parole facili da rappresentare",
                 word_filter_broad: "Vocabolario più ampio"
             },
             pt: {
+                bot_difficulty_summary: "Dificuldade: {difficulty}",
                 label_word_filter_mode: "Estilo das palavras",
                 word_filter_clear: "Palavras fáceis de ilustrar",
                 word_filter_broad: "Vocabulário mais amplo"
@@ -985,7 +993,11 @@
             roleDiv.style.display = "none";
             if (hintDiv) {
                 if (isSoloOrBot) {
-                    hintDiv.textContent = "";
+                    if (playMode === "bot") {
+                        hintDiv.textContent = t("bot_difficulty_summary", { difficulty: getDifficultyLabel(localStorage.getItem("bot_difficulty") || "easy") });
+                    } else {
+                        hintDiv.textContent = "";
+                    }
                 } else if (queueSearchActive) {
                     hintDiv.textContent = t("queue_searching");
                 } else {
@@ -1470,7 +1482,8 @@
                 const lastJoinedToken = payload && payload.last_joined_token;
                 const myToken = getReconnectToken();
                 const queueSearchActive = isQueueSearchLobby(payload, rawPlayersInfo);
-                const isSoloMode = (localStorage.getItem("play_mode") || "") === "solo";
+                const resolvedPlayMode = (payload && payload.play_mode) || (localStorage.getItem("play_mode") || "");
+                const isSoloMode = resolvedPlayMode === "solo";
                 let players = rawPlayers;
                 let playersInfo = rawPlayersInfo;
                 if (queueSearchActive) {
@@ -1483,13 +1496,50 @@
                     playersInfo = myInfo ? [myInfo] : [];
                     players = myName ? [myName] : [];
                 }
+                if (payload && payload.play_mode) {
+                    try { localStorage.setItem("play_mode", payload.play_mode); } catch (_) {}
+                }
+                if (payload && payload.bot_difficulty) {
+                    selectedBotDifficulty = payload.bot_difficulty;
+                    try { localStorage.setItem("bot_difficulty", selectedBotDifficulty); } catch (_) {}
+                }
+                if (payload && payload.word_filter_mode) {
+                    selectedWordFilterMode = payload.word_filter_mode;
+                    try { localStorage.setItem("preferred_word_filter_mode", selectedWordFilterMode); } catch (_) {}
+                }
+                if (payload && payload.card_mode && ["images", "image_word", "words"].includes(payload.card_mode)) {
+                    selectedCardMode = payload.card_mode;
+                    try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (_) {}
+                }
+                if (payload && payload.target_language) {
+                    selectedLang = payload.target_language;
+                }
                 console.log("[DEBUG] Pelaajat (ordered):", rawPlayers, "visible:", players);
                 const playersDiv = document.getElementById("players");
-                if (players.length === 1 && players[0] === myName) {
+                const isBotMode = (localStorage.getItem("play_mode") || "") === "bot";
+                const visiblePlayers = isBotMode
+                    ? players.map((name) => name === "Muistibotti" ? `${name} · ${getDifficultyLabel(selectedBotDifficulty)}` : name)
+                    : players;
+                if (visiblePlayers.length === 1 && visiblePlayers[0] === myName) {
                     playersDiv.textContent = t("welcome_player", { name: myName });
                 } else {
-                    playersDiv.textContent = players.join(" & ");
+                    playersDiv.textContent = visiblePlayers.join(" & ");
                 }
+                document.querySelectorAll("#botDifficultyEasy, #botDifficultyMedium, #botDifficultyHard").forEach((btn) => {
+                    btn.classList.toggle("active", btn.dataset.botDifficulty === selectedBotDifficulty);
+                });
+                document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach((btn) => {
+                    btn.classList.toggle("active", btn.dataset.wordFilterMode === selectedWordFilterMode);
+                });
+                document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach((btn) => {
+                    btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
+                });
+                document.querySelectorAll(".lang-flag-btn").forEach((btn) => {
+                    btn.classList.toggle("active", btn.dataset.lang === selectedLang);
+                });
+                updateWordFilterVisibility();
+                updateLangPickerVisibility();
+                updateBotDifficultyVisibility();
                 renderPlayerRole(playersInfo);
 
                 // If player chose queue mode and hasn't joined queue yet, do it now
@@ -1737,6 +1787,7 @@
                 console.log("[DEBUG] Aloitetaan peli teemalla:", theme);
                 try { sessionStorage.setItem("game_setup_mode", "theme"); } catch (e) {}
                 try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
+                try { sessionStorage.setItem("word_filter_mode", selectedWordFilterMode); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
@@ -1766,6 +1817,7 @@
                 try { sessionStorage.setItem("game_setup_lang", targetLang); } catch (e) {}
                 try { sessionStorage.setItem("game_setup_card_mode", cardMode); } catch (e) {}
                 try { sessionStorage.setItem("game_setup_theme", theme); } catch (e) {}
+                try { sessionStorage.setItem("word_filter_mode", selectedWordFilterMode); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
@@ -1814,6 +1866,7 @@
                 }
                 console.log("[DEBUG] Aloitetaan satunnaispeli", payload);
                 try { sessionStorage.setItem("game_setup_mode", "random"); } catch (e) {}
+                try { sessionStorage.setItem("word_filter_mode", selectedWordFilterMode); } catch (e) {}
                 try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
@@ -1839,6 +1892,8 @@
                 clearQueuedNextRound();
                 const queuedCardMode = queued.card_mode || sessionStorage.getItem("game_setup_card_mode") || "images";
                 const queuedTargetLang = queued.target_lang || sessionStorage.getItem("game_setup_lang") || "es";
+                selectedWordFilterMode = queued.word_filter_mode || sessionStorage.getItem("word_filter_mode") || localStorage.getItem("preferred_word_filter_mode") || "clear";
+                try { localStorage.setItem("preferred_word_filter_mode", selectedWordFilterMode); } catch (_) {}
                 if (queued.mode === "manual") {
                     if (queuedCardMode !== "images") {
                         startLangManualRound(queuedTargetLang, queuedCardMode);
