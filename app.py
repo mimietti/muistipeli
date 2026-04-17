@@ -1868,6 +1868,12 @@ def try_match_from_queue():
         sid = entry["sid"]
         token = entry["reconnect_token"]
         username = entry["username"]
+        # Remove player from any old room they were in before matchmaking
+        old_room_id = player_room_index.get(token, DEFAULT_ROOM_ID)
+        if old_room_id in rooms and old_room_id != room_id:
+            old_room = rooms[old_room_id]
+            old_room.players.pop(sid, None)
+            _sid_to_room_id.pop(sid, None)
         room.players[sid] = {
             "username": username,
             "reconnect_token": token,
