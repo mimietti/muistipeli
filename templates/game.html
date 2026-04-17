@@ -815,7 +815,9 @@
                 enter_theme: "Enter theme",
                 exit_game: "Exit game",
                 end_game: "End game",
-                surrender_round: "Surrender this round",
+                surrender_round: "Surrender",
+                cancel_game: "Cancel game",
+                cancel_game_confirm: "Do you really want to cancel this game?",
                 surrender_round_confirm: "Do you really want to surrender this round?",
                 surrendered_round: "{name} surrendered this round.",
                 surrender_failed: "This round cannot be surrendered right now.",
@@ -881,7 +883,9 @@
                 enter_theme: "Syötä teema",
                 exit_game: "Poistu pelistä",
                 end_game: "Lopeta peli",
-                surrender_round: "Luovuta tämä kierros",
+                surrender_round: "Luovuta",
+                cancel_game: "Keskeytä peli",
+                cancel_game_confirm: "Haluatko varmasti keskeyttää pelin?",
                 surrender_round_confirm: "Haluatko varmasti luovuttaa tämän kierroksen?",
                 surrendered_round: "{name} luovutti tämän kierroksen.",
                 surrender_failed: "Tätä kierrosta ei voi luovuttaa juuri nyt.",
@@ -1018,7 +1022,7 @@
             document.title = t("page_title_browser");
             document.getElementById("pageTitle").textContent = t("page_title");
             document.getElementById("themeProgressLabel").textContent = t("ready_label");
-            document.getElementById("surrenderRoundBtn").textContent = t("surrender_round");
+            document.getElementById("surrenderRoundBtn").textContent = isSoloMode ? t("cancel_game") : t("surrender_round");
             document.getElementById("exitGameBtn").textContent = t("exit_game");
             document.getElementById("settingsBtn").textContent = t("settings_button");
             document.getElementById("settingsEyebrow").textContent = t("settings_eyebrow");
@@ -1136,6 +1140,8 @@
         let cards = [];
         let matched = new Set();
         let imagePairTrackerEntries = [];
+        let removedPairKeys = new Set();
+        let scheduledPairRemovalKeys = new Set();
         let revealedOrder = [];
         let currentTurn = null;
         let currentTranslationHint = null;
@@ -1279,8 +1285,9 @@
             if (!surrenderRoundBtn || !exitGameBtn) return;
             const roundActive = Array.isArray(cards) && cards.length > 0 && !gameOverShown;
             surrenderRoundBtn.style.display = roundActive ? "inline-flex" : "none";
-            // In multiplayer, exit is only available when no active round (results screen or before game starts)
-            const canExit = isSoloMode ? !gameOverShown : !roundActive;
+            // In solo mode: hide exit during active round (use cancel instead)
+            // In multiplayer: exit only when no active round (results screen or before game starts)
+            const canExit = isSoloMode ? (!roundActive && !gameOverShown) : !roundActive;
             exitGameBtn.style.display = canExit ? "inline-flex" : "none";
         }
 
@@ -1419,7 +1426,7 @@
                 return;
             }
             imagePairTrackerLabel.textContent = t("image_pair_tracker_label");
-            const entries = getImagePairTrackerEntries();
+            const entries = getImagePairTrackerEntries().filter((e) => !removedPairKeys.has(e.key));
             if (!entries.length) {
                 imagePairTracker.style.display = "none";
                 imagePairTrackerList.replaceChildren();
@@ -1430,6 +1437,13 @@
                 const found = entry.indices.length > 0 && entry.indices.every((index) => matched.has(index));
                 item.className = found ? "image-pair-chip found" : "image-pair-chip";
                 item.textContent = entry.label;
+                if (found && !scheduledPairRemovalKeys.has(entry.key)) {
+                    scheduledPairRemovalKeys.add(entry.key);
+                    setTimeout(() => {
+                        removedPairKeys.add(entry.key);
+                        renderImagePairTracker();
+                    }, 1500);
+                }
                 return item;
             });
             imagePairTrackerList.replaceChildren(...chips);
@@ -1481,7 +1495,7 @@
                 return;
             }
             const payload = { mode };
-            const currentMode = window.currentCardMode || "images";
+            const currentMode = window.currentCardMode || "image_word";
             payload.card_mode = currentMode;
             payload.word_filter_mode = getCurrentWordFilterMode();
             if (modeUsesTheme(mode)) {
@@ -1701,9 +1715,12 @@
             sessionStorage.setItem("players", JSON.stringify(data.players));
             matched = data.matched ? new Set(data.matched) : new Set();
             imagePairTrackerEntries = Array.isArray(data.image_pair_tracker) ? data.image_pair_tracker : [];
+            removedPairKeys = new Set();
+            scheduledPairRemovalKeys = new Set();
             revealedOrder = [];
             currentTranslationHint = null;
             isSoloMode = Boolean(data.solo);
+            document.getElementById("surrenderRoundBtn").textContent = isSoloMode ? t("cancel_game") : t("surrender_round");
             if (data.card_mode) window.currentCardMode = data.card_mode;
             if (data.target_language) currentTargetLanguage = data.target_language;
             if (data.native_language) currentNativeLanguage = data.native_language;
@@ -2094,7 +2111,8 @@
         }
 
         surrenderRoundBtn.addEventListener("click", () => {
-            if (!confirm(t("surrender_round_confirm"))) {
+            const confirmMsg = isSoloMode ? t("cancel_game_confirm") : t("surrender_round_confirm");
+            if (!confirm(confirmMsg)) {
                 return;
             }
             socket.emit("surrender_round", {

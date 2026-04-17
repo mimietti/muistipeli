@@ -2346,8 +2346,7 @@ def handle_start_custom_game(data=None):
     if mode not in {"manual", "theme", "random"}:
         mode = "manual"
     if card_mode not in {"images", "image_word", "words"}:
-        # default: language games → image_word, others → images
-        card_mode = "image_word" if data.get("target_language") else "images"
+        card_mode = "image_word"
     all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
     room.ui_language = ui_language if ui_language in all_ui_langs else "en"
     room.native_language = room.ui_language
@@ -2628,14 +2627,14 @@ def handle_card_click(data):
 
 @socketio.on("surrender_round")
 def handle_surrender_round(data=None):
-    room = get_room_for_sid(request.sid)
-    if not room.grid_data or not solo_or_enough_players(room):
-        emit("round_surrender_failed", {"reason": "round_not_active"})
-        return
-
     _, player_info = resolve_player_for_event(data)
     if not player_info:
         emit("round_surrender_failed", {"reason": "player_missing"})
+        return
+
+    room = get_room_for_sid(request.sid)
+    if not room.grid_data or not solo_or_enough_players(room):
+        emit("round_surrender_failed", {"reason": "round_not_active"})
         return
 
     surrendering_player = player_info["username"]

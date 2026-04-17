@@ -2147,7 +2147,7 @@
                 try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
-                const payload = { mode: "manual", ui_language: getLanguage() };
+                const payload = { mode: "manual", card_mode: selectedCardMode, ui_language: getLanguage() };
                 if ((localStorage.getItem("play_mode") || "") === "bot") {
                     payload.bot_difficulty = selectedBotDifficulty;
                 }
@@ -2175,7 +2175,7 @@
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
                 renderThemeSelection({ active: false });
                 renderSetupStatus({ active: true, mode: "theme", theme });
-                const payload = { mode: "theme", theme, ui_language: getLanguage(), word_filter_mode: selectedWordFilterMode };
+                const payload = { mode: "theme", theme, card_mode: selectedCardMode, ui_language: getLanguage(), word_filter_mode: selectedWordFilterMode };
                 if ((localStorage.getItem("play_mode") || "") === "bot") {
                     payload.bot_difficulty = selectedBotDifficulty;
                 }
@@ -2234,7 +2234,7 @@
                 socket.emit("start_custom_game", payload);
             }
 
-            function startRandomRound(targetLang, cardMode = "images") {
+            function startRandomRound(targetLang, cardMode = "image_word") {
                 if (!myName || myName.trim().length === 0) {
                     askName();
                     return;
