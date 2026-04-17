@@ -1277,9 +1277,11 @@
 
         function updateRoundActionsVisibility() {
             if (!surrenderRoundBtn || !exitGameBtn) return;
-            const show = Array.isArray(cards) && cards.length > 0 && !gameOverShown;
-            surrenderRoundBtn.style.display = show ? "inline-flex" : "none";
-            exitGameBtn.style.display = gameOverShown ? "none" : "inline-flex";
+            const roundActive = Array.isArray(cards) && cards.length > 0 && !gameOverShown;
+            surrenderRoundBtn.style.display = roundActive ? "inline-flex" : "none";
+            // In multiplayer, exit is only available when no active round (results screen or before game starts)
+            const canExit = isSoloMode ? !gameOverShown : !roundActive;
+            exitGameBtn.style.display = canExit ? "inline-flex" : "none";
         }
 
         function showSetupStatus(message) {
