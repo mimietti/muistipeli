@@ -20,40 +20,6 @@
         body.compact-lobby .shell {
             margin-top: 18px;
         }
-        #languagePicker {
-            margin-bottom: 24px;
-            display: flex;
-            justify-content: center;
-        }
-        .flag-toggle {
-            display: inline-flex;
-            gap: 8px;
-            padding: 5px;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-        }
-        .flag-btn {
-            width: 44px;
-            height: 33px;
-            padding: 0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 999px;
-            border: 1px solid transparent;
-            background: transparent;
-            cursor: pointer;
-            transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
-        }
-        .flag-btn:hover {
-            transform: translateY(-1px);
-            background: rgba(255,255,255,0.05);
-        }
-        .flag-btn.is-active {
-            background: rgba(255,255,255,0.1);
-            border-color: rgba(255,255,255,0.16);
-        }
         .flag-svg { width: 26px; height: 18px; display: block; }
         .card-mode-btn {
             padding: 6px 16px;
@@ -506,69 +472,376 @@
             color: #d4ddd4;
             margin-bottom: 20px;
         }
+        body {
+            --bg-top: #121615;
+            --bg-bottom: #0a0d0c;
+            --bg-glow: rgba(124, 245, 138, 0.11);
+            --text-main: #f4f7f3;
+            --text-muted: #d4ddd4;
+            --text-soft: #aab7aa;
+            --heading-color: #f5f2d2;
+            --panel-bg: rgba(255,255,255,0.05);
+            --panel-border: rgba(255,255,255,0.08);
+            --panel-soft: rgba(255,255,255,0.03);
+            --control-bg: rgba(255,255,255,0.06);
+            --control-border: rgba(255,255,255,0.12);
+            --control-text: #d9e3d9;
+            --accent: #89ef9d;
+            --accent-strong: #47d45c;
+            --accent-soft: rgba(124,245,138,0.14);
+            --accent-text: #0d2211;
+            --secondary-accent: #7ab8f5;
+            --secondary-accent-strong: #4a8fd4;
+            --secondary-accent-text: #0a1a2e;
+            --warning: #ffe28c;
+            --spinner-ring: rgba(255,255,255,0.1);
+            --font-body: "Trebuchet MS", "Segoe UI", sans-serif;
+            --font-display: "Georgia", "Times New Roman", serif;
+            background:
+                radial-gradient(circle at top, var(--bg-glow), transparent 36%),
+                linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+            color: var(--text-main);
+            font-family: var(--font-body);
+            min-height: 100vh;
+        }
+        body[data-ui-style="cozy"] {
+            --bg-top: #221912;
+            --bg-bottom: #120d09;
+            --bg-glow: rgba(255, 190, 120, 0.18);
+            --text-main: #fff6ea;
+            --text-muted: #ead7c3;
+            --text-soft: #cdb49d;
+            --heading-color: #ffe5bc;
+            --panel-bg: rgba(64, 38, 21, 0.58);
+            --panel-border: rgba(255, 214, 156, 0.16);
+            --panel-soft: rgba(255, 240, 220, 0.05);
+            --control-bg: rgba(255, 244, 230, 0.08);
+            --control-border: rgba(255, 214, 156, 0.18);
+            --control-text: #f7e7d2;
+            --accent: #f2ba74;
+            --accent-strong: #de8d47;
+            --accent-soft: rgba(242, 186, 116, 0.18);
+            --accent-text: #2a1708;
+            --secondary-accent: #d7a6ff;
+            --secondary-accent-strong: #b17ade;
+            --secondary-accent-text: #1f102d;
+            --warning: #ffd08d;
+            --font-body: "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+            --font-display: "Palatino Linotype", "Book Antiqua", serif;
+        }
+        body[data-ui-style="cabinet"] {
+            --bg-top: #171311;
+            --bg-bottom: #0c0908;
+            --bg-glow: rgba(203, 160, 92, 0.14);
+            --text-main: #f3ece2;
+            --text-muted: #d8c9b7;
+            --text-soft: #b29e8a;
+            --heading-color: #f2dfb6;
+            --panel-bg: rgba(38, 28, 23, 0.68);
+            --panel-border: rgba(214, 182, 122, 0.16);
+            --panel-soft: rgba(255, 244, 226, 0.04);
+            --control-bg: rgba(255, 248, 235, 0.05);
+            --control-border: rgba(214, 182, 122, 0.18);
+            --control-text: #eadfce;
+            --accent: #d9b36f;
+            --accent-strong: #b67d36;
+            --accent-soft: rgba(217, 179, 111, 0.18);
+            --accent-text: #24170a;
+            --secondary-accent: #7ca6b9;
+            --secondary-accent-strong: #547f92;
+            --secondary-accent-text: #08161d;
+            --warning: #f3d18a;
+            --font-body: "Book Antiqua", "Palatino Linotype", serif;
+            --font-display: "Georgia", "Times New Roman", serif;
+        }
+        body[data-ui-style="minimal"] {
+            --bg-top: #0f1418;
+            --bg-bottom: #070a0d;
+            --bg-glow: rgba(127, 184, 212, 0.12);
+            --text-main: #eef4f8;
+            --text-muted: #c4d1da;
+            --text-soft: #92a3af;
+            --heading-color: #f3f7fb;
+            --panel-bg: rgba(255,255,255,0.035);
+            --panel-border: rgba(165, 193, 210, 0.12);
+            --panel-soft: rgba(255,255,255,0.025);
+            --control-bg: rgba(255,255,255,0.04);
+            --control-border: rgba(165, 193, 210, 0.16);
+            --control-text: #dce7ee;
+            --accent: #8fd5ee;
+            --accent-strong: #5baaca;
+            --accent-soft: rgba(143, 213, 238, 0.16);
+            --accent-text: #071820;
+            --secondary-accent: #b6c5d6;
+            --secondary-accent-strong: #8498ae;
+            --secondary-accent-text: #101923;
+            --warning: #f2dfa3;
+            --font-body: "Verdana", "Geneva", sans-serif;
+            --font-display: "Trebuchet MS", "Gill Sans", sans-serif;
+        }
+        h1 {
+            color: var(--heading-color);
+            font-family: var(--font-display);
+            letter-spacing: 0.03em;
+        }
+        #introText,
+        #queueText,
+        #setupStatusText,
+        #themeSelectionHelp,
+        #themeSelectionTurn,
+        #playModeText,
+        #hint,
+        #themeSelectionCounts,
+        .theme-section-subtitle,
+        .footer-credit {
+            color: var(--text-muted);
+        }
+        #players,
+        #themeSelectionTitle,
+        #setupProgressCount,
+        #selectedWords,
+        #themeSelectionProgress {
+            color: var(--text-main);
+        }
+        #playerRole,
+        #setupStatusTitle,
+        .theme-section-label,
+        #settingsTitle {
+            color: var(--heading-color);
+        }
+        #setupStatus,
+        #themeSelection,
+        .selected-words-wrap,
+        .theme-selection-panel,
+        .flag-toggle,
+        .settings-panel {
+            background: var(--panel-bg);
+            border-color: var(--panel-border);
+        }
+        .option-group-label,
+        .settings-group-label,
+        #settingsEyebrow {
+            color: var(--text-soft);
+        }
+        .opt-btn,
+        .card-mode-btn,
+        .lang-flag-btn,
+        .secondaryBtn,
+        .topbar-btn,
+        .settings-chip,
+        .lang-select {
+            background: var(--control-bg);
+            border-color: var(--control-border);
+            color: var(--control-text);
+        }
+        .opt-btn:hover,
+        .card-mode-btn:hover,
+        .lang-flag-btn:hover,
+        .secondaryBtn:hover,
+        .topbar-btn:hover,
+        .settings-chip:hover {
+            background: var(--panel-soft);
+        }
+        .opt-btn.active,
+        .card-mode-btn.active,
+        .lang-flag-btn.active,
+        .settings-chip.active {
+            background: var(--accent-soft);
+            border-color: rgba(255,255,255,0.14);
+            color: var(--accent);
+        }
+        #startRoundBtn,
+        .theme-action-btn,
+        .play-mode-btn.bot-btn {
+            background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+            color: var(--accent-text);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+        }
+        .play-mode-btn.human-btn {
+            background: linear-gradient(180deg, var(--secondary-accent), var(--secondary-accent-strong));
+            color: var(--secondary-accent-text);
+        }
+        .ready-status-chip.is-ready,
+        .theme-word-chip.selected {
+            background: var(--accent-soft);
+            color: var(--accent-text);
+        }
+        .selected-word-chip,
+        .selected-word-chip.active {
+            background: var(--warning);
+            color: #1d1305;
+        }
+        #themeSelectionMessage {
+            color: var(--warning);
+        }
+        .queue-spinner {
+            border-color: var(--spinner-ring);
+            border-top-color: var(--accent);
+        }
+        .topbar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 18px;
+        }
+        .topbar-btn {
+            border: 1px solid var(--control-border);
+            border-radius: 999px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.16s ease, filter 0.16s ease, background 0.16s ease;
+        }
+        .topbar-btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.04);
+        }
+        .settings-modal {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.16s ease;
+            z-index: 1000;
+        }
+        .settings-modal.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .settings-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(4, 8, 10, 0.62);
+            backdrop-filter: blur(8px);
+        }
+        .settings-panel {
+            position: relative;
+            width: min(560px, calc(100vw - 28px));
+            padding: 24px;
+            border-radius: 24px;
+            border: 1px solid var(--panel-border);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.36);
+            text-align: left;
+        }
+        .settings-panel-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        #settingsEyebrow {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 6px;
+        }
+        #settingsTitle {
+            margin: 0;
+            font-size: 30px;
+        }
+        #settingsSubtitle {
+            margin: 8px 0 0;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        .settings-close-btn {
+            border: 1px solid var(--control-border);
+            border-radius: 999px;
+            background: var(--control-bg);
+            color: var(--control-text);
+            padding: 10px 14px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .settings-group {
+            margin-top: 18px;
+        }
+        .settings-group-label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .settings-choice-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .settings-chip {
+            border: 1px solid var(--control-border);
+            border-radius: 999px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+        }
+        .settings-chip:hover {
+            transform: translateY(-1px);
+        }
+        body.settings-open {
+            overflow: hidden;
+        }
+        body[data-ui-motion="reduced"] *,
+        body[data-ui-motion="reduced"] *::before,
+        body[data-ui-motion="reduced"] *::after {
+            animation: none !important;
+            transition: none !important;
+            scroll-behavior: auto !important;
+        }
     </style>
 </head>
 <body>
     <div class="shell">
-        <div id="languagePicker">
-            <div class="flag-toggle" role="group" aria-label="UI language">
-                <button type="button" class="flag-btn" data-ui-lang="fi" aria-label="Suomi" title="Suomi">
-                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
-                        <rect width="18" height="11" fill="#fff"/>
-                        <rect x="5" width="3" height="11" fill="#003580"/>
-                        <rect y="4" width="18" height="3" fill="#003580"/>
-                    </svg>
-                </button>
-                <button type="button" class="flag-btn" data-ui-lang="en" aria-label="English" title="English">
-                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
-                        <rect width="18" height="11" fill="#012169"/>
-                        <path d="M0 0l18 11M18 0L0 11" stroke="#fff" stroke-width="2.4"/>
-                        <path d="M0 0l18 11M18 0L0 11" stroke="#C8102E" stroke-width="1.2"/>
-                        <path d="M9 0v11M0 5.5h18" stroke="#fff" stroke-width="3.6"/>
-                        <path d="M9 0v11M0 5.5h18" stroke="#C8102E" stroke-width="2"/>
-                    </svg>
-                </button>
-                <button type="button" class="flag-btn" data-ui-lang="sv" aria-label="Svenska" title="Svenska">
-                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
-                        <rect width="18" height="11" fill="#006AA7"/>
-                        <rect x="5" width="3" height="11" fill="#FECC02"/>
-                        <rect y="4" width="18" height="3" fill="#FECC02"/>
-                    </svg>
-                </button>
-                <button type="button" class="flag-btn" data-ui-lang="de" aria-label="Deutsch" title="Deutsch">
-                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
-                        <rect width="18" height="3.67" fill="#000"/>
-                        <rect y="3.67" width="18" height="3.67" fill="#DD0000"/>
-                        <rect y="7.33" width="18" height="3.67" fill="#FFCE00"/>
-                    </svg>
-                </button>
-                <button type="button" class="flag-btn" data-ui-lang="fr" aria-label="Français" title="Français">
-                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
-                        <rect width="6" height="11" fill="#002395"/>
-                        <rect x="6" width="6" height="11" fill="#fff"/>
-                        <rect x="12" width="6" height="11" fill="#ED2939"/>
-                    </svg>
-                </button>
-                <button type="button" class="flag-btn" data-ui-lang="es" aria-label="Español" title="Español">
-                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
-                        <rect width="18" height="11" fill="#c60b1e"/>
-                        <rect y="2.5" width="18" height="6" fill="#ffc400"/>
-                    </svg>
-                </button>
-                <button type="button" class="flag-btn" data-ui-lang="it" aria-label="Italiano" title="Italiano">
-                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
-                        <rect width="6" height="11" fill="#009246"/>
-                        <rect x="6" width="6" height="11" fill="#fff"/>
-                        <rect x="12" width="6" height="11" fill="#CE2B37"/>
-                    </svg>
-                </button>
-                <button type="button" class="flag-btn" data-ui-lang="pt" aria-label="Português" title="Português">
-                    <svg class="flag-svg" viewBox="0 0 18 11" aria-hidden="true">
-                        <rect width="7" height="11" fill="#006600"/>
-                        <rect x="7" width="11" height="11" fill="#FF0000"/>
-                        <circle cx="7" cy="5.5" r="2.2" fill="#FFD700" stroke="#006600" stroke-width="0.5"/>
-                    </svg>
-                </button>
+        <div class="topbar">
+            <button id="settingsBtn" class="topbar-btn" type="button">Settings</button>
+        </div>
+        <div id="settingsModal" class="settings-modal" aria-hidden="true">
+            <div class="settings-backdrop" data-close-settings></div>
+            <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+                <div class="settings-panel-head">
+                    <div>
+                        <div id="settingsEyebrow">Personal settings</div>
+                        <h2 id="settingsTitle">Settings</h2>
+                        <p id="settingsSubtitle"></p>
+                    </div>
+                    <button id="settingsCloseBtn" class="settings-close-btn" type="button">Close</button>
+                </div>
+                <div class="settings-group">
+                    <label class="settings-group-label" id="settingsLanguageLabel" for="uiLangSelect">Interface language</label>
+                    <select id="uiLangSelect" class="lang-select">
+                        <option value="fi">Suomi</option>
+                        <option value="en">English</option>
+                        <option value="sv">Svenska</option>
+                        <option value="de">Deutsch</option>
+                        <option value="fr">Français</option>
+                        <option value="es">Español</option>
+                        <option value="it">Italiano</option>
+                        <option value="pt">Português</option>
+                    </select>
+                </div>
+                <div class="settings-group">
+                    <div class="settings-group-label" id="settingsUiStyleLabel">UI style</div>
+                    <div class="settings-choice-grid">
+                        <button type="button" class="settings-chip" data-ui-style-choice="classic">Classic</button>
+                        <button type="button" class="settings-chip" data-ui-style-choice="cozy">Cozy</button>
+                        <button type="button" class="settings-chip" data-ui-style-choice="cabinet">Cabinet</button>
+                        <button type="button" class="settings-chip" data-ui-style-choice="minimal">Minimal</button>
+                    </div>
+                </div>
+                <div class="settings-group">
+                    <div class="settings-group-label" id="settingsMotionLabel">Motion</div>
+                    <div class="settings-choice-grid">
+                        <button type="button" class="settings-chip" data-ui-motion-choice="normal">Normal</button>
+                        <button type="button" class="settings-chip" data-ui-motion-choice="reduced">Reduced</button>
+                    </div>
+                </div>
             </div>
         </div>
         <h1 id="pageTitle">Waiting Room</h1>
@@ -690,6 +963,20 @@
                 page_title_bot: "Duel with Memory Bot",
                 page_title_solo: "Solo Game",
                 language: "Language",
+                settings_button: "Settings",
+                settings_eyebrow: "Personal settings",
+                settings_title: "Settings",
+                settings_subtitle: "Tune the game space to your taste. These choices stay on this device.",
+                settings_close: "Close",
+                settings_language: "Interface language",
+                settings_ui_style: "UI style",
+                settings_motion: "Motion",
+                settings_motion_normal: "Normal",
+                settings_motion_reduced: "Reduced",
+                ui_style_classic: "Classic arcade",
+                ui_style_cozy: "Cozy table",
+                ui_style_cabinet: "Memory cabinet",
+                ui_style_minimal: "Minimal slate",
                 intro_text: "The game starts when both players are here. The second player can choose the word source and card type for the next round.",
                 intro_text_bot: "Choose the round settings for your duel with Memory Bot. The game starts as soon as you finish your selections and press Start.",
                 intro_text_solo: "Choose the round settings for your solo game. The game starts as soon as you finish your selections and press Start.",
@@ -784,6 +1071,20 @@
                 page_title_bot: "Kaksintaistelu Muistibotin kanssa",
                 page_title_solo: "Yksinpeli",
                 language: "Kieli",
+                settings_button: "Asetukset",
+                settings_eyebrow: "Omat asetukset",
+                settings_title: "Asetukset",
+                settings_subtitle: "Säädä pelin tunnelma omaksi. Valinnat säilyvät tällä laitteella.",
+                settings_close: "Sulje",
+                settings_language: "Käyttöliittymän kieli",
+                settings_ui_style: "UI-tyyli",
+                settings_motion: "Liike",
+                settings_motion_normal: "Normaali",
+                settings_motion_reduced: "Vähäinen",
+                ui_style_classic: "Klassinen arcade",
+                ui_style_cozy: "Lämmin pöytä",
+                ui_style_cabinet: "Muistojen kabinetti",
+                ui_style_minimal: "Pelkistetty",
                 intro_text: "Peli alkaa, kun molemmat pelaajat ovat paikalla. Toisena liittynyt pelaaja voi valita sanavalinnan ja korttityypin seuraavaan erään.",
                 intro_text_bot: "Valitse erän asetukset kaksintaisteluun Muistibotin kanssa. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
                 intro_text_solo: "Valitse erän asetukset yksinpeliin. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
@@ -918,6 +1219,53 @@
             medium: { en: "Medium", fi: "Keskitaso",   sv: "Medel",       de: "Mittel",      fr: "Intermédiaire", es: "Intermedio", it: "Medio",       pt: "Médio" },
             hard:   { en: "Hard",   fi: "Vaikea",      sv: "Svår",        de: "Schwer",      fr: "Difficile",   es: "Difícil",     it: "Difficile",   pt: "Difícil" }
         };
+        const UI_STYLE_OPTIONS = ["classic", "cozy", "cabinet", "minimal"];
+        const UI_MOTION_OPTIONS = ["normal", "reduced"];
+
+        function getUiStyle() {
+            const stored = localStorage.getItem("ui_style");
+            return UI_STYLE_OPTIONS.includes(stored) ? stored : "classic";
+        }
+
+        function setUiStyle(style) {
+            const next = UI_STYLE_OPTIONS.includes(style) ? style : "classic";
+            localStorage.setItem("ui_style", next);
+            document.body.dataset.uiStyle = next;
+            syncSettingsControls();
+            return next;
+        }
+
+        function getUiMotion() {
+            const stored = localStorage.getItem("ui_motion");
+            return UI_MOTION_OPTIONS.includes(stored) ? stored : "normal";
+        }
+
+        function setUiMotion(mode) {
+            const next = UI_MOTION_OPTIONS.includes(mode) ? mode : "normal";
+            localStorage.setItem("ui_motion", next);
+            document.body.dataset.uiMotion = next;
+            syncSettingsControls();
+            return next;
+        }
+
+        function syncSettingsControls() {
+            const langSelect = document.getElementById("uiLangSelect");
+            if (langSelect) langSelect.value = getLanguage();
+            const currentStyle = getUiStyle();
+            const currentMotion = getUiMotion();
+            document.querySelectorAll("[data-ui-style-choice]").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.uiStyleChoice === currentStyle);
+            });
+            document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.uiMotionChoice === currentMotion);
+            });
+        }
+
+        function applyPersonalSettings() {
+            document.body.dataset.uiStyle = getUiStyle();
+            document.body.dataset.uiMotion = getUiMotion();
+            syncSettingsControls();
+        }
 
         function getLanguage() {
             const stored = localStorage.getItem("ui_language");
@@ -1031,13 +1379,22 @@
             const introKey = isSoloMode ? "intro_text_solo" : (isBotMode ? "intro_text_bot" : "intro_text");
             document.documentElement.lang = getLanguage();
             document.title = t(titleKey);
-            document.querySelectorAll(".flag-btn[data-ui-lang]").forEach(btn => {
-                const active = btn.dataset.uiLang === getLanguage();
-                btn.classList.toggle("is-active", active);
-                btn.setAttribute("aria-pressed", active ? "true" : "false");
-            });
             // lang-flag-btn buttons now use SVG flags — no text update needed
             const el = (id) => document.getElementById(id);
+            el("settingsBtn").textContent = t("settings_button");
+            el("settingsEyebrow").textContent = t("settings_eyebrow");
+            el("settingsTitle").textContent = t("settings_title");
+            el("settingsSubtitle").textContent = t("settings_subtitle");
+            el("settingsCloseBtn").textContent = t("settings_close");
+            el("settingsLanguageLabel").textContent = t("settings_language");
+            el("settingsUiStyleLabel").textContent = t("settings_ui_style");
+            el("settingsMotionLabel").textContent = t("settings_motion");
+            document.querySelectorAll("[data-ui-style-choice]").forEach((btn) => {
+                btn.textContent = t(`ui_style_${btn.dataset.uiStyleChoice}`);
+            });
+            document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
+                btn.textContent = t(`settings_motion_${btn.dataset.uiMotionChoice}`);
+            });
             el("labelWordSource").textContent = t("label_word_source");
             el("labelCardMode").textContent = t("label_card_mode");
             el("labelLang").textContent = t("label_lang");
@@ -1065,16 +1422,42 @@
             if (queueBotHintEl) queueBotHintEl.textContent = t("queue_bot_hint");
             if (queueBotBtnEl) queueBotBtnEl.textContent = t("queue_play_bot");
             renderPlayerRole(window.latestPlayersInfo || []);
+            syncSettingsControls();
         }
 
         setLanguage(getLanguage());
+        applyPersonalSettings();
         applyTranslations();
-
-        document.querySelectorAll(".flag-btn[data-ui-lang]").forEach(btn => {
-            btn.addEventListener("click", () => {
-                setLanguage(btn.dataset.uiLang);
-                applyTranslations();
-            });
+        document.getElementById("uiLangSelect")?.addEventListener("change", (event) => {
+            setLanguage(event.target.value);
+            applyTranslations();
+        });
+        document.querySelectorAll("[data-ui-style-choice]").forEach((btn) => {
+            btn.addEventListener("click", () => setUiStyle(btn.dataset.uiStyleChoice));
+        });
+        document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
+            btn.addEventListener("click", () => setUiMotion(btn.dataset.uiMotionChoice));
+        });
+        function openSettings() {
+            const modal = document.getElementById("settingsModal");
+            if (!modal) return;
+            modal.classList.add("is-open");
+            modal.setAttribute("aria-hidden", "false");
+            document.body.classList.add("settings-open");
+            syncSettingsControls();
+        }
+        function closeSettings() {
+            const modal = document.getElementById("settingsModal");
+            if (!modal) return;
+            modal.classList.remove("is-open");
+            modal.setAttribute("aria-hidden", "true");
+            document.body.classList.remove("settings-open");
+        }
+        document.getElementById("settingsBtn")?.addEventListener("click", openSettings);
+        document.getElementById("settingsCloseBtn")?.addEventListener("click", closeSettings);
+        document.querySelectorAll("[data-close-settings]").forEach((el) => el.addEventListener("click", closeSettings));
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeSettings();
         });
 
         function safeUUID() {

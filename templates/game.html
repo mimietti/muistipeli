@@ -400,9 +400,346 @@
             font-size: 17px;
             color: #e8f5e8;
         }
+        body {
+            --bg-top: #11151a;
+            --bg-bottom: #090c10;
+            --bg-glow: rgba(122, 184, 245, 0.08);
+            --text-main: #f4f7fb;
+            --text-muted: #c8d2db;
+            --text-soft: #9aa9b7;
+            --heading-color: #fff1bb;
+            --panel-bg: rgba(255,255,255,0.05);
+            --panel-border: rgba(255,255,255,0.08);
+            --control-bg: rgba(255,255,255,0.06);
+            --control-border: rgba(255,255,255,0.12);
+            --control-text: #d9e3ee;
+            --accent: #8fd5ee;
+            --accent-strong: #5baaca;
+            --accent-soft: rgba(143, 213, 238, 0.16);
+            --accent-text: #071820;
+            --danger: #9a4141;
+            --danger-text: #fff6f6;
+            --success-ring: rgba(113, 240, 161, 0.98);
+            --warning-ring: rgba(255, 216, 92, 0.98);
+            --error-ring: rgba(255, 102, 102, 0.98);
+            --card-back: #414d58;
+            --word-card: linear-gradient(160deg, #203747, #121e28);
+            --font-body: "Trebuchet MS", "Segoe UI", sans-serif;
+            --font-display: "Georgia", "Times New Roman", serif;
+            background:
+                radial-gradient(circle at top, var(--bg-glow), transparent 38%),
+                linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+            color: var(--text-main);
+            font-family: var(--font-body);
+            min-height: 100vh;
+        }
+        body[data-ui-style="cozy"] {
+            --bg-top: #241710;
+            --bg-bottom: #110c08;
+            --bg-glow: rgba(245, 186, 116, 0.16);
+            --text-main: #fff4e8;
+            --text-muted: #e8d4c0;
+            --text-soft: #c2a690;
+            --heading-color: #ffe1b4;
+            --panel-bg: rgba(71, 41, 24, 0.58);
+            --panel-border: rgba(255, 214, 156, 0.15);
+            --control-bg: rgba(255, 250, 239, 0.07);
+            --control-border: rgba(255, 214, 156, 0.18);
+            --control-text: #f8e8d5;
+            --accent: #f2ba74;
+            --accent-strong: #de8d47;
+            --accent-soft: rgba(242, 186, 116, 0.18);
+            --accent-text: #2a1708;
+            --danger: #8c3b3b;
+            --card-back: #655244;
+            --word-card: linear-gradient(160deg, #5a3e29, #2b1c12);
+            --font-body: "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+            --font-display: "Palatino Linotype", "Book Antiqua", serif;
+        }
+        body[data-ui-style="cabinet"] {
+            --bg-top: #171311;
+            --bg-bottom: #090707;
+            --bg-glow: rgba(203, 160, 92, 0.13);
+            --text-main: #f1e8db;
+            --text-muted: #d8c6b1;
+            --text-soft: #ab9885;
+            --heading-color: #f0ddb5;
+            --panel-bg: rgba(39, 28, 22, 0.66);
+            --panel-border: rgba(214, 182, 122, 0.15);
+            --control-bg: rgba(255, 248, 235, 0.05);
+            --control-border: rgba(214, 182, 122, 0.18);
+            --control-text: #e7ddcf;
+            --accent: #d9b36f;
+            --accent-strong: #b67d36;
+            --accent-soft: rgba(217, 179, 111, 0.18);
+            --accent-text: #24170a;
+            --danger: #7a3b32;
+            --card-back: #5a4639;
+            --word-card: linear-gradient(160deg, #4a392b, #221911);
+            --font-body: "Book Antiqua", "Palatino Linotype", serif;
+            --font-display: "Georgia", "Times New Roman", serif;
+        }
+        body[data-ui-style="minimal"] {
+            --bg-top: #0d1116;
+            --bg-bottom: #06080b;
+            --bg-glow: rgba(184, 197, 214, 0.1);
+            --text-main: #eef4f8;
+            --text-muted: #c4d1da;
+            --text-soft: #92a3af;
+            --heading-color: #f5f8fb;
+            --panel-bg: rgba(255,255,255,0.035);
+            --panel-border: rgba(165, 193, 210, 0.12);
+            --control-bg: rgba(255,255,255,0.04);
+            --control-border: rgba(165, 193, 210, 0.16);
+            --control-text: #dce7ee;
+            --accent: #b6c5d6;
+            --accent-strong: #8498ae;
+            --accent-soft: rgba(182, 197, 214, 0.16);
+            --accent-text: #101923;
+            --danger: #7a4b4b;
+            --card-back: #39444f;
+            --word-card: linear-gradient(160deg, #29323a, #151b20);
+            --font-body: "Verdana", "Geneva", sans-serif;
+            --font-display: "Trebuchet MS", "Gill Sans", sans-serif;
+        }
+        h1 {
+            color: var(--heading-color);
+            font-family: var(--font-display);
+            letter-spacing: 0.03em;
+        }
+        #players,
+        #setup-status,
+        #theme-progress,
+        .footer-credit,
+        .results-cta,
+        .results-subheading,
+        #solo-stats {
+            color: var(--text-muted);
+        }
+        .translation-col,
+        #translation-hint,
+        .image-pair-chip,
+        #results,
+        .settings-panel {
+            background: var(--panel-bg);
+            border-color: var(--panel-border);
+        }
+        .translation-col-label,
+        #image-pair-tracker-label,
+        .results-heading {
+            color: var(--heading-color);
+        }
+        .image-pair-chip.found,
+        .settings-chip.active {
+            background: var(--accent-soft);
+            border-color: rgba(255,255,255,0.14);
+            color: var(--accent);
+            box-shadow: none;
+        }
+        .card {
+            background-color: var(--card-back);
+            border-color: rgba(0,0,0,0.24);
+        }
+        .card.word-card {
+            background: var(--word-card);
+            border-color: var(--panel-border);
+        }
+        .card.matched-highlight {
+            box-shadow: 0 0 0 5px var(--success-ring), 0 0 28px rgba(113, 240, 161, 0.45);
+        }
+        .card.revealed-first {
+            box-shadow: 0 0 0 4px var(--warning-ring), 0 0 18px rgba(255, 216, 92, 0.28);
+        }
+        .card.revealed-second {
+            box-shadow: 0 0 0 4px var(--error-ring), 0 0 18px rgba(255, 102, 102, 0.28);
+        }
+        .round-action-btn.exit,
+        .results-btn.end,
+        .settings-close-btn,
+        .settings-chip,
+        .settings-select,
+        .topbar-btn {
+            background: var(--control-bg);
+            color: var(--control-text);
+            border: 1px solid var(--control-border);
+        }
+        .round-action-btn.surrender {
+            background: var(--danger);
+            color: var(--danger-text);
+        }
+        .results-btn.mode {
+            background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+            color: var(--accent-text);
+        }
+        #toast {
+            border-color: var(--accent);
+        }
+        .solo-stat-label {
+            color: var(--text-soft);
+        }
+        .solo-stat-value {
+            color: var(--text-main);
+        }
+        .topbar {
+            display: flex;
+            justify-content: flex-end;
+            width: min(960px, calc(100% - 24px));
+            margin: 16px auto 0;
+        }
+        .topbar-btn,
+        .settings-close-btn {
+            border-radius: 999px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .settings-modal {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.16s ease;
+            z-index: 1000;
+        }
+        .settings-modal.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .settings-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(4, 8, 10, 0.62);
+            backdrop-filter: blur(8px);
+        }
+        .settings-panel {
+            position: relative;
+            width: min(560px, calc(100vw - 28px));
+            padding: 24px;
+            border-radius: 24px;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.36);
+            text-align: left;
+        }
+        .settings-panel-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        #settingsEyebrow {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-soft);
+            margin-bottom: 6px;
+        }
+        #settingsTitle {
+            margin: 0;
+            font-size: 30px;
+            color: var(--heading-color);
+        }
+        #settingsSubtitle {
+            margin: 8px 0 0;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        .settings-group {
+            margin-top: 18px;
+        }
+        .settings-group-label {
+            display: block;
+            margin-bottom: 10px;
+            color: var(--text-soft);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .settings-choice-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .settings-chip {
+            border-radius: 999px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .settings-select {
+            width: 100%;
+            max-width: 260px;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 15px;
+        }
+        .settings-select option {
+            background: #1a1a1a;
+            color: #fff;
+        }
+        body.settings-open {
+            overflow: hidden;
+        }
+        body[data-ui-motion="reduced"] *,
+        body[data-ui-motion="reduced"] *::before,
+        body[data-ui-motion="reduced"] *::after {
+            animation: none !important;
+            transition: none !important;
+            scroll-behavior: auto !important;
+        }
     </style>
 </head>
 <body>
+    <div class="topbar">
+        <button id="settingsBtn" class="topbar-btn" type="button">Settings</button>
+    </div>
+    <div id="settingsModal" class="settings-modal" aria-hidden="true">
+        <div class="settings-backdrop" data-close-settings></div>
+        <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+            <div class="settings-panel-head">
+                <div>
+                    <div id="settingsEyebrow">Personal settings</div>
+                    <h2 id="settingsTitle">Settings</h2>
+                    <p id="settingsSubtitle"></p>
+                </div>
+                <button id="settingsCloseBtn" class="settings-close-btn" type="button">Close</button>
+            </div>
+            <div class="settings-group">
+                <label class="settings-group-label" id="settingsLanguageLabel" for="uiLangSelect">Interface language</label>
+                <select id="uiLangSelect" class="settings-select">
+                    <option value="fi">Suomi</option>
+                    <option value="en">English</option>
+                    <option value="sv">Svenska</option>
+                    <option value="de">Deutsch</option>
+                    <option value="fr">Français</option>
+                    <option value="es">Español</option>
+                    <option value="it">Italiano</option>
+                    <option value="pt">Português</option>
+                </select>
+            </div>
+            <div class="settings-group">
+                <div class="settings-group-label" id="settingsUiStyleLabel">UI style</div>
+                <div class="settings-choice-grid">
+                    <button type="button" class="settings-chip" data-ui-style-choice="classic">Classic</button>
+                    <button type="button" class="settings-chip" data-ui-style-choice="cozy">Cozy</button>
+                    <button type="button" class="settings-chip" data-ui-style-choice="cabinet">Cabinet</button>
+                    <button type="button" class="settings-chip" data-ui-style-choice="minimal">Minimal</button>
+                </div>
+            </div>
+            <div class="settings-group">
+                <div class="settings-group-label" id="settingsMotionLabel">Motion</div>
+                <div class="settings-choice-grid">
+                    <button type="button" class="settings-chip" data-ui-motion-choice="normal">Normal</button>
+                    <button type="button" class="settings-chip" data-ui-motion-choice="reduced">Reduced</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <h1 id="pageTitle">Memory Game</h1>
     <div id="solo-stats">
         <div class="solo-stat">
@@ -442,6 +779,20 @@
             en: {
                 page_title: "Memory Game",
                 page_title_browser: "Memory Game - Game",
+                settings_button: "Settings",
+                settings_eyebrow: "Personal settings",
+                settings_title: "Settings",
+                settings_subtitle: "Choose the mood that feels right for this device.",
+                settings_close: "Close",
+                settings_language: "Interface language",
+                settings_ui_style: "UI style",
+                settings_motion: "Motion",
+                settings_motion_normal: "Normal",
+                settings_motion_reduced: "Reduced",
+                ui_style_classic: "Classic arcade",
+                ui_style_cozy: "Cozy table",
+                ui_style_cabinet: "Memory cabinet",
+                ui_style_minimal: "Minimal slate",
                 setup_finding_words: 'Finding words that match "{theme}"...',
                 setup_drawing_cards: 'Drawing cards for "{theme}"...',
                 setup_manual: '{name} is entering words for the next round...',
@@ -494,6 +845,20 @@
             fi: {
                 page_title: "Muistipeli",
                 page_title_browser: "Muistipeli – Peli",
+                settings_button: "Asetukset",
+                settings_eyebrow: "Omat asetukset",
+                settings_title: "Asetukset",
+                settings_subtitle: "Valitse tälle laitteelle sopiva tunnelma ja liike.",
+                settings_close: "Sulje",
+                settings_language: "Käyttöliittymän kieli",
+                settings_ui_style: "UI-tyyli",
+                settings_motion: "Liike",
+                settings_motion_normal: "Normaali",
+                settings_motion_reduced: "Vähäinen",
+                ui_style_classic: "Klassinen arcade",
+                ui_style_cozy: "Lämmin pöytä",
+                ui_style_cabinet: "Muistojen kabinetti",
+                ui_style_minimal: "Pelkistetty",
                 setup_finding_words: 'Haetaan teemaan sopivia sanoja teemalle "{theme}"...',
                 setup_drawing_cards: 'Piirretään kortteja teemalle "{theme}"...',
                 setup_manual: '{name} syöttää sanoja seuraavaa kierrosta varten...',
@@ -569,6 +934,53 @@
             medium: { en: "Medium", fi: "Keskitaso",   sv: "Medel",       de: "Mittel",      fr: "Intermédiaire", es: "Intermedio",  it: "Medio",       pt: "Médio" },
             hard:   { en: "Hard",   fi: "Vaikea",      sv: "Svår",        de: "Schwer",      fr: "Difficile",     es: "Difícil",     it: "Difficile",   pt: "Difícil" }
         };
+        const UI_STYLE_OPTIONS = ["classic", "cozy", "cabinet", "minimal"];
+        const UI_MOTION_OPTIONS = ["normal", "reduced"];
+
+        function getUiStyle() {
+            const stored = localStorage.getItem("ui_style");
+            return UI_STYLE_OPTIONS.includes(stored) ? stored : "classic";
+        }
+
+        function setUiStyle(style) {
+            const next = UI_STYLE_OPTIONS.includes(style) ? style : "classic";
+            localStorage.setItem("ui_style", next);
+            document.body.dataset.uiStyle = next;
+            syncSettingsControls();
+            return next;
+        }
+
+        function getUiMotion() {
+            const stored = localStorage.getItem("ui_motion");
+            return UI_MOTION_OPTIONS.includes(stored) ? stored : "normal";
+        }
+
+        function setUiMotion(mode) {
+            const next = UI_MOTION_OPTIONS.includes(mode) ? mode : "normal";
+            localStorage.setItem("ui_motion", next);
+            document.body.dataset.uiMotion = next;
+            syncSettingsControls();
+            return next;
+        }
+
+        function syncSettingsControls() {
+            const langSelect = document.getElementById("uiLangSelect");
+            if (langSelect) langSelect.value = getLanguage();
+            const currentStyle = getUiStyle();
+            const currentMotion = getUiMotion();
+            document.querySelectorAll("[data-ui-style-choice]").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.uiStyleChoice === currentStyle);
+            });
+            document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.uiMotionChoice === currentMotion);
+            });
+        }
+
+        function applyPersonalSettings() {
+            document.body.dataset.uiStyle = getUiStyle();
+            document.body.dataset.uiMotion = getUiMotion();
+            syncSettingsControls();
+        }
 
         function getLanguage() {
             const stored = localStorage.getItem("ui_language");
@@ -608,9 +1020,56 @@
             document.getElementById("themeProgressLabel").textContent = t("ready_label");
             document.getElementById("surrenderRoundBtn").textContent = t("surrender_round");
             document.getElementById("exitGameBtn").textContent = t("exit_game");
+            document.getElementById("settingsBtn").textContent = t("settings_button");
+            document.getElementById("settingsEyebrow").textContent = t("settings_eyebrow");
+            document.getElementById("settingsTitle").textContent = t("settings_title");
+            document.getElementById("settingsSubtitle").textContent = t("settings_subtitle");
+            document.getElementById("settingsCloseBtn").textContent = t("settings_close");
+            document.getElementById("settingsLanguageLabel").textContent = t("settings_language");
+            document.getElementById("settingsUiStyleLabel").textContent = t("settings_ui_style");
+            document.getElementById("settingsMotionLabel").textContent = t("settings_motion");
+            document.querySelectorAll("[data-ui-style-choice]").forEach((btn) => {
+                btn.textContent = t(`ui_style_${btn.dataset.uiStyleChoice}`);
+            });
+            document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
+                btn.textContent = t(`settings_motion_${btn.dataset.uiMotionChoice}`);
+            });
+            syncSettingsControls();
         }
 
+        applyPersonalSettings();
         applyTranslations();
+        document.getElementById("uiLangSelect")?.addEventListener("change", (event) => {
+            localStorage.setItem("ui_language", event.target.value);
+            applyTranslations();
+        });
+        document.querySelectorAll("[data-ui-style-choice]").forEach((btn) => {
+            btn.addEventListener("click", () => setUiStyle(btn.dataset.uiStyleChoice));
+        });
+        document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
+            btn.addEventListener("click", () => setUiMotion(btn.dataset.uiMotionChoice));
+        });
+        function openSettings() {
+            const modal = document.getElementById("settingsModal");
+            if (!modal) return;
+            modal.classList.add("is-open");
+            modal.setAttribute("aria-hidden", "false");
+            document.body.classList.add("settings-open");
+            syncSettingsControls();
+        }
+        function closeSettings() {
+            const modal = document.getElementById("settingsModal");
+            if (!modal) return;
+            modal.classList.remove("is-open");
+            modal.setAttribute("aria-hidden", "true");
+            document.body.classList.remove("settings-open");
+        }
+        document.getElementById("settingsBtn")?.addEventListener("click", openSettings);
+        document.getElementById("settingsCloseBtn")?.addEventListener("click", closeSettings);
+        document.querySelectorAll("[data-close-settings]").forEach((el) => el.addEventListener("click", closeSettings));
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeSettings();
+        });
 
         function safeUUID() {
             if (self.crypto && typeof self.crypto.randomUUID === "function") {
