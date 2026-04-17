@@ -2633,6 +2633,13 @@ def handle_surrender_round(data=None):
         return
 
     surrendering_player = player_info["username"]
+
+    if is_solo(room):
+        print(f"[INFO] {surrendering_player} keskeytti yksinpelin.")
+        room.current_click_sid = None
+        conclude_round(None, room, surrendered_by=surrendering_player)
+        return
+
     opponents = [name for name in room.player_order if name != surrendering_player]
     if not opponents:
         emit("round_surrender_failed", {"reason": "opponent_missing"})
