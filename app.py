@@ -1019,21 +1019,30 @@ def is_word_allowed_for_filter_mode(word, room=None):
 def fetch_random_game_words(target=8, room=None):
     """Pick `target` distinct concrete words from random themes."""
     require_noun = getattr(room, "word_filter_mode", "clear") == "clear"
-    themes = random.sample(RANDOM_WORD_THEMES, min(len(RANDOM_WORD_THEMES), target * 2))
-    print(f"[INFO] Haetaan satunnaissanoja teemoista: {', '.join(themes)}")
+    # Fetch first 6 themes in parallel, then serial with early-stop.
+    # Fetching all themes at once kills the early-stop benefit and overloads Datamuse.
+    parallel_limit = 6
+    all_themes = random.sample(RANDOM_WORD_THEMES, min(len(RANDOM_WORD_THEMES), target * 2))
+    batch, rest = all_themes[:parallel_limit], all_themes[parallel_limit:]
+    print(f"[INFO] Haetaan satunnaissanoja teemoista: {', '.join(all_themes)}")
     theme_results = {}
     def _fetch_theme(theme):
         theme_results[theme] = fetch_theme_words(theme, max_results=20, require_noun=require_noun, exclude_proper=True)
-    gevent.joinall([gevent.spawn(_fetch_theme, t) for t in themes], timeout=30)
+    gevent.joinall([gevent.spawn(_fetch_theme, t) for t in batch], timeout=20)
     pool = []
     seen = set()
-    for theme in themes:
+    for theme in batch:
         for w in theme_results.get(theme, []):
             if w and w not in seen and is_word_allowed_for_filter_mode(w, room):
                 seen.add(w)
                 pool.append(w)
+    for theme in rest:
         if len(pool) >= target * 4:
             break
+        for w in fetch_theme_words(theme, max_results=20, require_noun=require_noun, exclude_proper=True):
+            if w and w not in seen and is_word_allowed_for_filter_mode(w, room):
+                seen.add(w)
+                pool.append(w)
     print(f"[INFO] Raaka sanapooli: {len(pool)} sanaa")
     # Pre-warm display-word translations in parallel before filtering (avoids ~80 serial API calls)
     ui_language = room.ui_language if room else "en"
