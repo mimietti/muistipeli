@@ -1020,6 +1020,7 @@ def fetch_random_game_words(target=8, room=None):
     """Pick `target` distinct concrete words from random themes."""
     require_noun = getattr(room, "word_filter_mode", "clear") == "clear"
     themes = random.sample(RANDOM_WORD_THEMES, min(len(RANDOM_WORD_THEMES), target * 2))
+    print(f"[INFO] Haetaan satunnaissanoja teemoista: {', '.join(themes)}")
     pool = []
     seen = set()
     for theme in themes:
@@ -1030,6 +1031,13 @@ def fetch_random_game_words(target=8, room=None):
                 pool.append(w)
         if len(pool) >= target * 4:
             break
+    print(f"[INFO] Raaka sanapooli: {len(pool)} sanaa")
+    # Pre-warm display-word translations in parallel before filtering (avoids ~80 serial API calls)
+    ui_language = room.ui_language if room else "en"
+    if ui_language != "en":
+        jobs = [gevent.spawn(translate_word, w, "en", ui_language) for w in pool]
+        gevent.joinall(jobs, timeout=30)
+        print(f"[INFO] Pool-käännökset esivalmistelltu ({len(pool)} sanaa, {ui_language})")
     pool, _ = filter_theme_candidate_pool(pool, room=room)
     if len(pool) < target:
         return pool
@@ -2435,6 +2443,7 @@ def handle_start_custom_game(data=None):
                 room.grid_data.clear()
                 reset_pending_state(room)
                 return
+            print(f"[INFO] Kaikki {pair_index} paria valmis, käynnistetään kierros")
             launch_grid_round(room)
         socketio.start_background_task(run_random_game)
         return
