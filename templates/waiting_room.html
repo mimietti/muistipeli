@@ -1391,10 +1391,12 @@
         function isQueueSearchLobby(payload, playersInfo) {
             const playMode = localStorage.getItem("play_mode") || "";
             const infos = Array.isArray(playersInfo) ? playersInfo : [];
+            const myToken = getReconnectToken();
             return playMode === "queue"
                 && payload
-                && payload.room_id === "default"
-                && infos.length > 0
+                && infos.length === 1
+                && infos[0]
+                && infos[0].reconnect_token === myToken
                 && infos.every(p => p && p.in_waiting);
         }
 
@@ -2024,8 +2026,14 @@
                 updateBotDifficultyVisibility();
                 renderPlayerRole(playersInfo);
 
-                // If player chose queue mode and hasn't joined queue yet, do it now
-                if (localStorage.getItem("play_mode") === "queue" && !queueJoined) {
+                if (!queueSearchActive) {
+                    queueJoined = false;
+                    hideQueueStatus();
+                }
+
+                // Emit queue join only once per explicit queue intent.
+                if (queueSearchActive && queueJoinRequested && !queueJoined) {
+                    queueJoinRequested = false;
                     socket.emit("join_queue", {
                         username: myName,
                         reconnect_token: reconnectToken,
@@ -2065,6 +2073,7 @@
 
             // --- Play mode selection ---
             let queueJoined = false;
+            let queueJoinRequested = (localStorage.getItem("play_mode") || "") === "queue";
             const playModeSelectEl = document.getElementById("playModeSelect");
             const queueStatusEl = document.getElementById("queueStatus");
             const queueTextEl = document.getElementById("queueText");
@@ -2125,6 +2134,7 @@
             document.getElementById("botModeBtn").addEventListener("click", () => {
                 localStorage.setItem("bot_mode", "1");
                 localStorage.setItem("play_mode", "bot");
+                queueJoinRequested = false;
                 hidePlayModeSelect();
                 applyTranslations();
                 updateBotDifficultyVisibility();
@@ -2134,6 +2144,7 @@
             document.getElementById("humanModeBtn").addEventListener("click", () => {
                 localStorage.setItem("bot_mode", "0");
                 localStorage.setItem("play_mode", "queue");
+                queueJoinRequested = true;
                 hidePlayModeSelect();
                 applyTranslations();
                 updateBotDifficultyVisibility();
@@ -2144,11 +2155,13 @@
             document.getElementById("leaveQueueBtn").addEventListener("click", () => {
                 socket.emit("leave_queue", {});
                 queueJoined = false;
+                queueJoinRequested = false;
             });
 
             document.getElementById("queueBotBtn").addEventListener("click", () => {
                 socket.emit("leave_queue", {});
                 queueJoined = false;
+                queueJoinRequested = false;
                 localStorage.setItem("bot_mode", "1");
                 localStorage.setItem("play_mode", "bot");
                 applyTranslations();
@@ -2167,6 +2180,7 @@
 
             socket.on("queue_joined", () => {
                 queueJoined = true;
+                queueJoinRequested = false;
                 showQueueStatus(t("queue_searching"));
             });
 
@@ -2177,6 +2191,7 @@
 
             socket.on("match_found", (data) => {
                 queueJoined = false;
+                queueJoinRequested = false;
                 localStorage.removeItem("play_mode");
                 showQueueMessage(t("match_found_msg"));
                 setTimeout(() => { queueStatusEl.style.display = "none"; }, 2000);
@@ -2184,12 +2199,14 @@
 
             socket.on("queue_left", () => {
                 queueJoined = false;
+                queueJoinRequested = false;
                 hideQueueStatus();
                 showPlayModeSelect();
             });
 
             socket.on("queue_error", () => {
                 queueJoined = false;
+                queueJoinRequested = false;
                 hideQueueStatus();
                 showPlayModeSelect();
             });
@@ -2208,7 +2225,9 @@
                     username: myName,
                     reconnect_token: reconnectToken,
                     bot_mode: localStorage.getItem("bot_mode") === "1",
-                    solo_mode: isSolo
+                    solo_mode: isSolo,
+                    card_mode: selectedCardMode,
+                    target_language: selectedCardMode !== "images" ? selectedLang : ""
                 };
                 console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
                 socket.emit("join", joinPayload);
@@ -2411,13 +2430,8 @@
                 }
             }
 
-            let prefEmitted = false;
             socket.on("player_joined", (payload) => {
                 updateLobbyFromPayload(payload);
-                if (!prefEmitted && hasJoined) {
-                    prefEmitted = true;
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: selectedLang });
-                }
             });
             socket.on("lobby_state", (payload) => {
                 console.log("[DEBUG] lobby_state:", payload);
@@ -2452,6 +2466,9 @@
                 }).join("");
                 listDiv.querySelectorAll(".lobby-join-btn").forEach(btn => {
                     btn.addEventListener("click", () => {
+                        autoQueueEnabled = false;
+                        queueJoined = false;
+                        hideQueueStatus();
                         socket.emit("join_room_direct", { room_id: btn.dataset.roomId });
                     });
                 });

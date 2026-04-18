@@ -269,6 +269,39 @@ def get_room_for_sid(sid):
     return get_room(room_id)
 
 
+def remove_player_memberships(reconnect_token=None, sid=None, keep_room_id=None):
+    for room in rooms.values():
+        for existing_sid, info in list(room.players.items()):
+            same_sid = sid and existing_sid == sid
+            same_token = reconnect_token and info.get("reconnect_token") == reconnect_token
+            if not same_sid and not same_token:
+                continue
+            if keep_room_id and room.room_id == keep_room_id and same_token:
+                continue
+            if room.current_click_sid == existing_sid:
+                room.current_click_sid = None
+            del room.players[existing_sid]
+            _sid_to_room_id.pop(existing_sid, None)
+            try:
+                leave_room(room.room_id, sid=existing_sid)
+            except Exception:
+                pass
+
+
+def move_sid_to_room(sid, room_id):
+    previous_room_id = _sid_to_room_id.get(sid)
+    if previous_room_id and previous_room_id != room_id:
+        try:
+            leave_room(previous_room_id, sid=sid)
+        except Exception:
+            pass
+    _sid_to_room_id[sid] = room_id
+    try:
+        join_room(room_id, sid=sid)
+    except Exception:
+        pass
+
+
 def emit_to_room(event_name, payload=None, room_id=DEFAULT_ROOM_ID):
     socketio.emit(event_name, payload or {}, to=room_id)
 
@@ -1876,6 +1909,16 @@ def ask_next_word(room):
 # ---------------------------------------------------------------------------
 
 def join_matchmaking_queue(sid, username, reconnect_token, card_mode="image_word", target_language=""):
+    mapped_room_id = get_room_id_for_reconnect_token(reconnect_token)
+    mapped_room = rooms.get(mapped_room_id)
+    if mapped_room:
+        active_humans = [
+            info for info in mapped_room.players.values()
+            if not is_bot_player(info) and info.get("connected", False)
+        ]
+        if len(active_humans) >= 2:
+            print(f"[INFO] Estetty jonoon liittyminen: {username} on jo matchatussa huoneessa {mapped_room_id}.")
+            return
     for entry in matchmaking_queue:
         if entry["reconnect_token"] == reconnect_token:
             return
@@ -1895,6 +1938,16 @@ def leave_matchmaking_queue(sid):
     matchmaking_queue = [e for e in matchmaking_queue if e["sid"] != sid]
     if len(matchmaking_queue) < before:
         print(f"[INFO] SID {sid} poistui jonosta.")
+
+
+def leave_matchmaking_queue_by_token(reconnect_token):
+    global matchmaking_queue
+    if not reconnect_token:
+        return
+    before = len(matchmaking_queue)
+    matchmaking_queue = [e for e in matchmaking_queue if e.get("reconnect_token") != reconnect_token]
+    if len(matchmaking_queue) < before:
+        print(f"[INFO] reconnect_token {reconnect_token} poistui jonosta.")
 
 
 def try_match_from_queue():
@@ -1931,7 +1984,10 @@ def try_match_from_queue():
         if old_room_id in rooms and old_room_id != room_id:
             old_room = rooms[old_room_id]
             old_room.players.pop(sid, None)
-            _sid_to_room_id.pop(sid, None)
+            try:
+                leave_room(old_room_id, sid=sid)
+            except Exception:
+                pass
         room.players[sid] = {
             "username": username,
             "reconnect_token": token,
@@ -1939,12 +1995,8 @@ def try_match_from_queue():
             "disconnected_at": None,
             "room_id": room_id
         }
-        _sid_to_room_id[sid] = room_id
+        move_sid_to_room(sid, room_id)
         assign_reconnect_token_to_room(token, room_id)
-        try:
-            join_room(room_id, sid=sid)
-        except Exception:
-            pass
     emit_to_room("match_found", {
         "room_id": room_id,
         "players": [p1["username"], p2["username"]]
@@ -2146,6 +2198,12 @@ def on_join(data):
     wants_bot = bool((data or {}).get("bot_mode"))
     wants_solo = bool((data or {}).get("solo_mode"))
     requested_play_mode = "solo" if wants_solo else ("bot" if wants_bot else "queue")
+    preferred_card_mode = str((data or {}).get("card_mode") or "image_word").strip().lower()
+    if preferred_card_mode not in {"images", "image_word", "words"}:
+        preferred_card_mode = "image_word"
+    preferred_target_language = str((data or {}).get("target_language") or "").strip().lower()
+    if preferred_card_mode == "images":
+        preferred_target_language = ""
 
     if not reconnect_token:
         print(f"[WARNING] HYLÄTTY join ilman reconnect_tokenia: {username}")
@@ -2191,11 +2249,10 @@ def on_join(data):
 
     room = get_room(room_id)
 
-    # Remove stale entry for this token
-    for k, v in list(room.players.items()):
-        if v.get("reconnect_token") == reconnect_token:
-            _sid_to_room_id.pop(k, None)
-            del room.players[k]
+    # Remove stale entries for this player from any previously tracked room/socket room.
+    remove_player_memberships(reconnect_token=reconnect_token, sid=sid, keep_room_id=room_id)
+
+    active_human_players = get_effective_human_player_items(room)
 
     if wants_solo:
         room.play_mode = "solo"
@@ -2217,10 +2274,15 @@ def on_join(data):
         "disconnected_at": None,
         "room_id": room_id,
         "in_waiting": True,
+        "pref_card_mode": preferred_card_mode,
+        "pref_target_language": preferred_target_language,
     }
-    _sid_to_room_id[sid] = room_id
-    join_room(room_id)
+    move_sid_to_room(sid, room_id)
     assign_reconnect_token_to_room(reconnect_token, room_id)
+
+    if requested_play_mode == "queue" and len(active_human_players) == 0:
+        room.card_mode = preferred_card_mode
+        room.target_language = preferred_target_language
 
     print(f"[INFO] {username} liittyi peliin (huone: {room_id}).")
     payload = build_lobby_payload(room)
@@ -2935,6 +2997,24 @@ def handle_join_queue(data=None):
         return
     username = player_info["username"]
     reconnect_token = player_info.get("reconnect_token", "")
+    resolved_room = resolve_room_for_event(data, player_info)
+    active_humans = [
+        info for info in resolved_room.players.values()
+        if not is_bot_player(info) and info.get("connected", False)
+    ]
+    if len(active_humans) >= 2:
+        print(f"[INFO] Ohitetaan join_queue: {username} on jo kahden pelaajan huoneessa {resolved_room.room_id}.")
+        return
+    mapped_room_id = get_room_id_for_reconnect_token(reconnect_token)
+    mapped_room = rooms.get(mapped_room_id)
+    if mapped_room:
+        mapped_active_humans = [
+            info for info in mapped_room.players.values()
+            if not is_bot_player(info) and info.get("connected", False)
+        ]
+        if len(mapped_active_humans) >= 2:
+            print(f"[INFO] Ohitetaan join_queue: {username} on jo matchatussa huoneessa {mapped_room_id}.")
+            return
     card_mode = str(data.get("card_mode") or "image_word").strip().lower()
     if card_mode not in {"images", "image_word", "words"}:
         card_mode = "image_word"
@@ -2960,7 +3040,16 @@ def handle_preference_changed(data=None):
     if card_mode in {"images", "image_word", "words"}:
         room.players[sid]["pref_card_mode"] = card_mode
     target_language = str(data.get("target_language") or "").strip().lower()
+    if room.players[sid].get("pref_card_mode") == "images":
+        target_language = ""
     room.players[sid]["pref_target_language"] = target_language
+    connected_humans = [
+        (player_sid, info) for player_sid, info in room.players.items()
+        if not is_bot_player(info) and info.get("connected", False)
+    ]
+    if room.play_mode == "queue" and len(connected_humans) == 1 and connected_humans[0][0] == sid:
+        room.card_mode = room.players[sid].get("pref_card_mode") or room.card_mode
+        room.target_language = room.players[sid].get("pref_target_language") or ""
     payload = build_lobby_payload(room)
     emit_to_room("player_joined", payload, room_id=room.room_id)
     broadcast_lobby_browser()
@@ -2997,10 +3086,16 @@ def handle_join_room_direct(data=None):
         broadcast_lobby_browser()
         return
 
-    # Remove from current room
-    current_room.players.pop(sid, None)
-    _sid_to_room_id.pop(sid, None)
-    leave_room(current_room.room_id)
+    leave_matchmaking_queue(sid)
+    leave_matchmaking_queue_by_token(reconnect_token)
+    for target_sid, target_info in list(target_room.players.items()):
+        if is_bot_player(target_info):
+            continue
+        leave_matchmaking_queue(target_sid)
+        leave_matchmaking_queue_by_token(target_info.get("reconnect_token"))
+
+    # Remove stale memberships before moving the player to the target room.
+    remove_player_memberships(reconnect_token=reconnect_token, sid=sid)
 
     # Add to target room
     target_room.players[sid] = {
@@ -3013,9 +3108,8 @@ def handle_join_room_direct(data=None):
         "pref_card_mode": target_room.card_mode,
         "pref_target_language": target_room.target_language,
     }
-    _sid_to_room_id[sid] = target_room_id
+    move_sid_to_room(sid, target_room_id)
     assign_reconnect_token_to_room(reconnect_token, target_room_id)
-    join_room(target_room_id)
 
     print(f"[INFO] {username} liittyi huoneeseen {target_room_id} suoraan.")
     payload = build_lobby_payload(target_room)
