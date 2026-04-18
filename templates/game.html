@@ -1668,6 +1668,7 @@
         }
 
         // Pyydä aina nykyinen ruudukko yhteyden muodostuessa
+        console.log("[DEBUG] Lähetetään request_grid, token:", (getReconnectToken() || "").substring(0, 8));
         socket.emit("request_grid", { reconnect_token: getReconnectToken(), username: myName });
 
         // Älä auto-käynnistä peliä tässä näkymässä; odota odotushuoneessa aloitusta
@@ -1756,7 +1757,8 @@
         // Jos palvelimella ei ole ruudukkoa (esim. peliä ei ole vielä aloitettu), ei tehdä mitään.
         // Aloitus tapahtuu odotushuoneessa, tai käyttäjä voi palata sinne.
         socket.on("no_grid", (data) => {
-            console.log("[DEBUG] no_grid vastaanotettu:", data && data.reason);
+            const pendingTs = parseInt(sessionStorage.getItem("pending_game_navigation") || "0", 10);
+            console.log("[DEBUG] no_grid vastaanotettu:", data && data.reason, "| fresh:", pendingTs ? (Date.now() - pendingTs) + "ms" : "no timestamp");
             const reason = (data && data.reason) || "";
             const setupMode = sessionStorage.getItem("game_setup_mode");
             const hasPendingAsk = Boolean(sessionStorage.getItem("pending_ask"));

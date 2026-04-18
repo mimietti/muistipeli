@@ -2231,7 +2231,11 @@ def handle_start_game():
 def handle_grid_request(data=None):
     _, player_info = resolve_player_for_event(data)
     room = resolve_room_for_event(data, player_info)
-    debug("[DEBUG] request_grid vastaanotettu")
+    token_short = str(data.get("reconnect_token", ""))[:8] if data else "none"
+    grid_size = len(room.grid_data) if room and room.grid_data else 0
+    player_found = "found" if player_info else "missing"
+    room_id = room.room_id if room else "NONE"
+    print(f"[INFO] request_grid: token={token_short}, room={room_id}, grid_size={grid_size}, solo={is_solo(room) if room else 'N/A'}, player={player_found}")
 
     if not solo_or_enough_players(room):
         print("[WARNING] Ei tarpeeksi pelaajia ruudukon palauttamiseen.")
@@ -2270,6 +2274,7 @@ def handle_grid_request(data=None):
     current_player_name = (
         room.player_order[room.turn] if room.player_order and 0 <= room.turn < len(room.player_order) else None
     )
+    print(f"[INFO] request_grid: lähetetään init_grid → room={room.room_id}, cards={len(room.grid_data)}, card_mode={room.card_mode}")
     emit("init_grid", {
         "cards": room.grid_data,
         "turn": current_player_name,
