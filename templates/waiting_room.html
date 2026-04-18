@@ -1063,7 +1063,8 @@
                 queue_play_bot: "🤖 Play against bot",
                 card_mode_images: "Images",
                 enter_random: "Random",
-                setup_status_random: "Generating random words...",
+                setup_status_random: "Finding random words...",
+                setup_status_random_creating: "Creating cards...",
                 start_round: "Start"
             },
             fi: {
@@ -1173,6 +1174,7 @@
                 card_mode_images: "Kuvat",
                 enter_random: "Satunnaiset",
                 setup_status_random: "Etsitään satunnaisia sanoja...",
+                setup_status_random_creating: "Luodaan kortteja...",
                 start_round: "Aloita"
             },
             sv: {
@@ -1663,7 +1665,7 @@
                 setupStatusTitleEl.textContent = t("setup_status_title");
                 let statusText;
                 if (mode === "random") {
-                    statusText = t("setup_status_random");
+                    statusText = Number(state.progress_count || 0) > 0 ? t("setup_status_random_creating") : t("setup_status_random");
                 } else if (mode === "lang_manual") {
                     // Manual language mode: no theme/loading — just "entering words"
                     statusText = starterName ? t("setup_status_manual", { name: starterName }) : t("setup_status_manual", { name: "..." });
