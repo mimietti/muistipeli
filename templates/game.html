@@ -1017,6 +1017,8 @@
             return message;
         }
 
+        let isSoloMode = false;
+
         function applyTranslations() {
             document.documentElement.lang = getLanguage();
             document.title = t("page_title_browser");
@@ -1145,7 +1147,6 @@
         let revealedOrder = [];
         let currentTurn = null;
         let currentTranslationHint = null;
-        let isSoloMode = false;
         let currentBotDifficulty = (function() {
             try { return sessionStorage.getItem("bot_difficulty") || "easy"; } catch (_) { return "easy"; }
         })();
