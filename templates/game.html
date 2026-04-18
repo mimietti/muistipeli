@@ -1724,6 +1724,7 @@
             isSoloMode = Boolean(data.solo);
             document.getElementById("surrenderRoundBtn").textContent = isSoloMode ? t("cancel_game") : t("surrender_round");
             if (data.card_mode) window.currentCardMode = data.card_mode;
+            if (data.game_mode) window.currentGameMode = data.game_mode;
             if (data.target_language) currentTargetLanguage = data.target_language;
             if (data.native_language) currentNativeLanguage = data.native_language;
             if (data.word_filter_mode) {
@@ -1949,7 +1950,7 @@
             if (isSoloMode || isBotMode) {
                 const username = encodeURIComponent(localStorage.getItem("username") || "");
                 const cardMode = encodeURIComponent(window.currentCardMode || "images");
-                const play = isBotMode ? "bot" : "solo";
+                const play = isBotMode ? "bot" : ((window.currentGameMode === "random") ? "random" : "solo");
                 const targetLang = (window.currentCardMode !== "images") ? encodeURIComponent(currentTargetLanguage || "") : "";
                 const langParam = targetLang ? `&lang=${targetLang}` : "";
                 let discriminatorParam = "";
