@@ -1021,11 +1021,14 @@ def fetch_random_game_words(target=8, room=None):
     require_noun = getattr(room, "word_filter_mode", "clear") == "clear"
     themes = random.sample(RANDOM_WORD_THEMES, min(len(RANDOM_WORD_THEMES), target * 2))
     print(f"[INFO] Haetaan satunnaissanoja teemoista: {', '.join(themes)}")
+    theme_results = {}
+    def _fetch_theme(theme):
+        theme_results[theme] = fetch_theme_words(theme, max_results=20, require_noun=require_noun, exclude_proper=True)
+    gevent.joinall([gevent.spawn(_fetch_theme, t) for t in themes], timeout=30)
     pool = []
     seen = set()
     for theme in themes:
-        words = fetch_theme_words(theme, max_results=20, require_noun=require_noun, exclude_proper=True)
-        for w in words:
+        for w in theme_results.get(theme, []):
             if w and w not in seen and is_word_allowed_for_filter_mode(w, room):
                 seen.add(w)
                 pool.append(w)
@@ -1225,6 +1228,25 @@ def image_source_for_card(image_ref):
     if isinstance(image_ref, str) and image_ref.startswith(("http://", "https://")):
         return image_ref
     return "/" + str(image_ref).replace("\\", "/").lstrip("/")
+
+
+def _prefetch_pixabay_cache(word):
+    """Populate pixabay_cache for word without touching any room state."""
+    pixabay_api_key = (os.getenv("PIXABAY_API_KEY") or "").strip()
+    if not pixabay_api_key:
+        return
+    cache_key = normalize_candidate_word(word) or str(word or "").strip().lower()
+    if cache_key in pixabay_cache:
+        return
+    try:
+        response = requests.get("https://pixabay.com/api/", params={
+            "key": pixabay_api_key, "q": word, "image_type": "photo",
+            "orientation": "horizontal", "per_page": 6, "safesearch": "true"
+        }, timeout=8)
+        if response.ok:
+            pixabay_cache[cache_key] = response.json().get("hits") or []
+    except Exception:
+        pass
 
 
 def fetch_and_save_pixabay_images(word, room, required_count=2):
@@ -2410,7 +2432,10 @@ def handle_start_custom_game(data=None):
             candidates = fetch_random_game_words(target=24, room=room)
             print(f"[INFO] Satunnaissana-kandidaatit: {', '.join(candidates)}")
 
-            # Pre-warm translation cache in parallel so sequential Pixabay loop hits cache
+            # UI signal: drawing phase starts — emit before pre-warming so user sees progress sooner
+            emit_to_room("random_drawing_started", {}, room_id=room.room_id)
+
+            # Pre-warm translation cache AND Pixabay cache in parallel
             if room.card_mode in {"image_word", "words"}:
                 target_lang = room.target_language or "es"
                 native_lang = room.native_language or "fi"
@@ -2418,12 +2443,13 @@ def handle_start_custom_game(data=None):
                     translate_word(word, "en", target_lang)
                     if native_lang != "en":
                         translate_word(word, "en", native_lang)
+                    _prefetch_pixabay_cache(word)
                 jobs = [gevent.spawn(_warm, w) for w in candidates]
                 gevent.joinall(jobs, timeout=30)
-                print(f"[INFO] Käännökset esivalmistelltu ({len(candidates)} sanaa)")
-                emit_to_room("random_drawing_started", {}, room_id=room.room_id)
+                print(f"[INFO] Käännökset ja kuvat esivalmisteltu ({len(candidates)} sanaa)")
             else:
-                emit_to_room("random_drawing_started", {}, room_id=room.room_id)
+                pix_jobs = [gevent.spawn(_prefetch_pixabay_cache, w) for w in candidates]
+                gevent.joinall(pix_jobs, timeout=30)
 
             pair_index = 0
             for word in candidates:
