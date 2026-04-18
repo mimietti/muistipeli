@@ -240,7 +240,7 @@ CLEAR_PICTURE_WORD_SUFFIXES = (
 )
 
 RANDOM_WORD_THEMES = [
-    "animal", "food", "sport", "nature", "vehicle", "furniture",
+    "work","restaurant","family","animal", "food", "sport", "nature", "vehicle", "furniture",
     "clothing", "tool", "fruit", "vegetable", "music", "body",
     "weather", "building", "kitchen", "garden", "office", "ocean",
 ]
