@@ -1875,13 +1875,16 @@ def ask_next_word(room):
 # Matchmaking queue
 # ---------------------------------------------------------------------------
 
-def join_matchmaking_queue(sid, username, reconnect_token):
-    # Don't add duplicates
+def join_matchmaking_queue(sid, username, reconnect_token, card_mode="image_word", target_language=""):
     for entry in matchmaking_queue:
         if entry["reconnect_token"] == reconnect_token:
             return
-    matchmaking_queue.append({"sid": sid, "username": username, "reconnect_token": reconnect_token})
-    print(f"[INFO] {username} liittyi jonoon. Jonossa: {len(matchmaking_queue)}")
+    matchmaking_queue.append({
+        "sid": sid, "username": username, "reconnect_token": reconnect_token,
+        "card_mode": card_mode or "image_word",
+        "target_language": target_language or "",
+    })
+    print(f"[INFO] {username} liittyi jonoon (card_mode={card_mode}, lang={target_language}). Jonossa: {len(matchmaking_queue)}")
     socketio.emit("queue_status", {"position": len(matchmaking_queue), "waiting": len(matchmaking_queue)}, to=sid)
     try_match_from_queue()
 
@@ -1897,12 +1900,28 @@ def leave_matchmaking_queue(sid):
 def try_match_from_queue():
     if len(matchmaking_queue) < 2:
         return
-    p1 = matchmaking_queue.pop(0)
-    p2 = matchmaking_queue.pop(0)
+    # Find first compatible pair (same card_mode + target_language)
+    for i in range(len(matchmaking_queue)):
+        for j in range(i + 1, len(matchmaking_queue)):
+            p1, p2 = matchmaking_queue[i], matchmaking_queue[j]
+            if (p1.get("card_mode") == p2.get("card_mode") and
+                    p1.get("target_language") == p2.get("target_language")):
+                matchmaking_queue.pop(j)
+                matchmaking_queue.pop(i)
+                break
+        else:
+            continue
+        break
+    else:
+        return  # No compatible pair found
     room_id = str(uuid.uuid4())[:8]
     room = create_room(room_id)
     room.play_mode = "queue"
-    print(f"[INFO] Matchmaking: {p1['username']} vs {p2['username']} -> huone {room_id}")
+    room.card_mode = p1.get("card_mode") or "image_word"
+    tl = p1.get("target_language") or ""
+    if tl:
+        room.target_language = tl
+    print(f"[INFO] Matchmaking: {p1['username']} vs {p2['username']} -> huone {room_id} (card_mode={room.card_mode}, lang={tl})")
     for entry in [p1, p2]:
         sid = entry["sid"]
         token = entry["reconnect_token"]
@@ -2890,8 +2909,12 @@ def handle_join_queue(data=None):
         return
     username = player_info["username"]
     reconnect_token = player_info.get("reconnect_token", "")
+    card_mode = str(data.get("card_mode") or "image_word").strip().lower()
+    if card_mode not in {"images", "image_word", "words"}:
+        card_mode = "image_word"
+    target_language = str(data.get("target_language") or "").strip().lower()
     emit("queue_joined", {"username": username})
-    join_matchmaking_queue(sid, username, reconnect_token)
+    join_matchmaking_queue(sid, username, reconnect_token, card_mode, target_language)
 
 
 @socketio.on("leave_queue")

@@ -1932,7 +1932,9 @@
                 if (localStorage.getItem("play_mode") === "queue" && !queueJoined && players.length < 2) {
                     socket.emit("join_queue", {
                         username: myName,
-                        reconnect_token: reconnectToken
+                        reconnect_token: reconnectToken,
+                        card_mode: selectedCardMode,
+                        target_language: selectedCardMode !== "images" ? selectedLang : ""
                     });
                 }
 
