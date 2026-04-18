@@ -3036,7 +3036,10 @@ def handle_join_queue(data=None):
     player_info["in_waiting"] = True
     player_info["pref_card_mode"] = card_mode
     player_info["pref_target_language"] = "" if card_mode == "images" else target_language
-    player_info["pref_ready"] = False
+    player_info["pref_ready"] = (
+        card_mode == "images"
+        or bool(player_info["pref_target_language"])
+    )
     room.card_mode = player_info["pref_card_mode"] or room.card_mode
     room.target_language = player_info["pref_target_language"] or ""
     emit("queue_joined", {"username": username})
