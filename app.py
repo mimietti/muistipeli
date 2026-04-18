@@ -2040,6 +2040,8 @@ def get_available_rooms():
         if len(human_players) != 1:
             continue
         _, info = human_players[0]
+        if not info.get("pref_ready", False):
+            continue
         result.append({
             "room_id": room_id,
             "username": info.get("username"),
@@ -2209,6 +2211,15 @@ def on_join(data):
         print(f"[WARNING] HYLÄTTY join ilman reconnect_tokenia: {username}")
         return
 
+    existing_player_snapshot = None
+    for existing_room in rooms.values():
+        for info in existing_room.players.values():
+            if info.get("reconnect_token") == reconnect_token:
+                existing_player_snapshot = dict(info)
+                break
+        if existing_player_snapshot:
+            break
+
     room_id = get_room_id_for_reconnect_token(reconnect_token)
     existing_room = get_room(room_id)
 
@@ -2250,7 +2261,7 @@ def on_join(data):
     room = get_room(room_id)
 
     # Remove stale entries for this player from any previously tracked room/socket room.
-    remove_player_memberships(reconnect_token=reconnect_token, sid=sid, keep_room_id=room_id)
+    remove_player_memberships(reconnect_token=reconnect_token, sid=sid)
 
     active_human_players = get_effective_human_player_items(room)
 
@@ -2267,22 +2278,25 @@ def on_join(data):
         emit("join_rejected", {"reason": "Peli on täynnä. Odota seuraavaa erää tai avaa uusi peli."})
         return
 
+    preserved_waiting_state = existing_player_snapshot.get("in_waiting") if existing_player_snapshot else None
+    preserved_ready_state = existing_player_snapshot.get("pref_ready") if existing_player_snapshot else None
     room.players[sid] = {
         "username": username,
         "reconnect_token": reconnect_token,
         "connected": True,
         "disconnected_at": None,
         "room_id": room_id,
-        "in_waiting": True,
-        "pref_card_mode": preferred_card_mode,
-        "pref_target_language": preferred_target_language,
+        "in_waiting": preserved_waiting_state if preserved_waiting_state is not None else True,
+        "pref_card_mode": (existing_player_snapshot or {}).get("pref_card_mode") or preferred_card_mode,
+        "pref_target_language": (existing_player_snapshot or {}).get("pref_target_language") if existing_player_snapshot and existing_player_snapshot.get("pref_target_language") is not None else preferred_target_language,
+        "pref_ready": preserved_ready_state if preserved_ready_state is not None else (requested_play_mode != "queue" or len(active_human_players) > 0),
     }
     move_sid_to_room(sid, room_id)
     assign_reconnect_token_to_room(reconnect_token, room_id)
 
     if requested_play_mode == "queue" and len(active_human_players) == 0:
-        room.card_mode = preferred_card_mode
-        room.target_language = preferred_target_language
+        room.card_mode = room.players[sid].get("pref_card_mode") or preferred_card_mode
+        room.target_language = room.players[sid].get("pref_target_language") or preferred_target_language
 
     print(f"[INFO] {username} liittyi peliin (huone: {room_id}).")
     payload = build_lobby_payload(room)
@@ -2793,7 +2807,7 @@ def handle_client_request_ask_for_word(data):
 def handle_card_click(data):
     index = data["index"]
     resolved_sid, clicker = resolve_player_for_event(data)
-    room = get_room_for_sid(request.sid)
+    room = resolve_room_for_event(data, clicker)
     process_card_click(index, resolved_sid, clicker, room)
 
 
@@ -2804,7 +2818,7 @@ def handle_surrender_round(data=None):
         emit("round_surrender_failed", {"reason": "player_missing"})
         return
 
-    room = get_room_for_sid(request.sid)
+    room = resolve_room_for_event(data, player_info)
     if not room.grid_data or not solo_or_enough_players(room):
         emit("round_surrender_failed", {"reason": "round_not_active"})
         return
@@ -3019,8 +3033,16 @@ def handle_join_queue(data=None):
     if card_mode not in {"images", "image_word", "words"}:
         card_mode = "image_word"
     target_language = str(data.get("target_language") or "").strip().lower()
+    player_info["in_waiting"] = True
+    player_info["pref_card_mode"] = card_mode
+    player_info["pref_target_language"] = "" if card_mode == "images" else target_language
+    player_info["pref_ready"] = False
+    room.card_mode = player_info["pref_card_mode"] or room.card_mode
+    room.target_language = player_info["pref_target_language"] or ""
     emit("queue_joined", {"username": username})
-    join_matchmaking_queue(sid, username, reconnect_token, card_mode, target_language)
+    payload = build_lobby_payload(room)
+    emit_to_room("player_joined", payload, room_id=room.room_id)
+    broadcast_lobby_browser()
 
 
 @socketio.on("leave_queue")
@@ -3043,6 +3065,7 @@ def handle_preference_changed(data=None):
     if room.players[sid].get("pref_card_mode") == "images":
         target_language = ""
     room.players[sid]["pref_target_language"] = target_language
+    room.players[sid]["pref_ready"] = True
     connected_humans = [
         (player_sid, info) for player_sid, info in room.players.items()
         if not is_bot_player(info) and info.get("connected", False)
@@ -3107,6 +3130,7 @@ def handle_join_room_direct(data=None):
         "in_waiting": True,
         "pref_card_mode": target_room.card_mode,
         "pref_target_language": target_room.target_language,
+        "pref_ready": True,
     }
     move_sid_to_room(sid, target_room_id)
     assign_reconnect_token_to_room(reconnect_token, target_room_id)

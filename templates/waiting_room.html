@@ -928,7 +928,7 @@
             Tip: only the second player to join can start the game.
         </div>
         <div id="startOptions">
-            <div class="option-group">
+            <div class="option-group" id="wordSourcePicker">
                 <div class="option-group-label" id="labelWordSource">Words</div>
                 <div class="option-group-btns">
                     <button class="opt-btn" data-source="manual" id="srcManualBtn">Own words</button>
@@ -1973,7 +1973,7 @@
                 console.log("[DEBUG] Pelaajat (ordered):", rawPlayers, "visible:", players);
                 const playersDiv = document.getElementById("players");
                 const isBotMode = (localStorage.getItem("play_mode") || "") === "bot";
-                const showPrefs = !isSoloMode && !isBotMode && !queueSearchActive && playersInfo.length > 0;
+                const showPrefs = !isSoloMode && !isBotMode && !queueSearchActive && playersInfo.length === 1;
                 if (showPrefs) {
                     const myInfo = playersInfo.find(p => p && p.reconnect_token === myToken);
                     const myPrefCard = (myInfo && myInfo.pref_card_mode) || null;
@@ -2025,6 +2025,7 @@
                 updateLangPickerVisibility();
                 updateBotDifficultyVisibility();
                 renderPlayerRole(playersInfo);
+                renderQueuePreferencePicker(queueSearchActive);
 
                 if (!queueSearchActive) {
                     queueJoined = false;
@@ -2049,7 +2050,9 @@
                         const myToken = getReconnectToken();
                         return Boolean(myToken && lastJoinedToken && myToken === lastJoinedToken);
                     })();
-                if (players.length >= 2 || isSolo) {
+                if (queueSearchActive) {
+                    document.getElementById("startOptions").style.display = "block";
+                } else if (players.length >= 2 || isSolo) {
                     if ((!window.currentThemeSelectionState || !window.currentThemeSelectionState.active)
                         && (!window.currentSetupState || !window.currentSetupState.active)) {
                         document.getElementById("startOptions").style.display = canStart ? "block" : "none";
@@ -2509,6 +2512,30 @@
             function updateWordFilterVisibility() {
                 const showWordFilter = selectedWordSource === "theme" || selectedWordSource === "random";
                 document.getElementById("wordFilterPicker").style.display = showWordFilter ? "block" : "none";
+            }
+
+            function renderQueuePreferencePicker(active) {
+                const startOptionsEl = document.getElementById("startOptions");
+                const wordSourcePickerEl = document.getElementById("wordSourcePicker");
+                const wordFilterPickerEl = document.getElementById("wordFilterPicker");
+                const cardModePickerEl = document.getElementById("cardModePicker");
+                const langPickerEl = document.getElementById("langPicker");
+                const botDifficultyPickerEl = document.getElementById("botDifficultyPicker");
+                const startRoundBtnEl = document.getElementById("startRoundBtn");
+                if (!active) {
+                    wordSourcePickerEl.style.display = "";
+                    wordFilterPickerEl.style.display = "";
+                    botDifficultyPickerEl.style.display = (localStorage.getItem("play_mode") || "") === "bot" ? "block" : "none";
+                    startRoundBtnEl.style.display = "";
+                    return;
+                }
+                startOptionsEl.style.display = "block";
+                wordSourcePickerEl.style.display = "none";
+                wordFilterPickerEl.style.display = "none";
+                cardModePickerEl.style.display = "none";
+                langPickerEl.style.display = selectedCardMode !== "images" ? "block" : "none";
+                botDifficultyPickerEl.style.display = "none";
+                startRoundBtnEl.style.display = "none";
             }
 
             document.querySelectorAll("#srcManualBtn, #srcThemeBtn, #srcRandomBtn").forEach(btn => {
