@@ -2395,6 +2395,22 @@ def handle_start_custom_game(data=None):
             # Fetch a larger pool so we can skip words that fail without showing errors
             candidates = fetch_random_game_words(target=24, room=room)
             print(f"[INFO] Satunnaissana-kandidaatit: {', '.join(candidates)}")
+
+            # Pre-warm translation cache in parallel so sequential Pixabay loop hits cache
+            if room.card_mode in {"image_word", "words"}:
+                target_lang = room.target_language or "es"
+                native_lang = room.native_language or "fi"
+                def _warm(word):
+                    translate_word(word, "en", target_lang)
+                    if native_lang != "en":
+                        translate_word(word, "en", native_lang)
+                jobs = [gevent.spawn(_warm, w) for w in candidates]
+                gevent.joinall(jobs, timeout=30)
+                print(f"[INFO] Käännökset esivalmistelltu ({len(candidates)} sanaa)")
+                emit_to_room("random_drawing_started", {}, room_id=room.room_id)
+            else:
+                emit_to_room("random_drawing_started", {}, room_id=room.room_id)
+
             pair_index = 0
             for word in candidates:
                 if pair_index >= 8:

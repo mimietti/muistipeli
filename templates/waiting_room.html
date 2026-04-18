@@ -1665,7 +1665,8 @@
                 setupStatusTitleEl.textContent = t("setup_status_title");
                 let statusText;
                 if (mode === "random") {
-                    statusText = Number(state.progress_count || 0) > 0 ? t("setup_status_random_creating") : t("setup_status_random");
+                    const inDrawingPhase = phase === "drawing_cards" || Number(state.progress_count || 0) > 0;
+                    statusText = inDrawingPhase ? t("setup_status_random_creating") : t("setup_status_random");
                 } else if (mode === "lang_manual") {
                     // Manual language mode: no theme/loading — just "entering words"
                     statusText = starterName ? t("setup_status_manual", { name: starterName }) : t("setup_status_manual", { name: "..." });
@@ -2461,6 +2462,10 @@
                     total_pairs: Number((data && data.total_pairs) || 8)
                 });
                 renderThemeSelection({ active: false });
+            });
+            socket.on("random_drawing_started", () => {
+                if (!window.currentSetupState || !window.currentSetupState.active) return;
+                renderSetupStatus({ ...window.currentSetupState, phase: "drawing_cards", progress_count: 0 });
             });
             socket.on("word_accepted", (data) => {
                 if (!window.currentSetupState || !window.currentSetupState.active) return;
