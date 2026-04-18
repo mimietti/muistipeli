@@ -1668,7 +1668,7 @@
         }
 
         // Pyydä aina nykyinen ruudukko yhteyden muodostuessa
-        socket.emit("request_grid");
+        socket.emit("request_grid", { reconnect_token: getReconnectToken(), username: myName });
 
         // Älä auto-käynnistä peliä tässä näkymässä; odota odotushuoneessa aloitusta
         socket.on("player_joined", (data) => {
@@ -1768,7 +1768,7 @@
                 if (navigationIsFresh || setupMode || hasPendingAsk) {
                     if (gridRetryTimer) clearTimeout(gridRetryTimer);
                     gridRetryTimer = setTimeout(() => {
-                        socket.emit("request_grid");
+                        socket.emit("request_grid", { reconnect_token: getReconnectToken(), username: myName });
                     }, 800);
                     return;
                 }
@@ -1778,7 +1778,7 @@
             if (!gameAlreadyStarted && (manualSetupInProgress || hasPendingAsk || navigationIsFresh)) {
                 if (gridRetryTimer) clearTimeout(gridRetryTimer);
                 gridRetryTimer = setTimeout(() => {
-                    socket.emit("request_grid");
+                    socket.emit("request_grid", { reconnect_token: getReconnectToken(), username: myName });
                 }, 800);
                 return;
             }

@@ -2220,7 +2220,8 @@ def handle_start_game():
 
 
 @socketio.on("request_grid")
-def handle_grid_request():
+def handle_grid_request(data=None):
+    _, player_info = resolve_player_for_event(data)
     room = get_room_for_sid(request.sid)
     debug("[DEBUG] request_grid vastaanotettu")
 
