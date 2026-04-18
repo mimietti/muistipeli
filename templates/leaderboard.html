@@ -103,6 +103,12 @@
         tr.my-row td { background: rgba(124, 245, 138, 0.12); }
         tr.my-row .name { color: #7cf58a; }
         tr.my-row .rank { color: #7cf58a; }
+        tr[data-difficulty="Hard"] td { background: rgba(220, 100, 60, 0.10); }
+        tr[data-difficulty="Medium"] td { background: rgba(200, 160, 40, 0.10); }
+        tr[data-difficulty="Easy"] td { background: rgba(60, 140, 220, 0.08); }
+        tr.my-row[data-difficulty="Hard"] td { background: rgba(220, 100, 60, 0.22); }
+        tr.my-row[data-difficulty="Medium"] td { background: rgba(200, 160, 40, 0.22); }
+        tr.my-row[data-difficulty="Easy"] td { background: rgba(60, 140, 220, 0.18); }
         .lang-tag { font-size: 12px; font-weight: 600; color: #aaa; margin-left: 6px; vertical-align: middle; }
         .show-all-link { color: #7cf58a; text-decoration: none; font-size: 13px; display: block; text-align: center; padding: 10px 0 4px; }
         .show-all-link:hover { text-decoration: underline; }
@@ -257,7 +263,7 @@
                         </thead>
                         <tbody>
                             {% for row in sec.rows %}
-                            <tr data-username="{{ row[1] }}" data-pairs="{{ row[2] }}">
+                            <tr data-username="{{ row[1] }}" data-pairs="{{ row[2] }}" data-difficulty="{{ row[0] }}">
                                 <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
                                 <td class="name">{{ row[1] }}</td>
                                 <td class="dim difficulty-label" data-difficulty="{{ row[0] }}">{{ row[0] }}</td>
