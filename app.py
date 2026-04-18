@@ -1960,7 +1960,7 @@ def try_match_from_queue():
 def build_lobby_payload(room):
     players_ordered = get_active_players_ordered(room)
     usernames = [v["username"] for v in players_ordered]
-    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token"), "in_waiting": v.get("in_waiting", False)} for v in players_ordered]
+    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token"), "in_waiting": v.get("in_waiting", False), "pref_card_mode": v.get("pref_card_mode"), "pref_target_language": v.get("pref_target_language")} for v in players_ordered]
     last_token = infos[-1]["reconnect_token"] if infos else None
     return {
         "room_id": room.room_id,
@@ -1973,6 +1973,32 @@ def build_lobby_payload(room):
         "players_info": infos,
         "last_joined_token": last_token
     }
+
+
+def get_available_rooms():
+    """Rooms with exactly 1 waiting connected human player (available for direct join)."""
+    result = []
+    for room_id, room in rooms.items():
+        if room.status != "waiting":
+            continue
+        human_players = [
+            (sid, info) for sid, info in room.players.items()
+            if not is_bot_player(info) and info.get("connected", False)
+        ]
+        if len(human_players) != 1:
+            continue
+        _, info = human_players[0]
+        result.append({
+            "room_id": room_id,
+            "username": info.get("username"),
+            "card_mode": info.get("pref_card_mode") or room.card_mode or "image_word",
+            "target_language": info.get("pref_target_language") if info.get("pref_target_language") is not None else (room.target_language or ""),
+        })
+    return result
+
+
+def broadcast_lobby_browser():
+    socketio.emit("lobby_browser_updated", {"rooms": get_available_rooms()})
 
 
 def generate_grid():
@@ -2146,18 +2172,15 @@ def on_join(data):
             or (requested_play_mode == "solo" and existing_has_bot)
         )
         if should_rotate_private_room:
-            prefix = "solo" if wants_solo else ("bot" if wants_bot else "room")
+            prefix = "solo" if wants_solo else ("bot" if wants_bot else "queue")
             room_id = f"{prefix}-{str(uuid.uuid4())[:8]}"
             assign_reconnect_token_to_room(reconnect_token, room_id)
-            existing_room_belongs_to_self = False
+            existing_room_belongs_to_self = True  # new room belongs to us
 
     if not wants_bot and not wants_solo and not existing_room_belongs_to_self:
-        if room_id != DEFAULT_ROOM_ID and (
-            existing_room.play_mode in {"bot", "solo"}
-            or any(is_bot_player(info) for info in existing_room.players.values())
-        ):
-            room_id = DEFAULT_ROOM_ID
-            assign_reconnect_token_to_room(reconnect_token, room_id)
+        # Each queue player gets their own private room so others can see and join them
+        room_id = f"queue-{str(uuid.uuid4())[:8]}"
+        assign_reconnect_token_to_room(reconnect_token, room_id)
     if (wants_solo or wants_bot) and not existing_room_belongs_to_self and (
         room_id == DEFAULT_ROOM_ID or
         (room_id in rooms and get_effective_human_player_items(rooms[room_id]))
@@ -2205,6 +2228,7 @@ def on_join(data):
     emit_to_room("player_joined", payload, room_id=room_id)
     if theme_selection_active(room):
         emit_theme_selection_state(room, sid=sid)
+    broadcast_lobby_browser()
 
 
 @socketio.on("request_lobby_state")
@@ -2240,6 +2264,7 @@ def handle_leave_game(data=None):
     payload = build_lobby_payload(room)
     payload["username"] = username
     emit_to_room("player_joined", payload, room_id=room.room_id)
+    broadcast_lobby_browser()
 
     if not get_effective_human_player_items(room):
         remove_bot_players(room)
@@ -2867,6 +2892,7 @@ def on_disconnect():
         payload2 = build_lobby_payload(r)
         payload2["username"] = uname
         emit_to_room("player_joined", payload2, room_id=r.room_id)
+        broadcast_lobby_browser()
 
         if not is_solo(r) and get_effective_player_count(r) < 2 and (
                 theme_selection_active(r) or r.grid_data or r.pending_pair > 0):
@@ -2921,6 +2947,81 @@ def handle_join_queue(data=None):
 def handle_leave_queue(data=None):
     leave_matchmaking_queue(request.sid)
     emit("queue_left", {})
+
+
+@socketio.on("preference_changed")
+def handle_preference_changed(data=None):
+    data = data or {}
+    sid = request.sid
+    room = get_room_for_sid(sid)
+    if not room or sid not in room.players:
+        return
+    card_mode = str(data.get("card_mode") or "").strip().lower()
+    if card_mode in {"images", "image_word", "words"}:
+        room.players[sid]["pref_card_mode"] = card_mode
+    target_language = str(data.get("target_language") or "").strip().lower()
+    room.players[sid]["pref_target_language"] = target_language
+    payload = build_lobby_payload(room)
+    emit_to_room("player_joined", payload, room_id=room.room_id)
+    broadcast_lobby_browser()
+
+
+@socketio.on("request_lobby_browser")
+def handle_request_lobby_browser():
+    emit("lobby_browser_updated", {"rooms": get_available_rooms()})
+
+
+@socketio.on("join_room_direct")
+def handle_join_room_direct(data=None):
+    data = data or {}
+    target_room_id = str(data.get("room_id") or "").strip()
+    sid = request.sid
+    current_room = get_room_for_sid(sid)
+    player_info = current_room.players.get(sid)
+    if not player_info:
+        return
+    username = player_info.get("username", "")
+    reconnect_token = player_info.get("reconnect_token", "")
+
+    if not target_room_id or target_room_id not in rooms:
+        emit("direct_join_failed", {"reason": "Huone ei löydy."})
+        return
+    target_room = rooms[target_room_id]
+    if target_room.status != "waiting":
+        emit("direct_join_failed", {"reason": "Peli on jo alkanut."})
+        broadcast_lobby_browser()
+        return
+    human_count = sum(1 for info in target_room.players.values() if not is_bot_player(info))
+    if human_count >= MAX_PLAYERS:
+        emit("direct_join_failed", {"reason": "Huone on täynnä."})
+        broadcast_lobby_browser()
+        return
+
+    # Remove from current room
+    current_room.players.pop(sid, None)
+    _sid_to_room_id.pop(sid, None)
+    leave_room(current_room.room_id)
+
+    # Add to target room
+    target_room.players[sid] = {
+        "username": username,
+        "reconnect_token": reconnect_token,
+        "connected": True,
+        "disconnected_at": None,
+        "room_id": target_room_id,
+        "in_waiting": True,
+        "pref_card_mode": target_room.card_mode,
+        "pref_target_language": target_room.target_language,
+    }
+    _sid_to_room_id[sid] = target_room_id
+    assign_reconnect_token_to_room(reconnect_token, target_room_id)
+    join_room(target_room_id)
+
+    print(f"[INFO] {username} liittyi huoneeseen {target_room_id} suoraan.")
+    payload = build_lobby_payload(target_room)
+    payload["username"] = username
+    emit_to_room("player_joined", payload, room_id=target_room_id)
+    broadcast_lobby_browser()
 
 
 if __name__ == "__main__":

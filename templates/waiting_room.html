@@ -95,6 +95,66 @@
             font-size: 18px;
             font-weight: 700;
         }
+        .player-pref-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .player-sep {
+            opacity: 0.6;
+        }
+        .pref-badge {
+            display: inline-block;
+            font-size: 13px;
+            padding: 1px 7px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #ccc;
+            line-height: 1.5;
+        }
+        .pref-badge.pref-match {
+            background: rgba(124,245,138,0.12);
+            border-color: rgba(124,245,138,0.35);
+            color: #9fe5a8;
+        }
+        .pref-badge.pref-mismatch {
+            background: rgba(245,180,60,0.12);
+            border-color: rgba(245,180,60,0.4);
+            color: #f5c060;
+        }
+        .lobby-entry {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 6px;
+        }
+        .lobby-entry-name {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .lobby-entry-mode {
+            font-size: 14px;
+            color: #ccc;
+        }
+        .lobby-join-btn {
+            padding: 5px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(124,245,138,0.4);
+            background: rgba(124,245,138,0.1);
+            color: #7cf58a;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+        .lobby-join-btn:hover {
+            background: rgba(124,245,138,0.2);
+        }
 
         #changeNameBtn {
             display: none;
@@ -859,6 +919,10 @@
             <div style="margin-top:14px; color:#aaa; font-size:14px;" id="queueBotHint"></div>
             <button class="play-mode-btn bot-btn" id="queueBotBtn" style="margin-top:8px; display:none;"></button>
         </div>
+        <div id="lobbyBrowser" style="display:none; margin:14px 0;">
+            <div id="lobbyBrowserTitle" style="font-size:13px; color:#aaa; margin-bottom:8px;"></div>
+            <div id="lobbyBrowserList"></div>
+        </div>
         <div id="playerRole"></div>
         <div id="hint" style="margin:10px 0; color:#ccc; font-size:14px;">
             Tip: only the second player to join can start the game.
@@ -1047,6 +1111,8 @@
                 find_opponent: "Find a human opponent",
                 queue_searching: "Searching for an opponent...",
                 queue_leave: "Leave queue",
+                waiting_opponents: "Players waiting for an opponent",
+                join_opponent: "Join",
                 match_found_msg: "Opponent found! Starting game...",
                 label_word_source: "Word selection",
                 label_card_mode: "Cards",
@@ -1157,6 +1223,8 @@
                 find_opponent: "Etsi ihmispelaaja",
                 queue_searching: "Etsitään vastustajaa...",
                 queue_leave: "Poistu jonosta",
+                waiting_opponents: "Pelaajat odottavat vastustajaa",
+                join_opponent: "Liity",
                 match_found_msg: "Vastustaja löytyi! Peli alkaa...",
                 label_word_source: "Sanavalinta",
                 label_card_mode: "Kortit",
@@ -1903,13 +1971,41 @@
                 console.log("[DEBUG] Pelaajat (ordered):", rawPlayers, "visible:", players);
                 const playersDiv = document.getElementById("players");
                 const isBotMode = (localStorage.getItem("play_mode") || "") === "bot";
-                const visiblePlayers = isBotMode
-                    ? players.map((name) => name === "Muistibotti" ? `${name} · ${getDifficultyLabel(selectedBotDifficulty)}` : name)
-                    : players;
-                if (visiblePlayers.length === 1 && visiblePlayers[0] === myName) {
-                    playersDiv.textContent = t("welcome_player", { name: myName });
+                const showPrefs = !isSoloMode && !isBotMode && !queueSearchActive && playersInfo.length > 0;
+                if (showPrefs) {
+                    const myInfo = playersInfo.find(p => p && p.reconnect_token === myToken);
+                    const myPrefCard = (myInfo && myInfo.pref_card_mode) || null;
+                    const myPrefLang = (myInfo && myInfo.pref_target_language) || null;
+                    playersDiv.innerHTML = playersInfo.map(p => {
+                        const name = p.username || "";
+                        const isMe = p.reconnect_token === myToken;
+                        const pCard = p.pref_card_mode || null;
+                        const pLang = p.pref_target_language || null;
+                        let badge = "";
+                        if (pCard || pLang) {
+                            const cardIcon = pCard ? (cardModeIcon[pCard] || pCard) : "";
+                            const langIcon = pLang ? (langFlagEmoji[pLang] || pLang.toUpperCase()) : "";
+                            const parts = [cardIcon, langIcon].filter(Boolean);
+                            let matchClass = "";
+                            if (!isMe && myPrefCard && myPrefLang !== undefined) {
+                                const cardMatch = !pCard || !myPrefCard || pCard === myPrefCard;
+                                const langMatch = !pLang || !myPrefLang || pLang === myPrefLang;
+                                matchClass = (cardMatch && langMatch) ? " pref-match" : " pref-mismatch";
+                            }
+                            badge = ` <span class="pref-badge${matchClass}">${parts.join(" ")}</span>`;
+                        }
+                        const nameHtml = isMe ? `<strong>${name}</strong>` : name;
+                        return `<span class="player-pref-row">${nameHtml}${badge}</span>`;
+                    }).join('<span class="player-sep"> &amp; </span>');
                 } else {
-                    playersDiv.textContent = visiblePlayers.join(" & ");
+                    const visiblePlayers = isBotMode
+                        ? players.map((name) => name === "Muistibotti" ? `${name} · ${getDifficultyLabel(selectedBotDifficulty)}` : name)
+                        : players;
+                    if (visiblePlayers.length === 1 && visiblePlayers[0] === myName) {
+                        playersDiv.textContent = t("welcome_player", { name: myName });
+                    } else {
+                        playersDiv.textContent = visiblePlayers.join(" & ");
+                    }
                 }
                 document.querySelectorAll("#botDifficultyEasy, #botDifficultyMedium, #botDifficultyHard").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.botDifficulty === selectedBotDifficulty);
@@ -1929,7 +2025,7 @@
                 renderPlayerRole(playersInfo);
 
                 // If player chose queue mode and hasn't joined queue yet, do it now
-                if (localStorage.getItem("play_mode") === "queue" && !queueJoined && players.length < 2) {
+                if (localStorage.getItem("play_mode") === "queue" && !queueJoined) {
                     socket.emit("join_queue", {
                         username: myName,
                         reconnect_token: reconnectToken,
@@ -1990,10 +2086,18 @@
                 playModeSelectEl.style.display = "none";
             }
 
-            function showQueueStatus(text) {
+            function showQueueStatus(text, modeHint) {
                 queueStatusEl.style.display = "block";
                 playModeSelectEl.style.display = "none";
                 queueTextEl.textContent = text || t("queue_searching");
+                let hintEl = document.getElementById("queueModeHint");
+                if (!hintEl) {
+                    hintEl = document.createElement("div");
+                    hintEl.id = "queueModeHint";
+                    hintEl.style.cssText = "font-size:13px;color:#7cf58a;margin-top:6px;opacity:0.85;";
+                    queueTextEl.insertAdjacentElement("afterend", hintEl);
+                }
+                hintEl.textContent = modeHint || "";
                 if (queueSpinnerEl) queueSpinnerEl.style.display = "";
                 if (leaveQueueBtnEl) leaveQueueBtnEl.style.display = "inline-flex";
                 if (queueBotHintEl) queueBotHintEl.style.display = "";
@@ -2307,12 +2411,59 @@
                 }
             }
 
+            let prefEmitted = false;
             socket.on("player_joined", (payload) => {
                 updateLobbyFromPayload(payload);
+                if (!prefEmitted && hasJoined) {
+                    prefEmitted = true;
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: selectedLang });
+                }
             });
             socket.on("lobby_state", (payload) => {
                 console.log("[DEBUG] lobby_state:", payload);
                 updateLobbyFromPayload(payload);
+            });
+
+            const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝" };
+            const langFlagEmoji = { es: "🇪🇸", sv: "🇸🇪", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", pt: "🇵🇹", en: "🇬🇧", fi: "🇫🇮" };
+
+            function renderLobbyBrowser(rooms) {
+                const myRoomId = window.latestLobbyPayload && window.latestLobbyPayload.room_id;
+                const isSoloOrBot = ["solo", "bot"].includes(localStorage.getItem("play_mode") || "");
+                const browserDiv = document.getElementById("lobbyBrowser");
+                const listDiv = document.getElementById("lobbyBrowserList");
+                const titleDiv = document.getElementById("lobbyBrowserTitle");
+                const others = (rooms || []).filter(r => r.room_id !== myRoomId);
+                if (isSoloOrBot || others.length === 0) {
+                    browserDiv.style.display = "none";
+                    return;
+                }
+                titleDiv.textContent = t("waiting_opponents") || "Pelaajat odottavat vastustajaa";
+                browserDiv.style.display = "block";
+                listDiv.innerHTML = others.map(r => {
+                    const cardIcon = cardModeIcon[r.card_mode] || "";
+                    const langIcon = langFlagEmoji[r.target_language] || (r.target_language || "").toUpperCase();
+                    const modeStr = [cardIcon, langIcon].filter(Boolean).join(" ");
+                    return `<div class="lobby-entry">
+                        <span class="lobby-entry-name">${r.username || "?"}</span>
+                        <span class="lobby-entry-mode">${modeStr}</span>
+                        <button class="lobby-join-btn" data-room-id="${r.room_id}">${t("join_opponent") || "Liity"}</button>
+                    </div>`;
+                }).join("");
+                listDiv.querySelectorAll(".lobby-join-btn").forEach(btn => {
+                    btn.addEventListener("click", () => {
+                        socket.emit("join_room_direct", { room_id: btn.dataset.roomId });
+                    });
+                });
+            }
+
+            socket.on("lobby_browser_updated", (data) => {
+                renderLobbyBrowser(data.rooms || []);
+            });
+
+            socket.on("direct_join_failed", (data) => {
+                alert((data && data.reason) || "Liittyminen epäonnistui.");
+                socket.emit("request_lobby_browser");
             });
 
             // --- Round options state ---
@@ -2357,6 +2508,7 @@
                     try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (e) {}
                     document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach(b => b.classList.toggle("active", b === btn));
                     updateLangPickerVisibility();
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: selectedLang });
                 });
             });
 
@@ -2396,6 +2548,7 @@
                 btn.addEventListener("click", () => {
                     selectedLang = btn.dataset.lang;
                     document.querySelectorAll(".lang-flag-btn").forEach(b => b.classList.toggle("active", b === btn));
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: selectedLang });
                 });
             });
 
@@ -2599,6 +2752,7 @@
             };
 
             socket.emit("request_lobby_state");
+            socket.emit("request_lobby_browser");
             console.log("[DEBUG] Socket yhteys OK (waiting_room.html)");
         }
     </script>
