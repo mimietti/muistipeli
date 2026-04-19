@@ -1276,7 +1276,7 @@ def translate_word(word, source_lang, target_lang):
 
     params: dict = {"q": normalized_word, "langpair": f"{source_lang}|{target_lang}"}
     mymemory_email = (os.getenv("MYMEMORY_EMAIL") or "").strip()
-    if mymemory_email:
+    if mymemory_email and not translation_cache.get("__invalid_email__"):
         params["de"] = mymemory_email
 
     try:
@@ -1301,8 +1301,13 @@ def translate_word(word, source_lang, target_lang):
         print(f"[WARNING] MyMemory kiintiö täynnä — ei välimuistita käännöstä sanalle '{normalized_word}'")
         return None  # don't cache — next request after quota reset should work
     translated_text = ((payload.get("responseData") or {}).get("translatedText") or "")
-    if "MYMEMORY WARNING" in translated_text.upper():
-        print(f"[WARNING] MyMemory varoitus sanalle '{normalized_word}': {translated_text[:80]}")
+    text_upper = translated_text.upper()
+    if "MYMEMORY WARNING" in text_upper or "INVALID EMAIL" in text_upper:
+        if "INVALID EMAIL" in text_upper:
+            print(f"[WARNING] MyMemory: virheellinen sähköposti (MYMEMORY_EMAIL), poistetaan käytöstä")
+            translation_cache["__invalid_email__"] = True  # disable for session
+        else:
+            print(f"[WARNING] MyMemory varoitus sanalle '{normalized_word}': {translated_text[:80]}")
         return None  # don't cache
 
     normalized_translation = pick_translation_candidate(translated_text)
