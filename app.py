@@ -205,6 +205,8 @@ theme_translation_cache: dict = {}
 _native_translation_tasks: set = set()  # room_ids with active background native-word translation
 
 TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
+GOOGLE_TRANSLATE_API_URL = "https://translate.googleapis.com/translate_a/single"
+TRANSLATION_RATE_LIMIT_SECONDS = 60
 SUPPORTED_LANGUAGES = {
     "fi": {"fi": "Suomi",     "en": "Finnish",    "flag": "🇫🇮"},
     "en": {"fi": "Englanti",  "en": "English",    "flag": "🇬🇧"},
@@ -855,6 +857,7 @@ def get_theme_display_word(word, entry=None, room=None):
         native_word = (pair.get("native_word") or pair.get("finnish_word") or "").strip()
         if native_word:
             return native_word
+        return base_word
     translated = translate_word(base_word, "en", ui_language)
     return translated or base_word
 
@@ -1164,13 +1167,13 @@ def fetch_random_game_words(target=8, room=None):
     # Fetching all themes at once kills the early-stop benefit and overloads Datamuse.
     parallel_limit = 6
     requested_pool = max(int(target), 8)
-    theme_target = min(len(RANDOM_WORD_THEMES), max(requested_pool // 3 + 3, 5))
+    theme_target = min(len(RANDOM_WORD_THEMES), max(requested_pool // 4 + 2, 4))
     all_themes = random.sample(RANDOM_WORD_THEMES, theme_target)
     batch, rest = all_themes[:parallel_limit], all_themes[parallel_limit:]
     print(f"[INFO] Haetaan satunnaissanoja teemoista: {', '.join(all_themes)}")
     theme_results = {}
     def _fetch_theme(theme):
-        theme_results[theme] = fetch_theme_words(theme, max_results=28, require_noun=require_noun, exclude_proper=True)
+        theme_results[theme] = fetch_theme_words(theme, max_results=20, require_noun=require_noun, exclude_proper=True)
     gevent.joinall([gevent.spawn(_fetch_theme, t) for t in batch], timeout=20)
     pool = []
     seen = set()
@@ -1180,9 +1183,9 @@ def fetch_random_game_words(target=8, room=None):
                 seen.add(w)
                 pool.append(w)
     for theme in rest:
-        if len(pool) >= requested_pool * 4:
+        if len(pool) >= requested_pool * 3:
             break
-        for w in fetch_theme_words(theme, max_results=28, require_noun=require_noun, exclude_proper=True):
+        for w in fetch_theme_words(theme, max_results=20, require_noun=require_noun, exclude_proper=True):
             if w and w not in seen and is_word_allowed_for_filter_mode(w, room):
                 seen.add(w)
                 pool.append(w)
@@ -1268,6 +1271,34 @@ def fetch_theme_words(theme, max_results=60, require_noun=False, exclude_proper=
     return all_words
 
 
+def translate_word_with_google(word, source_lang, target_lang):
+    try:
+        response = requests.get(
+            GOOGLE_TRANSLATE_API_URL,
+            params={
+                "client": "gtx",
+                "sl": source_lang,
+                "tl": target_lang,
+                "dt": "t",
+                "q": word,
+            },
+            timeout=5,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    if not isinstance(payload, list) or not payload or not isinstance(payload[0], list):
+        return None
+    translated_text = "".join(
+        str(part[0]).strip()
+        for part in payload[0]
+        if isinstance(part, list) and part and part[0]
+    ).strip()
+    return pick_translation_candidate(translated_text)
+
+
 def translate_word(word, source_lang, target_lang):
     normalized_word = normalize_candidate_word(word)
     if not normalized_word:
@@ -1277,6 +1308,14 @@ def translate_word(word, source_lang, target_lang):
     cache_key = (normalized_word, source_lang, target_lang)
     if cache_key in translation_cache:
         return translation_cache[cache_key]
+    langpair_key = (source_lang, target_lang)
+    cooldown_until = translation_rate_limited_until.get(langpair_key, 0)
+    if cooldown_until > time.monotonic():
+        fallback_translation = translate_word_with_google(normalized_word, source_lang, target_lang)
+        if fallback_translation:
+            translation_cache[cache_key] = fallback_translation
+            return fallback_translation
+        return None
 
     params: dict = {"q": normalized_word, "langpair": f"{source_lang}|{target_lang}"}
     mymemory_email = (os.getenv("MYMEMORY_EMAIL") or "").strip()
@@ -1290,6 +1329,11 @@ def translate_word(word, source_lang, target_lang):
     except requests.RequestException as e:
         status_code = getattr(getattr(e, "response", None), "status_code", None)
         if status_code == 429:
+            translation_rate_limited_until[langpair_key] = time.monotonic() + TRANSLATION_RATE_LIMIT_SECONDS
+            fallback_translation = translate_word_with_google(normalized_word, source_lang, target_lang)
+            if fallback_translation:
+                translation_cache[cache_key] = fallback_translation
+                return fallback_translation
             return None  # rate-limited — don't cache so retries can succeed later
         print(f"[WARNING] Käännös epäonnistui sanalle '{normalized_word}': {e}")
         translation_cache[cache_key] = None
@@ -1302,6 +1346,11 @@ def translate_word(word, source_lang, target_lang):
     # MyMemory signals quota exceeded via responseStatus 429 or a warning in the text
     response_status = payload.get("responseStatus")
     if response_status == 429 or payload.get("quotaFinished"):
+        translation_rate_limited_until[langpair_key] = time.monotonic() + TRANSLATION_RATE_LIMIT_SECONDS
+        fallback_translation = translate_word_with_google(normalized_word, source_lang, target_lang)
+        if fallback_translation:
+            translation_cache[cache_key] = fallback_translation
+            return fallback_translation
         print(f"[WARNING] MyMemory kiintiö täynnä — ei välimuistita käännöstä sanalle '{normalized_word}'")
         return None  # don't cache — next request after quota reset should work
     translated_text = ((payload.get("responseData") or {}).get("translatedText") or "")
@@ -1311,6 +1360,11 @@ def translate_word(word, source_lang, target_lang):
             print(f"[WARNING] MyMemory: virheellinen sähköposti (MYMEMORY_EMAIL), poistetaan käytöstä")
             translation_cache["__invalid_email__"] = True  # disable for session
         else:
+            translation_rate_limited_until[langpair_key] = time.monotonic() + TRANSLATION_RATE_LIMIT_SECONDS
+            fallback_translation = translate_word_with_google(normalized_word, source_lang, target_lang)
+            if fallback_translation:
+                translation_cache[cache_key] = fallback_translation
+                return fallback_translation
             print(f"[WARNING] MyMemory varoitus sanalle '{normalized_word}': {translated_text[:80]}")
         return None  # don't cache
 
@@ -2727,7 +2781,7 @@ def handle_start_custom_game(data=None):
 
         def run_random_game():
             # Fetch a larger pool so we can skip words that fail without showing errors
-            candidate_target = 32
+            candidate_target = 24
             candidates = fetch_random_game_words(target=candidate_target, room=room)
             print(f"[INFO] Satunnaissana-kandidaatit: {', '.join(candidates)}")
 
