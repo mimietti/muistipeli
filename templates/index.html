@@ -168,6 +168,78 @@
             border-color: rgba(255,255,255,0.08);
             box-shadow: none;
         }
+        .home-lobby-panel {
+            width: 100%;
+        }
+        .home-lobby-title {
+            margin: 0 0 10px;
+            color: #f0fff1;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+        }
+        .home-lobby-subtitle {
+            margin: 0 0 12px;
+            color: #d7e5d8;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .home-lobby-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+        }
+        .home-lobby-entry {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: rgba(0,0,0,0.18);
+            border: 1px solid rgba(255,255,255,0.08);
+            text-align: left;
+        }
+        .home-lobby-main {
+            min-width: 0;
+            flex: 1;
+        }
+        .home-lobby-name {
+            display: block;
+            color: #fff7d9;
+            font-size: 18px;
+            font-weight: 800;
+        }
+        .home-lobby-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 7px;
+        }
+        .home-lobby-chip {
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.07);
+            color: #dbe7dc;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .home-lobby-join {
+            flex: 0 0 auto;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(126, 231, 135, 0.45);
+            background: rgba(36, 90, 49, 0.7);
+            color: #dfffe4;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .home-lobby-join:hover {
+            background: rgba(48, 112, 63, 0.86);
+        }
         #introText {
             max-width: 470px;
             margin: 0 auto 24px;
@@ -361,6 +433,13 @@
                 connect_error: "Could not connect to the server.",
                 waiting_for_you: "{name} is waiting for you to play.",
                 waiting_other_player: "Waiting for another player...",
+                ready_multiplayer_title: "Ready multiplayer games",
+                ready_multiplayer_help: "Join a prepared game right away.",
+                join_opponent: "Join now",
+                queue_source_manual: "Own words",
+                queue_source_theme: "Theme",
+                queue_source_random: "Random",
+                queue_summary_theme: "Theme",
                 best_of_best: "The best of the best",
                 release_notes: "Release notes"
             },
@@ -377,6 +456,13 @@
                 connect_error: "Yhteyttä ei saatu palvelimeen.",
                 waiting_for_you: "{name} odottaa sinua pelaamaan.",
                 waiting_other_player: "Odotetaan toista pelaajaa...",
+                ready_multiplayer_title: "Valmiit moninpelit",
+                ready_multiplayer_help: "Liity suoraan valmiiksi tehtyyn peliin.",
+                join_opponent: "Liity heti",
+                queue_source_manual: "Omat sanat",
+                queue_source_theme: "Teema",
+                queue_source_random: "Satunnaiset",
+                queue_summary_theme: "Teema",
                 best_of_best: "Parhaat tulokset",
                 release_notes: "Julkaisutiedot"
             },
@@ -522,6 +608,15 @@
             return value;
         }
 
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
         function applyTranslations() {
             const lang = getLanguage();
             const cardTexts = cardModeTranslations[lang] || cardModeTranslations.en;
@@ -563,7 +658,11 @@
                 button.classList.toggle("is-active", active);
                 button.setAttribute("aria-pressed", active ? "true" : "false");
             });
-            renderLobbyStatus(window.currentLobbyPlayers || []);
+            if (window.currentLobbyBrowserRooms && window.currentLobbyBrowserRooms.length) {
+                renderLobbyBrowser(window.currentLobbyBrowserRooms);
+            } else {
+                renderLobbyStatus(window.currentLobbyPlayers || []);
+            }
         }
 
         // Turvallinen UUID myös laitteille, joissa crypto.randomUUID puuttuu
@@ -650,11 +749,8 @@
         });
 
         function joinGame(mode = false) {
-            const username = document.getElementById("nameInput").value.trim();
-            if (!username) {
-                document.getElementById("error").textContent = t("enter_name_first");
-                return;
-            }
+            const username = requireUsername();
+            if (!username) return;
             const reconnectToken = getReconnectToken();
             if (!reconnectToken) {
                 alert(t("reconnect_missing"));
@@ -663,6 +759,7 @@
             }
             localStorage.setItem("username", username);
             localStorage.setItem("preferred_card_mode", getSelectedCardMode());
+            localStorage.removeItem("pending_direct_join_room");
             if (mode === "solo") {
                 localStorage.setItem("bot_mode", "0");
                 localStorage.setItem("play_mode", "solo");
@@ -674,6 +771,90 @@
                 localStorage.setItem("play_mode", "queue");
             }
             navigateTo("/waiting");
+        }
+
+        function requireUsername() {
+            const username = document.getElementById("nameInput").value.trim();
+            if (!username) {
+                document.getElementById("error").textContent = t("enter_name_first");
+                document.getElementById("nameInput").focus();
+                return "";
+            }
+            document.getElementById("error").textContent = "";
+            localStorage.setItem("username", username);
+            return username;
+        }
+
+        function getQueueWordSourceLabel(mode) {
+            if (mode === "manual") return t("queue_source_manual");
+            if (mode === "theme") return t("queue_source_theme");
+            return t("queue_source_random");
+        }
+
+        function getQueueCardModeLabel(mode) {
+            const cardTexts = cardModeTranslations[getLanguage()] || cardModeTranslations.en;
+            return cardTexts[mode || "image_word"] || cardTexts.image_word;
+        }
+
+        function getQueueLanguageLabel(code) {
+            const labels = {
+                fi: { fi: "Suomi", en: "Finnish" },
+                en: { fi: "Englanti", en: "English" },
+                es: { fi: "Espanja", en: "Spanish" },
+                sv: { fi: "Ruotsi", en: "Swedish" },
+                de: { fi: "Saksa", en: "German" },
+                fr: { fi: "Ranska", en: "French" },
+                it: { fi: "Italia", en: "Italian" },
+                pt: { fi: "Portugali", en: "Portuguese" },
+            };
+            const ui = getLanguage() === "fi" ? "fi" : "en";
+            return (labels[code] && labels[code][ui]) || String(code || "").toUpperCase();
+        }
+
+        function renderLobbyBrowser(rooms) {
+            window.currentLobbyBrowserRooms = Array.isArray(rooms) ? rooms : [];
+            const lobbyStatus = document.getElementById("lobbyStatus");
+            const myName = (localStorage.getItem("username") || "").trim();
+            const others = window.currentLobbyBrowserRooms.filter((room) => room && room.username !== myName);
+            if (!others.length) {
+                renderLobbyStatus(window.currentLobbyPlayers || []);
+                return;
+            }
+            const langFlags = { fi: "🇫🇮", en: "🇬🇧", es: "🇪🇸", sv: "🇸🇪", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", pt: "🇵🇹" };
+            const cardIcons = { images: "🖼🖼", image_word: "🖼📝", words: "📝📝" };
+            lobbyStatus.classList.remove("is-empty");
+            lobbyStatus.innerHTML = `
+                <div class="home-lobby-panel">
+                    <div class="home-lobby-title">${t("ready_multiplayer_title")}</div>
+                    <div class="home-lobby-subtitle">${t("ready_multiplayer_help")}</div>
+                    <div class="home-lobby-list">
+                        ${others.slice(0, 3).map((room) => {
+                            const chips = [];
+                            chips.push(getQueueWordSourceLabel(room.game_mode || "random"));
+                            if (room.pending_theme) chips.push(`"${room.pending_theme}"`);
+                            chips.push(`${cardIcons[room.card_mode] || ""} ${getQueueCardModeLabel(room.card_mode || "image_word")}`.trim());
+                            if (room.target_language) chips.push(`${langFlags[room.target_language] || ""} ${getQueueLanguageLabel(room.target_language)}`.trim());
+                            return `<div class="home-lobby-entry">
+                                <div class="home-lobby-main">
+                                    <span class="home-lobby-name">${escapeHtml(room.username || "?")}</span>
+                                    <div class="home-lobby-meta">${chips.map((chip) => `<span class="home-lobby-chip">${escapeHtml(chip)}</span>`).join("")}</div>
+                                </div>
+                                <button class="home-lobby-join" data-room-id="${escapeHtml(room.room_id)}">${t("join_opponent")}</button>
+                            </div>`;
+                        }).join("")}
+                    </div>
+                </div>
+            `;
+            lobbyStatus.querySelectorAll(".home-lobby-join").forEach((button) => {
+                button.addEventListener("click", () => {
+                    const username = requireUsername();
+                    if (!username) return;
+                    localStorage.setItem("bot_mode", "0");
+                    localStorage.setItem("play_mode", "queue");
+                    localStorage.setItem("pending_direct_join_room", button.dataset.roomId || "");
+                    navigateTo("/waiting");
+                });
+            });
         }
 
         function browserIsInLobby(payload) {
@@ -720,7 +901,12 @@
             renderLobbyStatus((data && data.players) || []);
         });
 
+        socket.on("lobby_browser_updated", (data) => {
+            renderLobbyBrowser((data && data.rooms) || []);
+        });
+
         socket.emit("request_lobby_state");
+        socket.emit("request_lobby_browser");
 
         socket.on("connect_error", (err) => {
             console.error("[Yhteysvirhe]", err);

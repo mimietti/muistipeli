@@ -2148,6 +2148,10 @@
 
             function updateLobbyFromPayload(payload) {
                 window.latestLobbyPayload = payload || {};
+                if (pendingDirectJoinRoom && payload && payload.room_id === pendingDirectJoinRoom) {
+                    pendingDirectJoinRoom = "";
+                    try { localStorage.removeItem("pending_direct_join_room"); } catch (_) {}
+                }
                 const rawPlayers = (payload && payload.players) || [];
                 const rawPlayersInfo = (payload && payload.players_info) || [];
                 const lastJoinedToken = payload && payload.last_joined_token;
@@ -2252,12 +2256,16 @@
                 // Emit queue join only once per explicit queue intent.
                 if (queueSearchActive && queueJoinRequested && !queueJoined) {
                     queueJoinRequested = false;
-                    socket.emit("join_queue", {
-                        username: myName,
-                        reconnect_token: reconnectToken,
-                        card_mode: selectedCardMode,
-                        target_language: selectedCardMode !== "images" ? selectedLang : ""
-                    });
+                    if (pendingDirectJoinRoom) {
+                        socket.emit("join_room_direct", { room_id: pendingDirectJoinRoom });
+                    } else {
+                        socket.emit("join_queue", {
+                            username: myName,
+                            reconnect_token: reconnectToken,
+                            card_mode: selectedCardMode,
+                            target_language: selectedCardMode !== "images" ? selectedLang : ""
+                        });
+                    }
                 }
 
                 const isSolo = isSoloMode;
@@ -2306,6 +2314,7 @@
             // --- Play mode selection ---
             let queueJoined = false;
             let queueJoinRequested = (localStorage.getItem("play_mode") || "") === "queue";
+            let pendingDirectJoinRoom = localStorage.getItem("pending_direct_join_room") || "";
             const playModeSelectEl = document.getElementById("playModeSelect");
             const queueStatusEl = document.getElementById("queueStatus");
             const queueTextEl = document.getElementById("queueText");
@@ -2413,6 +2422,8 @@
             socket.on("queue_joined", () => {
                 queueJoined = true;
                 queueJoinRequested = false;
+                pendingDirectJoinRoom = "";
+                try { localStorage.removeItem("pending_direct_join_room"); } catch (_) {}
                 updateLobbyFromPayload(window.latestLobbyPayload || {});
             });
 
@@ -2757,6 +2768,8 @@
             });
 
             socket.on("direct_join_failed", (data) => {
+                pendingDirectJoinRoom = "";
+                try { localStorage.removeItem("pending_direct_join_room"); } catch (_) {}
                 alert((data && data.reason) || "Liittyminen epäonnistui.");
                 socket.emit("request_lobby_browser");
             });
