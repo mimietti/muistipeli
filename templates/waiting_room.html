@@ -123,34 +123,76 @@
             border-color: rgba(245,180,60,0.4);
             color: #f5c060;
         }
+        #lobbyBrowser {
+            display: none;
+            max-width: 620px;
+            margin: 18px auto 20px;
+            padding: 16px 18px 14px;
+            border-radius: 22px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 18px 40px rgba(0,0,0,0.22);
+            text-align: left;
+        }
+        #lobbyBrowserTitle {
+            font-size: 18px;
+            font-weight: 700;
+            color: #f7e7c4;
+            margin-bottom: 5px;
+        }
+        #lobbyBrowserSubtitle {
+            font-size: 14px;
+            color: #d4c4a4;
+            margin-bottom: 12px;
+            line-height: 1.45;
+        }
         .lobby-entry {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
-            border-radius: 10px;
+            gap: 14px;
+            padding: 14px 16px;
+            border-radius: 16px;
             background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 6px;
+            margin-bottom: 10px;
+        }
+        .lobby-entry-main {
+            flex: 1;
+            min-width: 0;
         }
         .lobby-entry-name {
-            flex: 1;
-            font-size: 16px;
-            font-weight: 600;
+            display: block;
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
         }
-        .lobby-entry-mode {
-            font-size: 14px;
-            color: #ccc;
+        .lobby-entry-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .lobby-entry-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 13px;
+            color: #e6d5b6;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
         }
         .lobby-join-btn {
-            padding: 5px 16px;
+            padding: 10px 18px;
             border-radius: 999px;
             border: 1px solid rgba(124,245,138,0.4);
             background: rgba(124,245,138,0.1);
             color: #7cf58a;
-            font-size: 13px;
+            font-size: 15px;
+            font-weight: 700;
             cursor: pointer;
             transition: background 0.12s;
+            white-space: nowrap;
         }
         .lobby-join-btn:hover {
             background: rgba(124,245,138,0.2);
@@ -256,6 +298,11 @@
             transition: filter 0.12s;
         }
         #startRoundBtn:hover { filter: brightness(1.05); }
+        #startRoundBtn:disabled {
+            cursor: wait;
+            opacity: 0.78;
+            filter: saturate(0.78);
+        }
         #setupStatus {
             display: none;
             margin-top: 24px;
@@ -967,8 +1014,9 @@
             <div style="margin-top:14px; color:#aaa; font-size:14px;" id="queueBotHint"></div>
             <button class="play-mode-btn bot-btn" id="queueBotBtn" style="margin-top:8px; display:none;"></button>
         </div>
-        <div id="lobbyBrowser" style="display:none; margin:14px 0;">
-            <div id="lobbyBrowserTitle" style="font-size:13px; color:#aaa; margin-bottom:8px;"></div>
+        <div id="lobbyBrowser">
+            <div id="lobbyBrowserTitle"></div>
+            <div id="lobbyBrowserSubtitle"></div>
             <div id="lobbyBrowserList"></div>
         </div>
         <div id="playerRole"></div>
@@ -1090,8 +1138,8 @@
                 ui_style_cabinet: "Memory cabinet",
                 ui_style_minimal: "Minimal slate",
                 intro_text: "The first player prepares the round in advance. When another player joins, the game starts immediately.",
-                intro_text_bot: "Choose the round settings for your duel with Memory Bot. The game starts as soon as you finish your selections and press Start.",
-                intro_text_solo: "Choose the round settings for your solo game. The game starts as soon as you finish your selections and press Start.",
+                intro_text_bot: "Choose the round settings for your duel with Memory Bot. The game starts as soon as the cards are prepared.",
+                intro_text_solo: "Choose the round settings for your solo game. The game starts as soon as the cards are prepared.",
                 welcome_player: "Welcome, {name}!",
                 spectator_player: "Welcome, {name}!",
                 status_waiting_for_player: "Waiting for another player.",
@@ -1119,6 +1167,8 @@
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
                 theme_timeout: 'No words found for theme "{theme}" in time. Please try a different theme.',
                 setup_status_title: "Preparing next round",
+                setup_phase_finding_words: "Choosing words",
+                setup_phase_drawing_cards: "Drawing cards",
                 setup_status_finding_words: 'Finding words that match "{theme}"...',
                 setup_status_drawing_cards: 'Drawing cards for "{theme}"...',
                 setup_status_manual: '{name} is entering words for the next round...',
@@ -1171,8 +1221,10 @@
                 queue_source_manual: "Own words",
                 queue_source_theme: "Theme",
                 queue_source_random: "Random",
+                ready_multiplayer_title: "Ready multiplayer games",
+                ready_multiplayer_help: "Join a prepared round right away, or build your own game below.",
                 waiting_opponents: "Players waiting for an opponent",
-                join_opponent: "Join",
+                join_opponent: "Join now",
                 match_found_msg: "Opponent found! Starting game...",
                 label_word_source: "Word selection",
                 label_card_mode: "Cards",
@@ -1191,7 +1243,7 @@
                 enter_random: "Random",
                 setup_status_random: "Finding random words...",
                 setup_status_random_creating: "Creating cards...",
-                start_round: "Start"
+                start_round: "Prepare cards"
             },
             fi: {
                 page_title: "Odotushuone",
@@ -1213,8 +1265,8 @@
                 ui_style_cabinet: "Muistojen kabinetti",
                 ui_style_minimal: "Pelkistetty",
                 intro_text: "Ensimmäinen pelaaja tekee erän valinnat valmiiksi. Peli alkaa heti, kun toinen pelaaja liittyy huoneeseen.",
-                intro_text_bot: "Valitse erän asetukset kaksintaisteluun Muistibotin kanssa. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
-                intro_text_solo: "Valitse erän asetukset yksinpeliin. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
+                intro_text_bot: "Valitse erän asetukset kaksintaisteluun Muistibotin kanssa. Peli alkaa heti, kun kortit on valmisteltu.",
+                intro_text_solo: "Valitse erän asetukset yksinpeliin. Peli alkaa heti, kun kortit on valmisteltu.",
                 welcome_player: "Tervetuloa, {name}!",
                 spectator_player: "Tervetuloa, {name}!",
                 status_waiting_for_player: "Odotetaan toista pelaajaa.",
@@ -1243,6 +1295,8 @@
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
                 theme_timeout: 'Teemalle "{theme}" ei löytynyt sanoja ajoissa. Kokeile toista teemaa.',
                 setup_status_title: "Valmistellaan seuraavaa erää",
+                setup_phase_finding_words: "Valitaan sanoja",
+                setup_phase_drawing_cards: "Piirretään kortteja",
                 setup_status_finding_words: 'Haetaan teemaan sopivia sanoja teemalle "{theme}"...',
                 setup_status_drawing_cards: 'Piirretään kortteja teemalle "{theme}"...',
                 setup_status_manual: '{name} syöttää sanoja seuraavaa kierrosta varten...',
@@ -1295,8 +1349,10 @@
                 queue_source_manual: "Omat sanat",
                 queue_source_theme: "Teema",
                 queue_source_random: "Satunnaiset",
+                ready_multiplayer_title: "Valmiit moninpelit",
+                ready_multiplayer_help: "Liity heti valmiiseen erään tai valmistele oma peli alempaa.",
                 waiting_opponents: "Pelaajat odottavat vastustajaa",
-                join_opponent: "Liity",
+                join_opponent: "Liity heti",
                 match_found_msg: "Vastustaja löytyi! Peli alkaa...",
                 label_word_source: "Sanavalinta",
                 label_card_mode: "Kortit",
@@ -1315,7 +1371,7 @@
                 enter_random: "Satunnaiset",
                 setup_status_random: "Etsitään satunnaisia sanoja...",
                 setup_status_random_creating: "Luodaan kortteja...",
-                start_round: "Aloita"
+                start_round: "Valmistele kortit"
             },
             sv: {
                 bot_difficulty_summary: "Svårighetsgrad: {difficulty}",
@@ -1778,7 +1834,16 @@
             const setupProgressEl = document.getElementById("setupProgress");
             const setupProgressCountEl = document.getElementById("setupProgressCount");
             const setupProgressFillEl = document.getElementById("setupProgressFill");
+            const startRoundBtnEl = document.getElementById("startRoundBtn");
             let selectedReplacementWord = null;
+            let roundBuildPending = false;
+
+            function setRoundBuildPending(isPending) {
+                roundBuildPending = Boolean(isPending);
+                if (!startRoundBtnEl) return;
+                startRoundBtnEl.disabled = roundBuildPending;
+                startRoundBtnEl.textContent = t("start_round");
+            }
 
             function navigateTo(path) {
                 if (path === "/game") {
@@ -1862,6 +1927,7 @@
                 window.currentSetupState = payload && payload.active ? payload : { active: false };
                 const state = window.currentSetupState;
                 if (!state.active || !shouldShowSetupProgress(state)) {
+                    setRoundBuildPending(false);
                     setupStatusEl.style.display = "none";
                     setupStatusTitleEl.textContent = "";
                     setupStatusTextEl.textContent = "";
@@ -1871,6 +1937,7 @@
                     document.body.classList.toggle("compact-lobby", Boolean(window.currentThemeSelectionState && window.currentThemeSelectionState.active));
                     return;
                 }
+                setRoundBuildPending(true);
                 document.body.classList.add("compact-lobby");
                 const theme = state.theme || "";
                 const mode = state.mode || "theme";
@@ -1878,7 +1945,9 @@
                 const starterName = state.starter_name || "";
                 setupStatusEl.style.display = "block";
                 document.getElementById("startOptions").style.display = "none";
-                setupStatusTitleEl.textContent = t("setup_status_title");
+                setupStatusTitleEl.textContent = phase === "finding_words"
+                    ? t("setup_phase_finding_words")
+                    : (phase === "drawing_cards" ? t("setup_phase_drawing_cards") : t("setup_status_title"));
                 let statusText;
                 if (mode === "random") {
                     const inDrawingPhase = phase === "drawing_cards" || Number(state.progress_count || 0) > 0;
@@ -2444,6 +2513,24 @@
                 }
             }
 
+            function beginRoundPreparation(setupState, payload) {
+                if (roundBuildPending || (window.currentSetupState && window.currentSetupState.active)) {
+                    return false;
+                }
+                const ownerName = (localStorage.getItem("username") || myName || "").trim();
+                renderThemeSelection({ active: false });
+                renderSetupStatus({
+                    active: true,
+                    owner_name: ownerName,
+                    starter_name: ownerName,
+                    progress_count: 0,
+                    total_pairs: 8,
+                    ...setupState,
+                });
+                socket.emit("start_custom_game", payload);
+                return true;
+            }
+
             function startManualRound() {
                 if (!myName || myName.trim().length === 0) {
                     askName();
@@ -2458,7 +2545,7 @@
                 if ((localStorage.getItem("play_mode") || "") === "bot") {
                     payload.bot_difficulty = selectedBotDifficulty;
                 }
-                socket.emit("start_custom_game", payload);
+                beginRoundPreparation({ mode: "manual", phase: "finding_words" }, payload);
             }
 
             function startThemeRound(prefill = "") {
@@ -2480,13 +2567,11 @@
                 try { sessionStorage.setItem("word_filter_mode", selectedWordFilterMode); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
-                renderThemeSelection({ active: false });
-                renderSetupStatus({ active: true, mode: "theme", theme });
                 const payload = { mode: "theme", theme, card_mode: selectedCardMode, ui_language: getLanguage(), word_filter_mode: selectedWordFilterMode };
                 if ((localStorage.getItem("play_mode") || "") === "bot") {
                     payload.bot_difficulty = selectedBotDifficulty;
                 }
-                socket.emit("start_custom_game", payload);
+                beginRoundPreparation({ mode: "theme", theme, phase: "finding_words" }, payload);
             }
 
             function startLanguageRound(targetLang, prefill = "", cardMode = "image_word") {
@@ -2510,13 +2595,11 @@
                 try { sessionStorage.setItem("word_filter_mode", selectedWordFilterMode); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
-                renderThemeSelection({ active: false });
-                renderSetupStatus({ active: true, mode: "language", theme });
                 const payload = { mode: "theme", card_mode: cardMode, target_language: targetLang, theme, ui_language: getLanguage(), word_filter_mode: selectedWordFilterMode };
                 if ((localStorage.getItem("play_mode") || "") === "bot") {
                     payload.bot_difficulty = selectedBotDifficulty;
                 }
-                socket.emit("start_custom_game", payload);
+                beginRoundPreparation({ mode: "language", theme, phase: "finding_words" }, payload);
             }
 
             function startLangManualRound(targetLang, cardMode = "image_word") {
@@ -2532,13 +2615,11 @@
                 try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
-                renderThemeSelection({ active: false });
-                renderSetupStatus({ active: true, mode: "lang_manual" });
                 const payload = { mode: "manual", card_mode: cm, target_language: targetLang, ui_language: getLanguage() };
                 if ((localStorage.getItem("play_mode") || "") === "bot") {
                     payload.bot_difficulty = selectedBotDifficulty;
                 }
-                socket.emit("start_custom_game", payload);
+                beginRoundPreparation({ mode: "lang_manual", phase: "finding_words" }, payload);
             }
 
             function startRandomRound(targetLang, cardMode = "image_word") {
@@ -2560,9 +2641,7 @@
                 try { sessionStorage.removeItem("game_setup_theme"); } catch (e) {}
                 try { sessionStorage.removeItem("last_asked_pair"); } catch (e) {}
                 try { sessionStorage.removeItem("words_given"); } catch (e) {}
-                renderThemeSelection({ active: false });
-                renderSetupStatus({ active: true, mode: "random" });
-                socket.emit("start_custom_game", payload);
+                beginRoundPreparation({ mode: "random", phase: "finding_words" }, payload);
             }
 
             function maybeStartQueuedNextRound(canStart) {
@@ -2619,6 +2698,12 @@
 
             const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝" };
             const langFlagEmoji = { es: "🇪🇸", sv: "🇸🇪", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", pt: "🇵🇹", en: "🇬🇧", fi: "🇫🇮" };
+            const escapeHtml = (value) => String(value || "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\"/g, "&quot;")
+                .replace(/'/g, "&#39;");
 
             function renderLobbyBrowser(rooms) {
                 const myRoomId = window.latestLobbyPayload && window.latestLobbyPayload.room_id;
@@ -2626,21 +2711,35 @@
                 const browserDiv = document.getElementById("lobbyBrowser");
                 const listDiv = document.getElementById("lobbyBrowserList");
                 const titleDiv = document.getElementById("lobbyBrowserTitle");
+                const subtitleDiv = document.getElementById("lobbyBrowserSubtitle");
                 const others = (rooms || []).filter(r => r.room_id !== myRoomId);
                 if (isSoloOrBot || others.length === 0) {
                     browserDiv.style.display = "none";
                     return;
                 }
-                titleDiv.textContent = t("waiting_opponents") || "Pelaajat odottavat vastustajaa";
+                titleDiv.textContent = t("ready_multiplayer_title") || "Valmiit moninpelit";
+                subtitleDiv.textContent = t("ready_multiplayer_help") || "";
                 browserDiv.style.display = "block";
                 listDiv.innerHTML = others.map(r => {
-                    const cardIcon = cardModeIcon[r.card_mode] || "";
-                    const langIcon = langFlagEmoji[r.target_language] || (r.target_language || "").toUpperCase();
-                    const modeStr = [cardIcon, langIcon].filter(Boolean).join(" ");
+                    const chips = [];
+                    const wordSource = getQueueWordSourceLabel(r.game_mode || "random");
+                    if (wordSource) chips.push(wordSource);
+                    if (r.pending_theme) chips.push(`"${escapeHtml(r.pending_theme)}"`);
+                    const cardLabel = `${cardModeIcon[r.card_mode] || ""} ${getQueueCardModeLabel(r.card_mode || "image_word")}`.trim();
+                    if (cardLabel) chips.push(cardLabel);
+                    if (r.target_language) {
+                        const langLabel = `${langFlagEmoji[r.target_language] || ""} ${getQueueLanguageLabel(r.target_language)}`.trim();
+                        if (langLabel) chips.push(langLabel);
+                    }
+                    if (r.word_filter_mode && r.card_mode !== "images") {
+                        chips.push(getQueueWordFilterLabel(r.word_filter_mode));
+                    }
                     return `<div class="lobby-entry">
-                        <span class="lobby-entry-name">${r.username || "?"}</span>
-                        <span class="lobby-entry-mode">${modeStr}</span>
-                        <button class="lobby-join-btn" data-room-id="${r.room_id}">${t("join_opponent") || "Liity"}</button>
+                        <div class="lobby-entry-main">
+                            <span class="lobby-entry-name">${escapeHtml(r.username || "?")}</span>
+                            <div class="lobby-entry-meta">${chips.map(chip => `<span class="lobby-entry-chip">${chip}</span>`).join("")}</div>
+                        </div>
+                        <button class="lobby-join-btn" data-room-id="${escapeHtml(r.room_id)}">${t("join_opponent") || "Liity heti"}</button>
                     </div>`;
                 }).join("");
                 listDiv.querySelectorAll(".lobby-join-btn").forEach(btn => {
@@ -2773,6 +2872,9 @@
             });
 
             document.getElementById("startRoundBtn").addEventListener("click", () => {
+                if (roundBuildPending || (window.currentSetupState && window.currentSetupState.active)) {
+                    return;
+                }
                 if (selectedWordSource === "random") {
                     startRandomRound(selectedLang, selectedCardMode);
                     return;
@@ -2836,9 +2938,40 @@
                 });
                 renderThemeSelection({ active: false });
             });
-            socket.on("random_drawing_started", () => {
-                if (!window.currentSetupState || !window.currentSetupState.active) return;
-                renderSetupStatus({ ...window.currentSetupState, phase: "drawing_cards", progress_count: 0 });
+            socket.on("random_word_selection_started", (data) => {
+                renderSetupStatus({
+                    active: true,
+                    mode: (data && data.mode) || "random",
+                    card_mode: (data && data.card_mode) || selectedCardMode,
+                    phase: "finding_words",
+                    starter_name: (data && data.starter_name) || "",
+                    owner_name: (data && data.owner_name) || (data && data.starter_name) || "",
+                    progress_count: Number((data && data.progress_count) || 0),
+                    total_pairs: Number((data && data.total_pairs) || 8)
+                });
+            });
+            socket.on("random_drawing_started", (data) => {
+                if (!window.currentSetupState || !window.currentSetupState.active) {
+                    renderSetupStatus({
+                        active: true,
+                        mode: (data && data.mode) || "random",
+                        card_mode: (data && data.card_mode) || selectedCardMode,
+                        phase: "drawing_cards",
+                        starter_name: (data && data.starter_name) || "",
+                        owner_name: (data && data.owner_name) || (data && data.starter_name) || "",
+                        progress_count: Number((data && data.progress_count) || 0),
+                        total_pairs: Number((data && data.total_pairs) || 8)
+                    });
+                    return;
+                }
+                renderSetupStatus({
+                    ...window.currentSetupState,
+                    phase: "drawing_cards",
+                    starter_name: (data && data.starter_name) || window.currentSetupState.starter_name || "",
+                    owner_name: (data && data.owner_name) || window.currentSetupState.owner_name || "",
+                    progress_count: Number((data && data.progress_count) || 0),
+                    total_pairs: Number((data && data.total_pairs) || 8)
+                });
             });
             socket.on("word_accepted", (data) => {
                 if (!window.currentSetupState || !window.currentSetupState.active) return;
@@ -2905,6 +3038,11 @@
                             startLanguageRound(lang, failedTheme, cm);
                         }
                     }, 0);
+                }
+            });
+            socket.on("setup_already_running", () => {
+                if (window.currentSetupState && window.currentSetupState.active) {
+                    renderSetupStatus(window.currentSetupState);
                 }
             });
             socket.on("theme_timeout", (data) => {

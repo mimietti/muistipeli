@@ -2079,7 +2079,7 @@ def get_available_rooms():
     for room_id, room in rooms.items():
         if room.status != "waiting":
             continue
-        if not room.queue_round_prepared or len(room.grid_data) < 16:
+        if not room.queue_round_prepared or len(room.grid_data) != 16:
             continue
         human_players = [
             (sid, info) for sid, info in room.players.items()
@@ -2093,8 +2093,11 @@ def get_available_rooms():
         result.append({
             "room_id": room_id,
             "username": info.get("username"),
+            "game_mode": room.game_mode or "random",
             "card_mode": room.card_mode or info.get("pref_card_mode") or "image_word",
             "target_language": room.target_language or "",
+            "pending_theme": room.pending_theme or "",
+            "word_filter_mode": room.word_filter_mode or "clear",
         })
     return result
 
@@ -2438,7 +2441,7 @@ def handle_grid_request(data=None):
         emit("no_grid", {"reason": "Pelaajia liian vähän"})
         return
 
-    if not room.grid_data or len(room.grid_data) < 16:
+    if not room.grid_data or len(room.grid_data) != 16:
         debug("[DEBUG] Ruudukko ei ole valmis")
         emit("no_grid", {"reason": "Grid ei valmis"})
         if theme_selection_active(room):
@@ -2495,7 +2498,7 @@ def handle_grid_request(data=None):
 @socketio.on("ready_for_game")
 def handle_ready_for_game():
     room = get_room_for_sid(request.sid)
-    if room.grid_data and len(room.grid_data) >= 16:
+    if room.grid_data and len(room.grid_data) == 16:
         current_player_name = (
             room.player_order[room.turn] if room.player_order and 0 <= room.turn < len(room.player_order) else None
         )
@@ -2524,6 +2527,11 @@ def handle_start_custom_game(data=None):
     room = get_room_for_sid(request.sid)
     queue_prepare_mode = queue_can_prepare_round_while_waiting(room)
     print(f"[INFO] Uusi erä käynnistetään. mode={data.get('mode', 'manual')}, players={get_effective_player_count(room)}")
+
+    if room.status == "setup":
+        print("[INFO] Uuden erÃ¤n pyyntÃ¶ ohitettu: valmistelu on jo kÃ¤ynnissÃ¤")
+        emit("setup_already_running", {"reason": "setup_in_progress"})
+        return
 
     current_tokens = set(v["reconnect_token"] for v in get_effective_players_ordered(room))
     if room.grid_data and current_tokens != room.last_tokens:
@@ -2614,13 +2622,32 @@ def handle_start_custom_game(data=None):
         prepare_theme_selection(starter_name, room)
         return
     if room.game_mode == "random":
+        starter_name = room.players.get(request.sid, {}).get("username")
+        emit_to_room("random_word_selection_started", {
+            "mode": room.game_mode,
+            "card_mode": room.card_mode,
+            "starter_name": starter_name,
+            "owner_name": starter_name,
+            "phase": "finding_words",
+            "progress_count": 0,
+            "total_pairs": 8,
+        }, room_id=room.room_id)
+
         def run_random_game():
             # Fetch a larger pool so we can skip words that fail without showing errors
             candidates = fetch_random_game_words(target=24, room=room)
             print(f"[INFO] Satunnaissana-kandidaatit: {', '.join(candidates)}")
 
             # UI signal: drawing phase starts — emit before pre-warming so user sees progress sooner
-            emit_to_room("random_drawing_started", {}, room_id=room.room_id)
+            emit_to_room("random_drawing_started", {
+                "mode": room.game_mode,
+                "card_mode": room.card_mode,
+                "starter_name": starter_name,
+                "owner_name": starter_name,
+                "phase": "drawing_cards",
+                "progress_count": room.pending_pair,
+                "total_pairs": 8,
+            }, room_id=room.room_id)
 
             # Pre-warm translation cache AND Pixabay cache in parallel
             if room.card_mode in {"image_word", "words"}:
@@ -3167,7 +3194,7 @@ def handle_join_room_direct(data=None):
         emit("direct_join_failed", {"reason": "Peli on jo alkanut."})
         broadcast_lobby_browser()
         return
-    if not target_room.queue_round_prepared or len(target_room.grid_data) < 16:
+    if not target_room.queue_round_prepared or len(target_room.grid_data) != 16:
         emit("direct_join_failed", {"reason": "Huone ei ole vielä valmis."})
         broadcast_lobby_browser()
         return
@@ -3222,7 +3249,7 @@ def handle_start_waiting_bot_round(data=None):
         return
 
     room = resolve_room_for_event(data, player_info)
-    if room.play_mode != "queue" or not room.queue_round_prepared or len(room.grid_data) < 16:
+    if room.play_mode != "queue" or not room.queue_round_prepared or len(room.grid_data) != 16:
         emit("queue_bot_failed", {"reason": "Kierros ei ole vielä valmis."})
         return
 
