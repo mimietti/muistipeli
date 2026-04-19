@@ -1841,6 +1841,18 @@
             navigateTo("/waiting");
         });
 
+        socket.on("translation_update", (data) => {
+            const { pair_id, native_word, english_word } = data || {};
+            if (!pair_id || !native_word) return;
+            cards.forEach(card => {
+                if (!card || card.pair_id !== pair_id) return;
+                card.native_word = native_word;
+                if (card.card_type === "word" && card.text === english_word) {
+                    card.text = native_word;
+                }
+            });
+        });
+
         socket.on("game_setup_error", (data) => {
             const reason = localizeServerMessage((data && data.reason) || t("game_setup_failed"));
             console.error("[DEBUG] game_setup_error:", reason);

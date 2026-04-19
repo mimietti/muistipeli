@@ -202,6 +202,7 @@ translation_cache: dict = {}
 translation_rate_limited_until: dict = {}
 pixabay_cache: dict = {}
 theme_translation_cache: dict = {}
+_native_translation_tasks: set = set()  # room_ids with active background native-word translation
 
 TRANSLATION_API_URL = "https://api.mymemory.translated.net/get"
 SUPPORTED_LANGUAGES = {
@@ -442,6 +443,47 @@ def clear_round_runtime(room):
     room.last_tokens = set()
 
 
+def fetch_deferred_native_words(room):
+    """Background task: translate english_word → native_lang for lang-learning pairs that have no native_word yet."""
+    if room.room_id in _native_translation_tasks:
+        return
+    _native_translation_tasks.add(room.room_id)
+    try:
+        native_lang = room.native_language or "fi"
+        if native_lang == "en":
+            return  # english_word IS native_word, nothing to fetch
+        pairs_needing: dict = {}
+        for card in room.grid_data:
+            pid = card.get("pair_id")
+            english_word = card.get("word")
+            if (pid and english_word
+                    and card.get("target_word") is not None  # only lang-learning pairs
+                    and card.get("native_word") is None
+                    and pid not in pairs_needing):
+                pairs_needing[pid] = english_word
+        if not pairs_needing:
+            return
+        print(f"[INFO] Haetaan UI-kielen ({native_lang}) käännökset taustalla: {len(pairs_needing)} paria")
+        for pair_id, english_word in pairs_needing.items():
+            if room.status not in {"waiting", "playing"}:
+                return
+            native_word = translate_word(english_word, "en", native_lang)
+            if native_word:
+                for card in room.grid_data:
+                    if card.get("pair_id") == pair_id:
+                        card["native_word"] = native_word
+                        if card.get("card_type") == "word" and card.get("text") == english_word:
+                            card["text"] = native_word
+                emit_to_room("translation_update", {
+                    "pair_id": pair_id,
+                    "native_word": native_word,
+                    "english_word": english_word,
+                }, room_id=room.room_id)
+            socketio.sleep(0)
+    finally:
+        _native_translation_tasks.discard(room.room_id)
+
+
 def emit_queue_round_prepared(room):
     room.status = "waiting"
     room.queue_round_prepared = True
@@ -457,6 +499,7 @@ def emit_queue_round_prepared(room):
     emit_to_room("queue_round_prepared", payload, room_id=room.room_id)
     emit_to_room("player_joined", payload, room_id=room.room_id)
     broadcast_lobby_browser()
+    socketio.start_background_task(fetch_deferred_native_words, room)
 
 
 def get_active_bot_identity(room):
@@ -986,16 +1029,16 @@ def append_selected_lang_pair(word, pair_index, room, source_lang=None):
         print(f"[INFO] Käännös ({src}→{target_lang}) ei kelpaa sanalle '{word}'")
         return False
     native_lang = room.native_language or "fi"
-    # native_word is the word in UI language — if src IS the native lang, use the input word directly
+    # native_word is the word in UI language.
+    # For manual input or when src already is the native language, use the word directly.
+    # When native_lang == "en" and src == "en", the word itself is the answer.
+    # Otherwise defer to background translation so image cards can be ready sooner.
     if room.game_mode == "manual" or src == native_lang:
         native_word = word
     elif native_lang == "en":
         native_word = word if src == "en" else (translate_word(word, src, "en") or word)
     else:
-        native_word = translate_word(word, src, native_lang)
-    if not native_word:
-        print(f"[INFO] Käännös ({src}→{native_lang}) ei kelpaa sanalle '{word}', ohitetaan")
-        native_word = None
+        native_word = None  # deferred — fetch_deferred_native_words will fill this in
     # english_word for Pixabay search
     english_word = word if src == "en" else (translate_word(word, src, "en") or word)
     print(f"[INFO] Kokeillaan {target_lang}-pariksi '{word}' ({src}) -> '{target_word}' parille {pair_index + 1}")
