@@ -1160,7 +1160,7 @@ def fetch_random_game_words(target=8, room=None):
     # Fetching all themes at once kills the early-stop benefit and overloads Datamuse.
     parallel_limit = 6
     requested_pool = max(int(target), 8)
-    theme_target = min(len(RANDOM_WORD_THEMES), max(requested_pool * 4, 20))
+    theme_target = min(len(RANDOM_WORD_THEMES), max(requested_pool // 3 + 3, 5))
     all_themes = random.sample(RANDOM_WORD_THEMES, theme_target)
     batch, rest = all_themes[:parallel_limit], all_themes[parallel_limit:]
     print(f"[INFO] Haetaan satunnaissanoja teemoista: {', '.join(all_themes)}")
@@ -1176,7 +1176,7 @@ def fetch_random_game_words(target=8, room=None):
                 seen.add(w)
                 pool.append(w)
     for theme in rest:
-        if len(pool) >= requested_pool * 8:
+        if len(pool) >= requested_pool * 4:
             break
         for w in fetch_theme_words(theme, max_results=28, require_noun=require_noun, exclude_proper=True):
             if w and w not in seen and is_word_allowed_for_filter_mode(w, room):
@@ -2723,7 +2723,7 @@ def handle_start_custom_game(data=None):
 
         def run_random_game():
             # Fetch a larger pool so we can skip words that fail without showing errors
-            candidate_target = 64 if room.card_mode in {"image_word", "words"} else 24
+            candidate_target = 24
             candidates = fetch_random_game_words(target=candidate_target, room=room)
             print(f"[INFO] Satunnaissana-kandidaatit: {', '.join(candidates)}")
 
