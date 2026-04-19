@@ -537,6 +537,45 @@
             color: #d4ddd4;
             margin-bottom: 20px;
         }
+        #queuePreparedSummary {
+            display: none;
+            max-width: 520px;
+            margin: 0 auto 16px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.045);
+            border: 1px solid rgba(255,255,255,0.08);
+            text-align: left;
+        }
+        .queue-summary-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #9fae9f;
+            margin-bottom: 10px;
+        }
+        .queue-summary-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .queue-summary-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.09);
+            color: #f0f2d7;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .queue-summary-chip-label {
+            color: #b7c2b7;
+            font-size: 12px;
+            font-weight: 500;
+        }
         body {
             --bg-top: #121615;
             --bg-bottom: #0a0d0c;
@@ -920,6 +959,10 @@
         <div id="queueStatus">
             <div class="queue-spinner"></div>
             <div id="queueText"></div>
+            <div id="queuePreparedSummary">
+                <div class="queue-summary-title" id="queuePreparedSummaryTitle"></div>
+                <div class="queue-summary-grid" id="queuePreparedSummaryGrid"></div>
+            </div>
             <button class="secondaryBtn" id="leaveQueueBtn"></button>
             <div style="margin-top:14px; color:#aaa; font-size:14px;" id="queueBotHint"></div>
             <button class="play-mode-btn bot-btn" id="queueBotBtn" style="margin-top:8px; display:none;"></button>
@@ -1118,6 +1161,16 @@
                 queue_prepare_round: "Choose the round first. The room opens when the cards are ready.",
                 queue_round_ready: "Round is ready. Waiting for an opponent...",
                 queue_leave: "Leave queue",
+                queue_edit_settings: "Edit settings",
+                queue_summary_title: "Prepared round",
+                queue_summary_word_source: "Words",
+                queue_summary_theme: "Theme",
+                queue_summary_cards: "Cards",
+                queue_summary_language: "Language",
+                queue_summary_word_style: "Word style",
+                queue_source_manual: "Own words",
+                queue_source_theme: "Theme",
+                queue_source_random: "Random",
                 waiting_opponents: "Players waiting for an opponent",
                 join_opponent: "Join",
                 match_found_msg: "Opponent found! Starting game...",
@@ -1232,6 +1285,16 @@
                 queue_prepare_round: "Valitse erä ensin. Huone tulee näkyviin muille, kun kortit ovat valmiit.",
                 queue_round_ready: "Kortit ovat valmiit. Odotetaan vastustajaa...",
                 queue_leave: "Poistu jonosta",
+                queue_edit_settings: "Muuta asetuksia",
+                queue_summary_title: "Valmiit asetukset",
+                queue_summary_word_source: "Sanavalinta",
+                queue_summary_theme: "Teema",
+                queue_summary_cards: "Kortit",
+                queue_summary_language: "Kieli",
+                queue_summary_word_style: "Sanatyyppi",
+                queue_source_manual: "Omat sanat",
+                queue_source_theme: "Teema",
+                queue_source_random: "Satunnaiset",
                 waiting_opponents: "Pelaajat odottavat vastustajaa",
                 join_opponent: "Liity",
                 match_found_msg: "Vastustaja löytyi! Peli alkaa...",
@@ -1383,6 +1446,27 @@
             return labels[lang] || labels.en;
         }
 
+        function getQueueWordSourceLabel(mode) {
+            if (mode === "manual") return t("queue_source_manual");
+            if (mode === "theme") return t("queue_source_theme");
+            return t("queue_source_random");
+        }
+
+        function getQueueCardModeLabel(mode) {
+            if (mode === "images") return t("card_mode_images");
+            if (mode === "words") return t("card_mode_words");
+            return t("card_mode_image_word");
+        }
+
+        function getQueueLanguageLabel(code) {
+            const labels = LANG_NAMES[code] || {};
+            return labels[getLanguage()] || labels.en || String(code || "").toUpperCase();
+        }
+
+        function getQueueWordFilterLabel(mode) {
+            return mode === "broad" ? t("word_filter_broad") : t("word_filter_clear");
+        }
+
         function localizeServerMessage(message) {
             if (!message) return t("setup_failed");
             if (message === "Teema puuttuu." || message === "Theme is missing.") return t("theme_missing");
@@ -1417,7 +1501,6 @@
             const playMode = localStorage.getItem("play_mode") || "";
             const isSoloOrBot = playMode === "solo" || playMode === "bot";
             const myToken = getReconnectToken();
-            const myName = (localStorage.getItem("username") || "").trim();
             const queueSearchActive = isQueueSearchLobby(window.latestLobbyPayload, window.latestPlayersInfo);
             const queueRoundPrepared = Boolean(window.latestLobbyPayload && window.latestLobbyPayload.queue_round_prepared);
             roleDiv.style.display = "none";
@@ -1441,6 +1524,38 @@
                     }
                 }
             }
+        }
+
+        function renderPreparedQueueSummary(payload) {
+            const summaryEl = document.getElementById("queuePreparedSummary");
+            const titleEl = document.getElementById("queuePreparedSummaryTitle");
+            const gridEl = document.getElementById("queuePreparedSummaryGrid");
+            const isPrepared = Boolean(payload && payload.queue_round_prepared);
+            const isQueueMode = Boolean(payload && payload.play_mode === "queue");
+            if (!summaryEl || !titleEl || !gridEl || !isPrepared || !isQueueMode) {
+                if (summaryEl) summaryEl.style.display = "none";
+                if (gridEl) gridEl.innerHTML = "";
+                return;
+            }
+
+            const chips = [];
+            chips.push([t("queue_summary_word_source"), getQueueWordSourceLabel(payload.game_mode || "random")]);
+            if (payload.pending_theme) {
+                chips.push([t("queue_summary_theme"), payload.pending_theme]);
+            }
+            chips.push([t("queue_summary_cards"), getQueueCardModeLabel(payload.card_mode || "image_word")]);
+            if (payload.card_mode !== "images" && payload.target_language) {
+                chips.push([t("queue_summary_language"), getQueueLanguageLabel(payload.target_language)]);
+            }
+            if (payload.game_mode === "theme" || payload.game_mode === "random") {
+                chips.push([t("queue_summary_word_style"), getQueueWordFilterLabel(payload.word_filter_mode || "clear")]);
+            }
+
+            titleEl.textContent = t("queue_summary_title");
+            gridEl.innerHTML = chips.map(([label, value]) =>
+                `<div class="queue-summary-chip"><span class="queue-summary-chip-label">${label}</span><span>${value}</span></div>`
+            ).join("");
+            summaryEl.style.display = "block";
         }
 
         const LANG_NAMES = {
@@ -1499,11 +1614,14 @@
             el("exitGameBtn").textContent = t("exit_game");
             el("changeNameBtn").textContent = t("change_name");
             el("leaveQueueBtn").textContent = t("queue_leave");
+            const preparedSummaryTitleEl = document.getElementById("queuePreparedSummaryTitle");
+            if (preparedSummaryTitleEl) preparedSummaryTitleEl.textContent = t("queue_summary_title");
             const queueBotHintEl = document.getElementById("queueBotHint");
             const queueBotBtnEl = document.getElementById("queueBotBtn");
             if (queueBotHintEl) queueBotHintEl.textContent = t("queue_bot_hint");
             if (queueBotBtnEl) queueBotBtnEl.textContent = t("queue_play_bot");
             renderPlayerRole(window.latestPlayersInfo || []);
+            renderPreparedQueueSummary(window.latestLobbyPayload || {});
             syncSettingsControls();
         }
 
@@ -2054,6 +2172,7 @@
                 updateLangPickerVisibility();
                 updateBotDifficultyVisibility();
                 renderPlayerRole(playersInfo);
+                renderPreparedQueueSummary(payload);
                 renderQueuePreferencePicker(queueSearchActive, queueRoundPrepared);
 
                 if (!queueSearchActive) {
@@ -2087,7 +2206,7 @@
                         document.getElementById("startOptions").style.display = queueRoundPrepared ? "none" : "block";
                     }
                     if (queueRoundPrepared) {
-                        showQueueStatus(t("queue_round_ready"), "", true);
+                        showQueueStatus(t("queue_round_ready"), "", true, false, t("queue_edit_settings"));
                     } else {
                         hideQueueStatus();
                     }
@@ -2139,7 +2258,7 @@
                 playModeSelectEl.style.display = "none";
             }
 
-            function showQueueStatus(text, modeHint, allowBot = false) {
+            function showQueueStatus(text, modeHint, allowBot = false, showSpinner = true, buttonLabel = null) {
                 queueStatusEl.style.display = "block";
                 playModeSelectEl.style.display = "none";
                 queueTextEl.textContent = text || t("queue_searching");
@@ -2151,8 +2270,9 @@
                     queueTextEl.insertAdjacentElement("afterend", hintEl);
                 }
                 hintEl.textContent = modeHint || "";
-                if (queueSpinnerEl) queueSpinnerEl.style.display = "";
+                if (queueSpinnerEl) queueSpinnerEl.style.display = showSpinner ? "" : "none";
                 if (leaveQueueBtnEl) leaveQueueBtnEl.style.display = "inline-flex";
+                if (leaveQueueBtnEl) leaveQueueBtnEl.textContent = buttonLabel || t("queue_leave");
                 if (queueBotHintEl) queueBotHintEl.style.display = allowBot ? "" : "none";
                 if (queueBotBtnEl) queueBotBtnEl.style.display = allowBot ? "inline-block" : "none";
             }
@@ -2171,6 +2291,7 @@
                 queueStatusEl.style.display = "none";
                 if (queueSpinnerEl) queueSpinnerEl.style.display = "";
                 if (leaveQueueBtnEl) leaveQueueBtnEl.style.display = "inline-flex";
+                if (leaveQueueBtnEl) leaveQueueBtnEl.textContent = t("queue_leave");
                 if (queueBotHintEl) queueBotHintEl.style.display = "none";
                 if (queueBotBtnEl) queueBotBtnEl.style.display = "none";
             }
@@ -2197,6 +2318,13 @@
             });
 
             document.getElementById("leaveQueueBtn").addEventListener("click", () => {
+                const payload = window.latestLobbyPayload || {};
+                if (payload.queue_round_prepared) {
+                    socket.emit("edit_prepared_queue", {
+                        reconnect_token: getReconnectToken()
+                    });
+                    return;
+                }
                 socket.emit("leave_queue", {});
                 queueJoined = false;
                 queueJoinRequested = false;
@@ -2255,6 +2383,10 @@
             });
 
             socket.on("queue_bot_failed", (payload) => {
+                alert((payload && payload.reason) || t("setup_failed"));
+            });
+
+            socket.on("queue_edit_failed", (payload) => {
                 alert((payload && payload.reason) || t("setup_failed"));
             });
             // --- End play mode selection ---

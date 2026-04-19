@@ -2060,8 +2060,10 @@ def build_lobby_payload(room):
     return {
         "room_id": room.room_id,
         "play_mode": room.play_mode,
+        "game_mode": room.game_mode,
         "card_mode": room.card_mode,
         "target_language": room.target_language,
+        "pending_theme": room.pending_theme,
         "bot_difficulty": room.bot_difficulty,
         "word_filter_mode": room.word_filter_mode,
         "players": usernames,
@@ -3238,6 +3240,38 @@ def handle_start_waiting_bot_round(data=None):
     room.last_tokens = set(v["reconnect_token"] for v in get_effective_players_ordered(room))
     broadcast_lobby_browser()
     launch_grid_round(room)
+
+
+@socketio.on("edit_prepared_queue")
+def handle_edit_prepared_queue(data=None):
+    data = data or {}
+    _, player_info = resolve_player_for_event(data)
+    if not player_info:
+        emit("queue_edit_failed", {"reason": "Pelaajaa ei löytynyt."})
+        return
+
+    room = resolve_room_for_event(data, player_info)
+    if room.play_mode != "queue" or not room.queue_round_prepared:
+        emit("queue_edit_failed", {"reason": "Muokattavaa erää ei löytynyt."})
+        return
+
+    human_players = get_effective_human_player_items(room)
+    if len(human_players) != 1 or human_players[0][1].get("reconnect_token") != player_info.get("reconnect_token"):
+        emit("queue_edit_failed", {"reason": "Vain huoneen perustaja voi muuttaa asetuksia."})
+        return
+
+    clear_round_runtime(room)
+    reset_pending_state(room)
+    owner_sid = human_players[0][0]
+    owner_info = room.players.get(owner_sid)
+    if owner_info:
+        owner_info["in_waiting"] = True
+        owner_info["pref_ready"] = False
+        room.card_mode = owner_info.get("pref_card_mode") or room.card_mode
+        room.target_language = owner_info.get("pref_target_language") or ""
+    payload = build_lobby_payload(room)
+    emit_to_room("player_joined", payload, room_id=room.room_id)
+    broadcast_lobby_browser()
 
 
 if __name__ == "__main__":
