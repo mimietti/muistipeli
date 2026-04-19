@@ -1065,6 +1065,21 @@ def normalize_translated_word(word):
     return cleaned
 
 
+def pick_translation_candidate(text):
+    raw = str(text or "").strip()
+    if not raw:
+        return None
+    raw = re.sub(r"\s*\(.*?\)\s*", " ", raw).strip()
+    raw = re.sub(r"\s+", " ", raw)
+    candidates = re.split(r"\s*(?:,|;|/|\|)\s*", raw)
+    for candidate in candidates:
+        normalized = normalize_translated_word(candidate)
+        if normalized:
+            return normalized
+    normalized = normalize_translated_word(raw)
+    return normalized
+
+
 def is_concrete_theme_word(word):
     return word not in ABSTRACT_THEME_WORDS
 
@@ -1093,7 +1108,9 @@ def fetch_random_game_words(target=8, room=None):
     # Fetch first 6 themes in parallel, then serial with early-stop.
     # Fetching all themes at once kills the early-stop benefit and overloads Datamuse.
     parallel_limit = 6
-    all_themes = random.sample(RANDOM_WORD_THEMES, min(len(RANDOM_WORD_THEMES), target * 2))
+    requested_pool = max(int(target), 8)
+    theme_target = min(len(RANDOM_WORD_THEMES), max(requested_pool * 3, 18))
+    all_themes = random.sample(RANDOM_WORD_THEMES, theme_target)
     batch, rest = all_themes[:parallel_limit], all_themes[parallel_limit:]
     print(f"[INFO] Haetaan satunnaissanoja teemoista: {', '.join(all_themes)}")
     theme_results = {}
@@ -1108,7 +1125,7 @@ def fetch_random_game_words(target=8, room=None):
                 seen.add(w)
                 pool.append(w)
     for theme in rest:
-        if len(pool) >= target * 4:
+        if len(pool) >= requested_pool * 6:
             break
         for w in fetch_theme_words(theme, max_results=20, require_noun=require_noun, exclude_proper=True):
             if w and w not in seen and is_word_allowed_for_filter_mode(w, room):
@@ -1122,9 +1139,9 @@ def fetch_random_game_words(target=8, room=None):
         gevent.joinall(jobs, timeout=30)
         print(f"[INFO] Pool-käännökset esivalmistelltu ({len(pool)} sanaa, {ui_language})")
     pool, _ = filter_theme_candidate_pool(pool, room=room)
-    if len(pool) < target:
+    if len(pool) < requested_pool:
         return pool
-    return random.sample(pool, target)
+    return random.sample(pool, requested_pool)
 
 
 def has_noun_tag(tags):
@@ -1220,12 +1237,7 @@ def translate_word(word, source_lang, target_lang):
         return None
 
     translated_text = ((payload.get("responseData") or {}).get("translatedText") or "")
-    translated_text = re.sub(r"\s*\(.*?\)\s*", " ", translated_text).strip()
-    if any(sep in translated_text for sep in [",", ";", "/", "|"]):
-        translation_cache[cache_key] = None
-        return None
-
-    normalized_translation = normalize_translated_word(translated_text)
+    normalized_translation = pick_translation_candidate(translated_text)
     if not normalized_translation:
         translation_cache[cache_key] = None
         return None
