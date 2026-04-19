@@ -117,7 +117,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.09 (2026-04-18)"
+APP_VERSION = "Beta v0.09 (2026-04-19)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -185,6 +185,7 @@ class RoomState:
     solo_seen_cards: set = field(default_factory=set)
     rematch_votes: set = field(default_factory=set)
     summary_sids: dict = field(default_factory=dict)  # username -> sid
+    queue_round_prepared: bool = False
 
 
 # --- Global indexes (not game state) ---
@@ -340,6 +341,7 @@ def reset_pending_state(room):
     room.bot_memory = {}
     room.game_mode = "manual"
     room.ui_language = "en"
+    room.queue_round_prepared = False
     if not room.grid_data:
         room.status = "waiting"
 
@@ -417,6 +419,42 @@ def get_first_human_player_name(room):
         if not is_bot_player(player):
             return player.get("username")
     return room.player_order[0] if room.player_order else None
+
+
+def queue_can_prepare_round_while_waiting(room):
+    return (
+        room.play_mode == "queue"
+        and not any(is_bot_player(info) for info in room.players.values())
+        and len(get_effective_human_player_items(room)) == 1
+    )
+
+
+def clear_round_runtime(room):
+    room.grid_data.clear()
+    room.revealed_cards.clear()
+    room.matched_indices.clear()
+    room.turn = 0
+    room.player_points.clear()
+    room.current_click_sid = None
+    room.queue_round_prepared = False
+    room.last_tokens = set()
+
+
+def emit_queue_round_prepared(room):
+    room.status = "waiting"
+    room.queue_round_prepared = True
+    room.pending_player = None
+    room.pending_pair = 0
+    room.last_tokens = set(v["reconnect_token"] for v in get_effective_players_ordered(room))
+    for player in room.players.values():
+        if is_bot_player(player):
+            continue
+        player["in_waiting"] = True
+        player["pref_ready"] = True
+    payload = build_lobby_payload(room)
+    emit_to_room("queue_round_prepared", payload, room_id=room.room_id)
+    emit_to_room("player_joined", payload, room_id=room.room_id)
+    broadcast_lobby_browser()
 
 
 def get_active_bot_identity(room):
@@ -1475,13 +1513,18 @@ def launch_grid_round(room):
     room.revealed_cards = []
     room.turn = 0
     room.bot_memory = {}
-    room.player_points = {name: 0 for name in room.player_order}
+    if not room.queue_round_prepared:
+        random.shuffle(room.grid_data)
     has_bot = any(info.get("is_bot") for info in room.players.values())
+    if queue_can_prepare_round_while_waiting(room) and not has_bot:
+        emit_queue_round_prepared(room)
+        return
+    room.queue_round_prepared = False
+    room.player_points = {name: 0 for name in room.player_order}
     if is_solo(room) or has_bot:
         room.solo_start_time = time.time()
         room.solo_mistakes = 0
         room.solo_seen_cards = set()
-    random.shuffle(room.grid_data)
     room.status = "playing"
     for p in room.players.values():
         p["in_waiting"] = False
@@ -1839,7 +1882,7 @@ def ask_next_word(room):
         launch_grid_round(room)
         return
 
-    if not is_solo(room) and len(room.player_order) < 2:
+    if not is_solo(room) and len(room.player_order) < 2 and not queue_can_prepare_round_while_waiting(room):
         print("[WARNING] Pelaajia liian vähän, peli keskeytetään")
         emit_to_room("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."}, room_id=room.room_id)
         return
@@ -2023,7 +2066,8 @@ def build_lobby_payload(room):
         "word_filter_mode": room.word_filter_mode,
         "players": usernames,
         "players_info": infos,
-        "last_joined_token": last_token
+        "last_joined_token": last_token,
+        "queue_round_prepared": room.queue_round_prepared,
     }
 
 
@@ -2032,6 +2076,8 @@ def get_available_rooms():
     result = []
     for room_id, room in rooms.items():
         if room.status != "waiting":
+            continue
+        if not room.queue_round_prepared or len(room.grid_data) < 16:
             continue
         human_players = [
             (sid, info) for sid, info in room.players.items()
@@ -2045,8 +2091,8 @@ def get_available_rooms():
         result.append({
             "room_id": room_id,
             "username": info.get("username"),
-            "card_mode": info.get("pref_card_mode") or room.card_mode or "image_word",
-            "target_language": info.get("pref_target_language") if info.get("pref_target_language") is not None else (room.target_language or ""),
+            "card_mode": room.card_mode or info.get("pref_card_mode") or "image_word",
+            "target_language": room.target_language or "",
         })
     return result
 
@@ -2349,20 +2395,12 @@ def handle_leave_game(data=None):
             theme_selection_active(room) or room.grid_data or room.pending_pair > 0):
         print("[INFO] Pelaaja poistui kesken erän – keskeytetään")
         emit_to_room("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."}, room_id=room.room_id)
-        room.grid_data.clear()
-        room.revealed_cards.clear()
-        room.matched_indices.clear()
-        room.turn = 0
-        room.player_points.clear()
+        clear_round_runtime(room)
         reset_pending_state(room)
 
     if len(room.players) == 0:
         print("[INFO] Kaikki pelaajat poistuneet – nollataan pelitila")
-        room.grid_data.clear()
-        room.revealed_cards.clear()
-        room.matched_indices.clear()
-        room.turn = 0
-        room.player_points.clear()
+        clear_round_runtime(room)
         reset_pending_state(room)
 
     return {"ok": True}
@@ -2387,6 +2425,11 @@ def handle_grid_request(data=None):
     player_found = "found" if player_info else "missing"
     room_id = room.room_id if room else "NONE"
     print(f"[INFO] request_grid: token={token_short}, room={room_id}, grid_size={grid_size}, solo={is_solo(room) if room else 'N/A'}, player={player_found}")
+
+    if room.queue_round_prepared and queue_can_prepare_round_while_waiting(room):
+        emit("queue_round_prepared", build_lobby_payload(room))
+        emit("no_grid", {"reason": "queue_round_prepared"})
+        return
 
     if not solo_or_enough_players(room):
         print("[WARNING] Ei tarpeeksi pelaajia ruudukon palauttamiseen.")
@@ -2477,24 +2520,26 @@ def handle_ready_for_game():
 def handle_start_custom_game(data=None):
     data = data or {}
     room = get_room_for_sid(request.sid)
+    queue_prepare_mode = queue_can_prepare_round_while_waiting(room)
     print(f"[INFO] Uusi erä käynnistetään. mode={data.get('mode', 'manual')}, players={get_effective_player_count(room)}")
 
     current_tokens = set(v["reconnect_token"] for v in get_effective_players_ordered(room))
     if room.grid_data and current_tokens != room.last_tokens:
         print("[INFO] Pelaajien reconnect-tokenit vaihtuneet – nollataan")
-        room.grid_data.clear()
-        room.revealed_cards.clear()
-        room.matched_indices.clear()
-        room.turn = 0
-        room.player_points.clear()
+        clear_round_runtime(room)
         reset_pending_state(room)
 
     room.last_tokens = set(v["reconnect_token"] for v in get_effective_players_ordered(room))
     room.player_order = [v["username"] for v in get_effective_players_ordered(room)]
 
     if room.grid_data:
-        print("[WARNING] Uuden erän pyyntö hylätty: peli on jo käynnissä")
-        return
+        if queue_prepare_mode and room.status == "waiting":
+            print("[INFO] Korvataan odotushuoneen valmis kierros uusilla valinnoilla.")
+            clear_round_runtime(room)
+            reset_pending_state(room)
+        else:
+            print("[WARNING] Uuden erän pyyntö hylätty: peli on jo käynnissä")
+            return
 
     mode = str(data.get("mode", "manual")).strip().lower()
     theme = str(data.get("theme", "")).strip()
@@ -2524,6 +2569,8 @@ def handle_start_custom_game(data=None):
     if card_mode in {"image_word", "words"}:
         tl = str(data.get("target_language", "es")).strip().lower()
         room.target_language = tl if tl in SUPPORTED_LANGUAGES else "es"
+    else:
+        room.target_language = ""
     if mode == "theme" and not theme:
         emit_to_room("game_setup_error", {"reason": "Teema puuttuu."}, room_id=room.room_id)
         return
@@ -2539,6 +2586,15 @@ def handle_start_custom_game(data=None):
     room.theme_candidates = []
     room.theme_rejected_words = set()
     room.status = "setup"
+    room.queue_round_prepared = False
+    if queue_prepare_mode:
+        broadcast_lobby_browser()
+        starter = room.players.get(request.sid)
+        if starter:
+            starter["in_waiting"] = False
+            starter["pref_card_mode"] = room.card_mode
+            starter["pref_target_language"] = room.target_language
+            starter["pref_ready"] = False
 
     if room.game_mode == "theme":
         starter_name = room.players.get(request.sid, {}).get("username")
@@ -3074,6 +3130,9 @@ def handle_preference_changed(data=None):
         if not is_bot_player(info) and info.get("connected", False)
     ]
     if room.play_mode == "queue" and len(connected_humans) == 1 and connected_humans[0][0] == sid:
+        if room.queue_round_prepared:
+            clear_round_runtime(room)
+            reset_pending_state(room)
         room.card_mode = room.players[sid].get("pref_card_mode") or room.card_mode
         room.target_language = room.players[sid].get("pref_target_language") or ""
     payload = build_lobby_payload(room)
@@ -3104,6 +3163,10 @@ def handle_join_room_direct(data=None):
     target_room = rooms[target_room_id]
     if target_room.status != "waiting":
         emit("direct_join_failed", {"reason": "Peli on jo alkanut."})
+        broadcast_lobby_browser()
+        return
+    if not target_room.queue_round_prepared or len(target_room.grid_data) < 16:
+        emit("direct_join_failed", {"reason": "Huone ei ole vielä valmis."})
         broadcast_lobby_browser()
         return
     human_count = sum(1 for info in target_room.players.values() if not is_bot_player(info))
@@ -3143,6 +3206,38 @@ def handle_join_room_direct(data=None):
     payload["username"] = username
     emit_to_room("player_joined", payload, room_id=target_room_id)
     broadcast_lobby_browser()
+    target_room.player_order = [info["username"] for info in get_effective_players_ordered(target_room)]
+    target_room.last_tokens = set(v["reconnect_token"] for v in get_effective_players_ordered(target_room))
+    launch_grid_round(target_room)
+
+
+@socketio.on("start_waiting_bot_round")
+def handle_start_waiting_bot_round(data=None):
+    data = data or {}
+    _, player_info = resolve_player_for_event(data)
+    if not player_info:
+        emit("queue_bot_failed", {"reason": "Pelaajaa ei löytynyt."})
+        return
+
+    room = resolve_room_for_event(data, player_info)
+    if room.play_mode != "queue" or not room.queue_round_prepared or len(room.grid_data) < 16:
+        emit("queue_bot_failed", {"reason": "Kierros ei ole vielä valmis."})
+        return
+
+    human_players = get_effective_human_player_items(room)
+    if len(human_players) != 1 or human_players[0][1].get("reconnect_token") != player_info.get("reconnect_token"):
+        emit("queue_bot_failed", {"reason": "Vain huoneen perustaja voi käynnistää bottipelin."})
+        return
+
+    remove_bot_players(room)
+    room.play_mode = "bot"
+    requested_difficulty = str(data.get("bot_difficulty") or room.bot_difficulty or "easy").strip().lower()
+    room.bot_difficulty = requested_difficulty if requested_difficulty in BOT_MEMORY_USE_PROBABILITY else "easy"
+    ensure_bot_opponent(room)
+    room.player_order = [info["username"] for info in get_effective_players_ordered(room)]
+    room.last_tokens = set(v["reconnect_token"] for v in get_effective_players_ordered(room))
+    broadcast_lobby_browser()
+    launch_grid_round(room)
 
 
 if __name__ == "__main__":

@@ -233,8 +233,13 @@
             transform: translateY(-1px);
         }
         .lang-flag-btn.active {
-            background: rgba(124,245,138,0.15);
-            border-color: rgba(124,245,138,0.5);
+            background: rgba(124,245,138,0.22);
+            border-color: rgba(124,245,138,0.9);
+            box-shadow: 0 0 0 2px rgba(124,245,138,0.18), 0 10px 22px rgba(124,245,138,0.16);
+            transform: translateY(-1px) scale(1.04);
+        }
+        .lang-flag-btn.active .flag-svg {
+            filter: saturate(1.18) brightness(1.08);
         }
         #startRoundBtn {
             display: block;
@@ -1041,7 +1046,7 @@
                 ui_style_cozy: "Cozy table",
                 ui_style_cabinet: "Memory cabinet",
                 ui_style_minimal: "Minimal slate",
-                intro_text: "The game starts when both players are here. The second player can choose the word source and card type for the next round.",
+                intro_text: "The first player prepares the round in advance. When another player joins, the game starts immediately.",
                 intro_text_bot: "Choose the round settings for your duel with Memory Bot. The game starts as soon as you finish your selections and press Start.",
                 intro_text_solo: "Choose the round settings for your solo game. The game starts as soon as you finish your selections and press Start.",
                 welcome_player: "Welcome, {name}!",
@@ -1110,6 +1115,8 @@
                 play_vs_bot: "Play against bot",
                 find_opponent: "Find a human opponent",
                 queue_searching: "Searching for an opponent...",
+                queue_prepare_round: "Choose the round first. The room opens when the cards are ready.",
+                queue_round_ready: "Round is ready. Waiting for an opponent...",
                 queue_leave: "Leave queue",
                 waiting_opponents: "Players waiting for an opponent",
                 join_opponent: "Join",
@@ -1152,7 +1159,7 @@
                 ui_style_cozy: "Lämmin pöytä",
                 ui_style_cabinet: "Muistojen kabinetti",
                 ui_style_minimal: "Pelkistetty",
-                intro_text: "Peli alkaa, kun molemmat pelaajat ovat paikalla. Toisena liittynyt pelaaja voi valita sanavalinnan ja korttityypin seuraavaan erään.",
+                intro_text: "Ensimmäinen pelaaja tekee erän valinnat valmiiksi. Peli alkaa heti, kun toinen pelaaja liittyy huoneeseen.",
                 intro_text_bot: "Valitse erän asetukset kaksintaisteluun Muistibotin kanssa. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
                 intro_text_solo: "Valitse erän asetukset yksinpeliin. Peli alkaa heti, kun olet tehnyt valinnat ja painat Aloita.",
                 welcome_player: "Tervetuloa, {name}!",
@@ -1222,6 +1229,8 @@
                 play_vs_bot: "Pelaa bottia vastaan",
                 find_opponent: "Etsi ihmispelaaja",
                 queue_searching: "Etsitään vastustajaa...",
+                queue_prepare_round: "Valitse erä ensin. Huone tulee näkyviin muille, kun kortit ovat valmiit.",
+                queue_round_ready: "Kortit ovat valmiit. Odotetaan vastustajaa...",
                 queue_leave: "Poistu jonosta",
                 waiting_opponents: "Pelaajat odottavat vastustajaa",
                 join_opponent: "Liity",
@@ -1410,6 +1419,7 @@
             const myToken = getReconnectToken();
             const myName = (localStorage.getItem("username") || "").trim();
             const queueSearchActive = isQueueSearchLobby(window.latestLobbyPayload, window.latestPlayersInfo);
+            const queueRoundPrepared = Boolean(window.latestLobbyPayload && window.latestLobbyPayload.queue_round_prepared);
             roleDiv.style.display = "none";
             if (hintDiv) {
                 if (isSoloOrBot) {
@@ -1419,7 +1429,7 @@
                         hintDiv.textContent = "";
                     }
                 } else if (queueSearchActive) {
-                    hintDiv.textContent = t("queue_searching");
+                    hintDiv.textContent = queueRoundPrepared ? t("queue_round_ready") : t("queue_prepare_round");
                 } else {
                     const myIndex = window.latestPlayersInfo.findIndex(p => p && p.reconnect_token === myToken);
                     if (myIndex === 1) {
@@ -1712,10 +1722,28 @@
                 return message;
             }
 
+            function currentSetupOwnerName(payload = null) {
+                const state = payload || window.currentSetupState || {};
+                return (state.owner_name || state.starter_name || state.player || "").trim();
+            }
+
+            function shouldShowSetupProgress(payload = null) {
+                const playMode = localStorage.getItem("play_mode") || "";
+                if (playMode === "solo" || playMode === "bot") {
+                    return true;
+                }
+                const ownerName = currentSetupOwnerName(payload);
+                if (!ownerName) {
+                    return false;
+                }
+                const myNameNow = (localStorage.getItem("username") || "").trim();
+                return ownerName === myNameNow;
+            }
+
             function renderSetupStatus(payload) {
                 window.currentSetupState = payload && payload.active ? payload : { active: false };
                 const state = window.currentSetupState;
-                if (!state.active) {
+                if (!state.active || !shouldShowSetupProgress(state)) {
                     setupStatusEl.style.display = "none";
                     setupStatusTitleEl.textContent = "";
                     setupStatusTextEl.textContent = "";
@@ -1938,6 +1966,7 @@
                 const lastJoinedToken = payload && payload.last_joined_token;
                 const myToken = getReconnectToken();
                 const queueSearchActive = isQueueSearchLobby(payload, rawPlayersInfo);
+                const queueRoundPrepared = Boolean(payload && payload.queue_round_prepared);
                 const resolvedPlayMode = (payload && payload.play_mode) || (localStorage.getItem("play_mode") || "");
                 const isSoloMode = resolvedPlayMode === "solo";
                 let players = rawPlayers;
@@ -2025,7 +2054,7 @@
                 updateLangPickerVisibility();
                 updateBotDifficultyVisibility();
                 renderPlayerRole(playersInfo);
-                renderQueuePreferencePicker(queueSearchActive);
+                renderQueuePreferencePicker(queueSearchActive, queueRoundPrepared);
 
                 if (!queueSearchActive) {
                     queueJoined = false;
@@ -2044,6 +2073,8 @@
                 }
 
                 const isSolo = isSoloMode;
+                const queued = getQueuedNextRound();
+                const hasQueuedNextRound = Boolean(queued && queued.mode);
                 const canStart = isSolo
                     ? players.length >= 1
                     : (() => {
@@ -2051,11 +2082,21 @@
                         return Boolean(myToken && lastJoinedToken && myToken === lastJoinedToken);
                     })();
                 if (queueSearchActive) {
-                    document.getElementById("startOptions").style.display = "block";
+                    if ((!window.currentThemeSelectionState || !window.currentThemeSelectionState.active)
+                        && (!window.currentSetupState || !window.currentSetupState.active)) {
+                        document.getElementById("startOptions").style.display = queueRoundPrepared ? "none" : "block";
+                    }
+                    if (queueRoundPrepared) {
+                        showQueueStatus(t("queue_round_ready"), "", true);
+                    } else {
+                        hideQueueStatus();
+                    }
                 } else if (players.length >= 2 || isSolo) {
                     if ((!window.currentThemeSelectionState || !window.currentThemeSelectionState.active)
                         && (!window.currentSetupState || !window.currentSetupState.active)) {
-                        document.getElementById("startOptions").style.display = canStart ? "block" : "none";
+                        document.getElementById("startOptions").style.display = isSolo
+                            ? "block"
+                            : (canStart && hasQueuedNextRound ? "block" : "none");
                     }
                     if (!isSolo) {
                         console.log("[DEBUG] canStart=", canStart, ", myToken=", getReconnectToken(), ", lastJoined=", lastJoinedToken);
@@ -2098,7 +2139,7 @@
                 playModeSelectEl.style.display = "none";
             }
 
-            function showQueueStatus(text, modeHint) {
+            function showQueueStatus(text, modeHint, allowBot = false) {
                 queueStatusEl.style.display = "block";
                 playModeSelectEl.style.display = "none";
                 queueTextEl.textContent = text || t("queue_searching");
@@ -2112,8 +2153,8 @@
                 hintEl.textContent = modeHint || "";
                 if (queueSpinnerEl) queueSpinnerEl.style.display = "";
                 if (leaveQueueBtnEl) leaveQueueBtnEl.style.display = "inline-flex";
-                if (queueBotHintEl) queueBotHintEl.style.display = "";
-                if (queueBotBtnEl) queueBotBtnEl.style.display = "inline-block";
+                if (queueBotHintEl) queueBotHintEl.style.display = allowBot ? "" : "none";
+                if (queueBotBtnEl) queueBotBtnEl.style.display = allowBot ? "inline-block" : "none";
             }
 
             function showQueueMessage(text) {
@@ -2130,7 +2171,7 @@
                 queueStatusEl.style.display = "none";
                 if (queueSpinnerEl) queueSpinnerEl.style.display = "";
                 if (leaveQueueBtnEl) leaveQueueBtnEl.style.display = "inline-flex";
-                if (queueBotHintEl) queueBotHintEl.style.display = "";
+                if (queueBotHintEl) queueBotHintEl.style.display = "none";
                 if (queueBotBtnEl) queueBotBtnEl.style.display = "none";
             }
 
@@ -2162,34 +2203,25 @@
             });
 
             document.getElementById("queueBotBtn").addEventListener("click", () => {
-                socket.emit("leave_queue", {});
-                queueJoined = false;
-                queueJoinRequested = false;
-                localStorage.setItem("bot_mode", "1");
-                localStorage.setItem("play_mode", "bot");
-                applyTranslations();
-                updateBotDifficultyVisibility();
-                if (!hasJoined) { emitJoin(); hasJoined = true; }
-                else {
-                    // Re-join as bot
-                    socket.emit("join", {
-                        username: myName,
-                        reconnect_token: getReconnectToken(),
-                        bot_mode: true,
-                        solo_mode: false
-                    });
+                const payload = window.latestLobbyPayload || {};
+                if (!payload.queue_round_prepared) {
+                    return;
                 }
+                socket.emit("start_waiting_bot_round", {
+                    reconnect_token: getReconnectToken(),
+                    bot_difficulty: selectedBotDifficulty
+                });
             });
 
             socket.on("queue_joined", () => {
                 queueJoined = true;
                 queueJoinRequested = false;
-                showQueueStatus(t("queue_searching"));
+                updateLobbyFromPayload(window.latestLobbyPayload || {});
             });
 
             socket.on("queue_status", (data) => {
                 if (!queueJoined) return;
-                showQueueStatus(t("queue_searching"));
+                updateLobbyFromPayload(window.latestLobbyPayload || {});
             });
 
             socket.on("match_found", (data) => {
@@ -2212,6 +2244,18 @@
                 queueJoinRequested = false;
                 hideQueueStatus();
                 showPlayModeSelect();
+            });
+
+            socket.on("queue_round_prepared", (payload) => {
+                queueJoined = true;
+                queueJoinRequested = false;
+                renderSetupStatus({ active: false });
+                renderThemeSelection({ active: false });
+                updateLobbyFromPayload(payload || window.latestLobbyPayload || {});
+            });
+
+            socket.on("queue_bot_failed", (payload) => {
+                alert((payload && payload.reason) || t("setup_failed"));
             });
             // --- End play mode selection ---
 
@@ -2514,7 +2558,7 @@
                 document.getElementById("wordFilterPicker").style.display = showWordFilter ? "block" : "none";
             }
 
-            function renderQueuePreferencePicker(active) {
+            function renderQueuePreferencePicker(active, prepared = false) {
                 const startOptionsEl = document.getElementById("startOptions");
                 const wordSourcePickerEl = document.getElementById("wordSourcePicker");
                 const wordFilterPickerEl = document.getElementById("wordFilterPicker");
@@ -2529,13 +2573,13 @@
                     startRoundBtnEl.style.display = "";
                     return;
                 }
-                startOptionsEl.style.display = "block";
-                wordSourcePickerEl.style.display = "none";
-                wordFilterPickerEl.style.display = "none";
+                startOptionsEl.style.display = prepared ? "none" : "block";
+                wordSourcePickerEl.style.display = prepared ? "none" : "";
+                wordFilterPickerEl.style.display = prepared ? "none" : "";
                 cardModePickerEl.style.display = "none";
-                langPickerEl.style.display = selectedCardMode !== "images" ? "block" : "none";
+                langPickerEl.style.display = prepared ? "none" : (selectedCardMode !== "images" ? "block" : "none");
                 botDifficultyPickerEl.style.display = "none";
-                startRoundBtnEl.style.display = "none";
+                startRoundBtnEl.style.display = prepared ? "none" : "";
             }
 
             document.querySelectorAll("#srcManualBtn, #srcThemeBtn, #srcRandomBtn").forEach(btn => {
@@ -2639,10 +2683,7 @@
                     return;
                 }
                 try { sessionStorage.removeItem("pending_ask"); } catch (e) {}
-                setupStatusEl.style.display = "block";
-                setupStatusTitleEl.textContent = t("setup_status_title");
-                setupStatusTextEl.textContent = t("setup_status_manual", { name: data.player || "" });
-                document.getElementById("startOptions").style.display = "none";
+                renderSetupStatus({ active: false });
             });
             socket.on("theme_generation_started", (data) => {
                 console.log("[DEBUG] Teemapelin generointi aloitettu:", data);
@@ -2657,6 +2698,7 @@
                     theme: (data && data.theme) || "",
                     phase: (data && data.phase) || "drawing_cards",
                     starter_name: (data && data.starter_name) || "",
+                    owner_name: (data && data.starter_name) || "",
                     progress_count: Math.max(0, Number(((data && data.pair) || 1)) - 1),
                     total_pairs: Number((data && data.total_pairs) || 8)
                 });

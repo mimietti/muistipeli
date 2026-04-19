@@ -1768,6 +1768,10 @@
             const pendingGameNavigationTs = parseInt(sessionStorage.getItem("pending_game_navigation") || "0", 10);
             const navigationIsFresh = pendingGameNavigationTs && (Date.now() - pendingGameNavigationTs) < 12000;
             const manualSetupInProgress = setupMode === "manual";
+            if (reason === "queue_round_prepared") {
+                navigateTo("/waiting");
+                return;
+            }
             if (reason === "Pelaajia liian vähän") {
                 if (navigationIsFresh || setupMode || hasPendingAsk) {
                     if (gridRetryTimer) clearTimeout(gridRetryTimer);
@@ -1826,6 +1830,13 @@
                 try { sessionStorage.setItem("game_setup_theme", data.theme); } catch (e) {}
             }
             try { sessionStorage.removeItem("game_started"); } catch (e) {}
+            navigateTo("/waiting");
+        });
+
+        socket.on("queue_round_prepared", () => {
+            try { sessionStorage.removeItem("pending_ask"); } catch (e) {}
+            hideSetupStatus();
+            clearThemeProgress();
             navigateTo("/waiting");
         });
 
@@ -2030,7 +2041,7 @@
                 return;
             }
             if (myName !== data.player) {
-                showSetupStatus(t("setup_manual", { name: data.player || "" }));
+                hideSetupStatus();
                 return;
             }
             if (myName === data.player) {
@@ -2078,7 +2089,7 @@
             console.log("[DEBUG] Käsitellään pending_ask pelisivulla:", data);
             if (sessionStorage.getItem("words_given")) return; // jos jo merkitty valmiiksi
             if (myName !== data.player) {
-                showSetupStatus(t("setup_manual", { name: data.player || "" }));
+                hideSetupStatus();
                 return;
             }
             if (myName === data.player) {
