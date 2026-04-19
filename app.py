@@ -886,6 +886,12 @@ def prepare_theme_selection(starter_name, room):
     }, room_id=room.room_id)
     socketio.sleep(0)
 
+    # Pre-warm image cache in parallel before processing words one by one
+    if room.card_mode in {"image_word", "images", "words"}:
+        prewarm_jobs = [gevent.spawn(_prefetch_pixabay_cache, w) for w in candidates]
+        gevent.joinall(prewarm_jobs, timeout=30)
+        print(f"[INFO] Kuvat esivalmisteltu teemaan ({len(candidates)} sanaa)")
+
     generation_start = time.monotonic()
     THEME_FIRST_WORD_TIMEOUT = 10  # seconds
 
@@ -1748,6 +1754,12 @@ def generate_lang_learning_pairs(theme, room, target_pairs=8):
         emit_to_room("game_setup_error", {"reason": message}, room_id=room.room_id)
         room.lang_generation_in_progress = False
         return
+
+    # Pre-warm image cache in parallel before sequential per-word processing
+    if room.card_mode in {"image_word", "images"}:
+        prewarm_jobs = [gevent.spawn(_prefetch_pixabay_cache, w) for w in candidates]
+        gevent.joinall(prewarm_jobs, timeout=30)
+        print(f"[INFO] Kuvat esivalmisteltu kielioppimiseen ({len(candidates)} sanaa)")
 
     for word in candidates:
         if not lang_setup_still_active(theme, room):
