@@ -239,7 +239,11 @@ CLEAR_PICTURE_WORD_BLACKLIST = ABSTRACT_THEME_WORDS | {
 }
 CLEAR_PICTURE_WORD_SUFFIXES = (
     "ability", "acity", "ality", "ance", "ence", "hood", "ibility", "ion",
-    "ism", "ity", "ment", "ness", "ology", "ship", "sion", "tude"
+    "ism", "ity", "ment", "ness", "ology", "ship", "sion", "tude",
+    # Scientific taxonomy / Latin compound endings
+    "optera", "opteran", "pteran", "opteran", "eran",
+    # Compound word endings that produce non-picturable words
+    "watch", "fowl", "piece", "stuff", "work", "folk",
 )
 
 RANDOM_WORD_THEMES = [
@@ -2723,7 +2727,7 @@ def handle_start_custom_game(data=None):
 
         def run_random_game():
             # Fetch a larger pool so we can skip words that fail without showing errors
-            candidate_target = 24
+            candidate_target = 32
             candidates = fetch_random_game_words(target=candidate_target, room=room)
             print(f"[INFO] Satunnaissana-kandidaatit: {', '.join(candidates)}")
 
