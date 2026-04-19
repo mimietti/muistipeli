@@ -801,6 +801,7 @@
                 image_pair_tracker_label: "Find these words",
                 translation_native: "Finnish",
                 translation_english: "English",
+                translation_missing: "No translation",
                 game_setup_failed: "Game setup failed.",
                 game_over: "Game over! Winner: {winner}",
                 points: "Points:",
@@ -869,6 +870,7 @@
                 image_pair_tracker_label: "Etsi nämä sanat",
                 translation_native: "Suomi",
                 translation_english: "Englanti",
+                translation_missing: "Ei käännöstä",
                 game_setup_failed: "Pelin alustus epäonnistui.",
                 game_over: "Peli päättyi! Voittaja: {winner}",
                 points: "Pisteet:",
@@ -1177,7 +1179,7 @@
         }
 
         function getNativeLanguageLabel() {
-            return getLangLabel(currentNativeLanguage);
+            return getLangLabel(getLanguage());
         }
 
         function getWordPrompt(pair) {
@@ -1536,7 +1538,7 @@
             const target = card.target_word || card.spanish_word || card.text;
             const english = card.word || "";
             const native = (card.native_word && String(card.native_word).trim()) ? card.native_word
-                         : (card.finnish_word && String(card.finnish_word).trim()) ? card.finnish_word : "--";
+                         : (card.finnish_word && String(card.finnish_word).trim()) ? card.finnish_word : t("translation_missing");
             if (!target || !english) return null;
             return { target, native, english };
         }
