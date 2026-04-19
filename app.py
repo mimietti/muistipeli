@@ -199,6 +199,7 @@ matchmaking_queue: list = []   # [{"sid", "username", "reconnect_token"}]
 # --- Caches ---
 theme_words_cache: dict = {}
 translation_cache: dict = {}
+translation_rate_limited_until: dict = {}
 pixabay_cache: dict = {}
 theme_translation_cache: dict = {}
 
@@ -2030,7 +2031,7 @@ def try_match_from_queue():
         return  # No compatible pair found
     room_id = str(uuid.uuid4())[:8]
     room = create_room(room_id)
-    room.play_mode = "queue"
+    room.play_mode = "multiplayer"
     room.card_mode = p1.get("card_mode") or "image_word"
     tl = p1.get("target_language") or ""
     if tl:
@@ -2306,14 +2307,14 @@ def on_join(data):
         existing_room = rooms[room_id]
         existing_has_bot = any(is_bot_player(info) for info in existing_room.players.values())
         should_rotate_private_room = (
-            existing_room.play_mode != requested_play_mode
+            existing_room.play_mode not in {requested_play_mode, "multiplayer"}
             or (requested_play_mode == "solo" and existing_has_bot)
         )
         if should_rotate_private_room:
             prefix = "solo" if wants_solo else ("bot" if wants_bot else "queue")
             room_id = f"{prefix}-{str(uuid.uuid4())[:8]}"
             assign_reconnect_token_to_room(reconnect_token, room_id)
-            existing_room_belongs_to_self = True  # new room belongs to us
+            existing_room_belongs_to_self = False  # fresh room, treat as new join
 
     if not wants_bot and not wants_solo and not existing_room_belongs_to_self:
         # Each queue player gets their own private room so others can see and join them
@@ -2339,7 +2340,7 @@ def on_join(data):
     elif wants_bot and not get_effective_human_player_items(room):
         room.play_mode = "bot"
         ensure_bot_opponent(room)
-    else:
+    elif not existing_room_belongs_to_self:
         room.play_mode = "queue"
 
     if get_effective_player_count(room) >= MAX_PLAYERS:
@@ -3239,6 +3240,7 @@ def handle_join_room_direct(data=None):
         "pref_target_language": target_room.target_language,
         "pref_ready": True,
     }
+    target_room.play_mode = "multiplayer"
     move_sid_to_room(sid, target_room_id)
     assign_reconnect_token_to_room(reconnect_token, target_room_id)
 
