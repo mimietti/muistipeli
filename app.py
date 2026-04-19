@@ -449,6 +449,39 @@ def clear_round_runtime(room):
     room.last_tokens = set()
 
 
+def clear_setup_work_state(room):
+    room.pending_pair = 0
+    room.pending_player = None
+    room.theme_candidates = []
+    room.theme_rejected_words = set()
+    room.theme_selection_state = {}
+    room.used_image_ids = set()
+    room.lang_generation_in_progress = False
+    room.theme_generation_in_progress = False
+    room.queue_round_prepared = False
+    room.current_click_sid = None
+    room.bot_turn_scheduled = False
+    room.bot_memory = {}
+
+
+def mark_room_results_state(room):
+    room.grid_data.clear()
+    room.revealed_cards.clear()
+    room.matched_indices.clear()
+    room.turn = 0
+    room.current_click_sid = None
+    room.bot_turn_scheduled = False
+    room.bot_memory = {}
+    room.player_points = {}
+    room.pending_pair = 0
+    room.pending_player = None
+    room.theme_selection_state = {}
+    room.lang_generation_in_progress = False
+    room.theme_generation_in_progress = False
+    room.queue_round_prepared = False
+    room.status = "results"
+
+
 def fetch_deferred_native_words(room):
     """Background task: translate english_word → native_lang for lang-learning pairs that have no native_word yet."""
     if room.room_id in _native_translation_tasks:
@@ -1746,6 +1779,8 @@ def conclude_round(winner_label, room, surrendered_by=None):
                         round_result=round_result
                     )
 
+    mark_room_results_state(room)
+
     emit_to_room("game_over", {
         "winner": winner_label,
         "points": points_payload,
@@ -1771,20 +1806,6 @@ def build_image_pair_tracker_entries(room):
             entries.append(by_key[key])
         by_key[key]["indices"].append(index)
     return entries
-
-    try:
-        room.grid_data.clear()
-        room.revealed_cards.clear()
-        room.matched_indices.clear()
-    except Exception:
-        pass
-    room.turn = 0
-    room.current_click_sid = None
-    room.bot_turn_scheduled = False
-    room.bot_memory = {}
-    room.player_points = {}
-    room.status = "results"
-    reset_pending_state(room)
 
 
 def finalize_theme_selection(room):
@@ -3071,6 +3092,22 @@ def handle_surrender_round(data=None):
 # Socket events – summary / rematch
 # ---------------------------------------------------------------------------
 
+def build_same_settings_start_payload(room):
+    payload = {
+        "mode": room.game_mode or "random",
+        "card_mode": room.card_mode or "image_word",
+        "ui_language": room.ui_language or room.native_language or "en",
+        "word_filter_mode": room.word_filter_mode or "clear",
+    }
+    if room.card_mode in {"image_word", "words"}:
+        payload["target_language"] = room.target_language or "es"
+    if room.game_mode == "theme" and room.pending_theme:
+        payload["theme"] = room.pending_theme
+    if room.play_mode == "bot":
+        payload["bot_difficulty"] = room.bot_difficulty or "easy"
+    return payload
+
+
 def _broadcast_rematch_status(room):
     emit_to_room("rematch_status", {
         "votes": list(room.rematch_votes),
@@ -3089,7 +3126,11 @@ def on_join_summary(data):
     if not room or room.status != "results":
         emit("summary_error", {"reason": "room_not_found"})
         return
-    sid = request.sid
+    sid, player_info = resolve_player_for_event(data)
+    if player_info:
+        player_info["connected"] = True
+        player_info["disconnected_at"] = None
+        player_info["room_id"] = room_id
     _sid_to_room_id[sid] = room_id
     try:
         join_room(room_id)
@@ -3117,7 +3158,10 @@ def on_want_rematch(data):
         room.rematch_votes.clear()
         room.summary_sids.clear()
         room.status = "waiting"
-        emit_to_room("rematch_ready", {}, room_id=room_id)
+        emit_to_room("rematch_ready", {
+            "same_settings": True,
+            "room_id": room_id,
+        }, room_id=room_id)
 
 
 @socketio.on("leave_summary")
@@ -3139,6 +3183,27 @@ def on_leave_summary(data):
     except Exception:
         pass
     _broadcast_rematch_status(room)
+
+
+@socketio.on("start_same_settings_rematch")
+def on_start_same_settings_rematch(data=None):
+    data = data or {}
+    _, player_info = resolve_player_for_event(data)
+    if not player_info:
+        emit("queue_error", {"reason": "player_missing"})
+        return
+
+    room = resolve_room_for_event(data, player_info)
+    if room.status == "setup":
+        emit("setup_already_running", {"reason": "setup_in_progress"})
+        return
+
+    restart_payload = build_same_settings_start_payload(room)
+    print(
+        f"[INFO] Aloitetaan uusinta samoilla asetuksilla. "
+        f"room={room.room_id}, mode={restart_payload.get('mode')}, card_mode={restart_payload.get('card_mode')}"
+    )
+    handle_start_custom_game(restart_payload)
 
 
 # ---------------------------------------------------------------------------

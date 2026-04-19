@@ -1973,24 +1973,23 @@
 
             // Solo/bot mode: navigate to leaderboard with highlight
             const isBotMode = (localStorage.getItem("play_mode") || "") === "bot";
-            if (isSoloMode || isBotMode) {
+            if (isSoloMode) {
                 const username = encodeURIComponent(localStorage.getItem("username") || "");
                 const cardMode = encodeURIComponent(window.currentCardMode || "images");
-                const play = isBotMode ? "bot" : ((window.currentGameMode === "random") ? "random" : "solo");
+                const play = (window.currentGameMode === "random") ? "random" : "solo";
                 const targetLang = (window.currentCardMode !== "images") ? encodeURIComponent(currentTargetLanguage || "") : "";
                 const langParam = targetLang ? `&lang=${targetLang}` : "";
                 let discriminatorParam = "";
-                if (isBotMode) {
-                    const myPairs = (data.points || {})[myName];
-                    if (myPairs != null) discriminatorParam = `&pairs=${myPairs}`;
-                } else {
-                    const soloTime = data.solo_time || 0;
-                    const mistakes = data.solo_mistakes || 0;
-                    discriminatorParam = `&total=${soloTime + mistakes * 3}`;
-                }
+                const soloTime = data.solo_time || 0;
+                const mistakes = data.solo_mistakes || 0;
+                discriminatorParam = `&total=${soloTime + mistakes * 3}`;
                 navigateTo(`/leaderboard?highlight=${username}&mode=${cardMode}&play=${play}${langParam}${discriminatorParam}`);
                 return;
             }
+
+            try { socket.disconnect(); } catch (_) {}
+            navigateTo("/summary");
+            return;
 
             const canChooseNextRound = canQueueNextRound();
             const surrenderedBy = data.surrendered_by;

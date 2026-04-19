@@ -1813,6 +1813,7 @@
             let hasJoined = false;
             let joinEmittedCount = 0;
             let queuedNextRoundHandled = false;
+            let pendingSameSettingsRematchSent = false;
             console.log("DEBUG: startSocketWhenReady, myName:", myName, "reconnectToken:", reconnectToken);
             const socket = window.io();
             try { window.socket = socket; } catch (_) {}
@@ -1903,6 +1904,34 @@
                     return t("theme_selection_ready_waiting");
                 }
                 return message;
+            }
+
+            function hasPendingSameSettingsRematch() {
+                try {
+                    return sessionStorage.getItem("pending_same_settings_rematch") === "1";
+                } catch (_) {
+                    return false;
+                }
+            }
+
+            function clearPendingSameSettingsRematch() {
+                try { sessionStorage.removeItem("pending_same_settings_rematch"); } catch (_) {}
+            }
+
+            function maybeStartPendingSameSettingsRematch() {
+                if (pendingSameSettingsRematchSent || !hasPendingSameSettingsRematch()) {
+                    return;
+                }
+                const token = getReconnectToken();
+                if (!myName || !token) {
+                    return;
+                }
+                pendingSameSettingsRematchSent = true;
+                clearPendingSameSettingsRematch();
+                socket.emit("start_same_settings_rematch", {
+                    username: myName,
+                    reconnect_token: token
+                });
             }
 
             function currentSetupOwnerName(payload = null) {
@@ -2269,9 +2298,10 @@
                 }
 
                 const isSolo = isSoloMode;
+                const isBot = resolvedPlayMode === "bot";
                 const queued = getQueuedNextRound();
                 const hasQueuedNextRound = Boolean(queued && queued.mode);
-                const canStart = isSolo
+                const canStart = (isSolo || isBot)
                     ? players.length >= 1
                     : (() => {
                         const myToken = getReconnectToken();
@@ -2287,14 +2317,14 @@
                     } else {
                         hideQueueStatus();
                     }
-                } else if (players.length >= 2 || isSolo) {
+                } else if (players.length >= 2 || isSolo || isBot) {
                     if ((!window.currentThemeSelectionState || !window.currentThemeSelectionState.active)
                         && (!window.currentSetupState || !window.currentSetupState.active)) {
-                        document.getElementById("startOptions").style.display = isSolo
+                        document.getElementById("startOptions").style.display = (isSolo || isBot)
                             ? "block"
                             : (canStart && hasQueuedNextRound ? "block" : "none");
                     }
-                    if (!isSolo) {
+                    if (!isSolo && !isBot) {
                         console.log("[DEBUG] canStart=", canStart, ", myToken=", getReconnectToken(), ", lastJoined=", lastJoinedToken);
                         maybeStartQueuedNextRound(canStart);
                     }
@@ -2305,6 +2335,10 @@
             }
 
             function canCurrentPlayerStartRound() {
+                const playMode = localStorage.getItem("play_mode") || "";
+                if (playMode === "solo" || playMode === "bot") {
+                    return true;
+                }
                 const payload = window.latestLobbyPayload || {};
                 const myToken = getReconnectToken();
                 const lastJoinedToken = payload && payload.last_joined_token;
@@ -2701,10 +2735,12 @@
 
             socket.on("player_joined", (payload) => {
                 updateLobbyFromPayload(payload);
+                maybeStartPendingSameSettingsRematch();
             });
             socket.on("lobby_state", (payload) => {
                 console.log("[DEBUG] lobby_state:", payload);
                 updateLobbyFromPayload(payload);
+                maybeStartPendingSameSettingsRematch();
             });
 
             const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝" };

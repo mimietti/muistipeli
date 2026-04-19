@@ -14,10 +14,13 @@
             padding: 0 0 48px;
         }
         .shell {
-            width: min(520px, calc(100% - 32px));
+            width: min(560px, calc(100% - 32px));
             margin: 48px auto 0;
         }
-        h1 { font-size: 32px; margin-bottom: 6px; }
+        h1 {
+            font-size: 32px;
+            margin-bottom: 6px;
+        }
         .winner-line {
             font-size: 22px;
             font-weight: 700;
@@ -48,22 +51,53 @@
             border-bottom: 1px solid rgba(255,255,255,0.05);
             font-size: 15px;
         }
-        .score-row:last-child { border-bottom: none; }
-        .score-name { font-weight: 700; }
-        .score-val { color: #7cf58a; font-weight: 700; }
+        .score-row:last-child {
+            border-bottom: none;
+        }
+        .score-name {
+            font-weight: 700;
+        }
+        .score-val {
+            color: #7cf58a;
+            font-weight: 700;
+        }
         .rematch-status {
-            text-align: center;
-            min-height: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 56px;
         }
         .player-vote {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 8px;
+            justify-content: space-between;
+            gap: 12px;
             font-size: 15px;
-            padding: 6px 0;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
         }
-        .vote-icon { font-size: 18px; }
+        .player-vote.is-ready {
+            background: rgba(124, 245, 138, 0.08);
+            border: 1px solid rgba(124, 245, 138, 0.2);
+        }
+        .player-vote-name {
+            font-weight: 700;
+        }
+        .player-vote-state {
+            color: #b9c5b9;
+        }
+        .player-vote.is-ready .player-vote-state {
+            color: #7cf58a;
+            font-weight: 700;
+        }
+        .status-msg {
+            font-size: 13px;
+            color: #6a7a6a;
+            margin-top: 10px;
+            min-height: 20px;
+            text-align: center;
+        }
         .actions {
             display: flex;
             flex-direction: column;
@@ -79,7 +113,10 @@
             cursor: pointer;
             transition: opacity 0.15s;
         }
-        .btn:disabled { opacity: 0.45; cursor: default; }
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: default;
+        }
         .btn-primary {
             background: limegreen;
             color: #0c150e;
@@ -89,13 +126,11 @@
             color: #fff;
             border: 1px solid rgba(255,255,255,0.1);
         }
-        .status-msg {
-            font-size: 13px;
-            color: #6a7a6a;
-            margin-top: 8px;
-            min-height: 20px;
+        .footer {
+            margin-top: 32px;
+            color: #444;
+            font-size: 12px;
         }
-        .footer { margin-top: 32px; color: #444; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -103,26 +138,27 @@
         <h1 id="pageTitle">Summary</h1>
         <div id="winnerLine" class="winner-line"></div>
 
-        <div class="card" id="scoreCard">
+        <div class="card">
             <div class="card-title" id="scoreTitle">Points this round</div>
             <div id="scoreList"></div>
         </div>
 
-        <div class="card" id="winsCard">
+        <div class="card">
             <div class="card-title" id="winsTitle">Total wins</div>
             <div id="winsList"></div>
         </div>
 
         <div class="card" id="rematchCard">
-            <div class="card-title" id="rematchTitle">Play again?</div>
-            <div class="rematch-status" id="rematchStatus"></div>
-            <div class="status-msg" id="statusMsg"></div>
+            <div class="card-title" id="rematchTitle">Play the next round?</div>
+            <div id="rematchStatus" class="rematch-status"></div>
+            <div id="statusMsg" class="status-msg"></div>
         </div>
 
         <div class="actions">
-            <button class="btn btn-primary" id="rematchBtn">▶ Play again</button>
-            <button class="btn btn-secondary" id="exitBtn">← Back to start</button>
+            <button class="btn btn-primary" id="rematchBtn">Play the next round</button>
+            <button class="btn btn-secondary" id="exitBtn">Back to start</button>
         </div>
+
         <div class="footer" id="footerCredit">© Michael Miettinen • {{ app_version }}</div>
     </div>
 
@@ -136,56 +172,63 @@
                 draw: "It's a draw!",
                 score_title: "Points this round",
                 wins_title: "Total wins",
-                rematch_title: "Play again?",
-                rematch_btn: "▶ Play again",
-                exit_btn: "← Back to start",
+                rematch_title: "Play the next round?",
+                rematch_btn: "Play the next round",
+                exit_btn: "Back to start",
                 pairs: "pairs",
                 wins: "win",
                 wins_plural: "wins",
-                waiting_opponent: "Waiting for {name}…",
+                you_ready: "You want to play the next round.",
+                waiting_other: "Waiting for {name}.",
+                both_ready: "Both players are ready. Opening the next round...",
+                room_ended: "Game session has ended.",
+                ready: "Ready",
+                waiting: "Waiting",
                 opponent_left: "Opponent has left the game.",
-                you_voted: "You want to play again. Waiting for {name}…",
-                both_voted: "Both want to play again! Starting…",
-                no_room: "Game session has ended.",
-                voted: "✓ wants to play",
-                not_voted: "…",
             },
             fi: {
                 title: "Yhteenveto",
                 winner: "{name} voittaa!",
                 draw: "Tasapeli!",
                 score_title: "Pisteet tällä erällä",
-                wins_title: "Voitot yhteensä",
-                rematch_title: "Pelataanko uudelleen?",
-                rematch_btn: "▶ Pelaa uudelleen",
-                exit_btn: "← Palaa alkuun",
+                wins_title: "Erävoitot yhteensä",
+                rematch_title: "Pelataanko uusi erä samoilla asetuksilla?",
+                rematch_btn: "Pelaa uusi erä",
+                exit_btn: "Palaa alkuun",
                 pairs: "paria",
                 wins: "voitto",
                 wins_plural: "voittoa",
-                waiting_opponent: "Odotetaan {name}…",
-                opponent_left: "Vastustaja on poistunut pelistä.",
-                you_voted: "Haluat pelata uudelleen. Odotetaan {name}…",
-                both_voted: "Molemmat haluavat jatkaa! Aloitetaan…",
-                no_room: "Peliistunto on päättynyt.",
-                voted: "✓ haluaa pelata",
-                not_voted: "…",
+                you_ready: "Haluat pelata uuden erän.",
+                waiting_other: "Odotetaan pelaajaa {name}.",
+                both_ready: "Molemmat ovat valmiina. Avataan uusi erä...",
+                room_ended: "Peli-istunto on päättynyt.",
+                ready: "Valmis",
+                waiting: "Odottaa",
+                opponent_left: "Toinen pelaaja poistui pelistä.",
             },
         };
 
         function getLang() {
-            const s = localStorage.getItem("ui_language");
-            return (T[s] ? s : "en");
+            const lang = localStorage.getItem("ui_language");
+            return T[lang] ? lang : "en";
         }
+
         function t(key, vars) {
             const lang = getLang();
             let str = (T[lang] && T[lang][key]) || T.en[key] || key;
-            if (vars) Object.entries(vars).forEach(([k, v]) => { str = str.replace(`{${k}}`, v); });
+            if (vars) {
+                Object.entries(vars).forEach(([k, v]) => {
+                    str = str.replace(`{${k}}`, v);
+                });
+            }
             return str;
         }
 
-        // --- Read result from sessionStorage ---
         let result = {};
-        try { result = JSON.parse(sessionStorage.getItem("summary_result") || "{}"); } catch (_) {}
+        try {
+            result = JSON.parse(sessionStorage.getItem("summary_result") || "{}");
+        } catch (_) {}
+
         const myName = localStorage.getItem("username") || "";
         const reconnectToken = localStorage.getItem("reconnect_token") || "";
         const roomId = result.room_id || "";
@@ -194,117 +237,102 @@
         const winner = result.winner || "";
         const players = Object.keys(points).length ? Object.keys(points) : Object.keys(roundWin);
 
-        // --- Render static result ---
-        function render() {
+        const rematchBtn = document.getElementById("rematchBtn");
+        const statusMsg = document.getElementById("statusMsg");
+
+        let myVoted = false;
+        let opponentLeft = false;
+
+        function renderStaticResult() {
             document.title = t("title");
             document.getElementById("pageTitle").textContent = t("title");
-            document.getElementById("rematchBtn").textContent = t("rematch_btn");
-            document.getElementById("exitBtn").textContent = t("exit_btn");
             document.getElementById("scoreTitle").textContent = t("score_title");
             document.getElementById("winsTitle").textContent = t("wins_title");
             document.getElementById("rematchTitle").textContent = t("rematch_title");
+            document.getElementById("rematchBtn").textContent = t("rematch_btn");
+            document.getElementById("exitBtn").textContent = t("exit_btn");
             document.getElementById("footerCredit").textContent = `© Michael Miettinen • ${APP_VERSION}`;
 
-            // Winner line
-            const winnerEl = document.getElementById("winnerLine");
+            const winnerLine = document.getElementById("winnerLine");
             if (winner) {
-                const isMe = winner === myName;
-                winnerEl.textContent = t("winner", { name: winner });
-                winnerEl.style.color = isMe ? "#7cf58a" : "#ffd8d8";
+                winnerLine.textContent = t("winner", { name: winner });
+                winnerLine.style.color = winner === myName ? "#7cf58a" : "#ffd8d8";
             } else {
-                winnerEl.textContent = t("draw");
-                winnerEl.style.color = "#fff4a8";
+                winnerLine.textContent = t("draw");
+                winnerLine.style.color = "#fff4a8";
             }
 
-            // Scores
             const scoreList = document.getElementById("scoreList");
             scoreList.replaceChildren();
-            players.forEach(name => {
+            players.forEach((name) => {
                 const row = document.createElement("div");
                 row.className = "score-row";
-                const nameEl = document.createElement("span");
-                nameEl.className = "score-name";
-                nameEl.textContent = name;
-                const valEl = document.createElement("span");
-                valEl.className = "score-val";
-                valEl.textContent = `${points[name] ?? "–"} ${t("pairs")}`;
-                row.appendChild(nameEl);
-                row.appendChild(valEl);
+                row.innerHTML = `
+                    <span class="score-name">${name}</span>
+                    <span class="score-val">${points[name] ?? "–"} ${t("pairs")}</span>
+                `;
                 scoreList.appendChild(row);
             });
 
-            // Total wins
             const winsList = document.getElementById("winsList");
             winsList.replaceChildren();
             const winEntries = Object.entries(roundWin).sort((a, b) => b[1] - a[1]);
             if (winEntries.length === 0) {
                 winsList.textContent = "–";
-            } else {
-                winEntries.forEach(([name, w]) => {
-                    const row = document.createElement("div");
-                    row.className = "score-row";
-                    const nameEl = document.createElement("span");
-                    nameEl.className = "score-name";
-                    nameEl.textContent = name;
-                    const valEl = document.createElement("span");
-                    valEl.className = "score-val";
-                    valEl.textContent = `${w} ${w === 1 ? t("wins") : t("wins_plural")}`;
-                    row.appendChild(nameEl);
-                    row.appendChild(valEl);
-                    winsList.appendChild(row);
-                });
+                return;
             }
+            winEntries.forEach(([name, winCount]) => {
+                const row = document.createElement("div");
+                row.className = "score-row";
+                row.innerHTML = `
+                    <span class="score-name">${name}</span>
+                    <span class="score-val">${winCount} ${winCount === 1 ? t("wins") : t("wins_plural")}</span>
+                `;
+                winsList.appendChild(row);
+            });
         }
-        render();
-
-        // --- Socket for rematch ---
-        let myVoted = false;
-        let opponentLeft = false;
-        const rematchBtn = document.getElementById("rematchBtn");
-        const statusMsg = document.getElementById("statusMsg");
 
         function renderRematchStatus(votes, presentPlayers) {
             const rematchStatus = document.getElementById("rematchStatus");
             rematchStatus.replaceChildren();
-            presentPlayers.forEach(name => {
-                const row = document.createElement("div");
-                row.className = "player-vote";
-                const icon = document.createElement("span");
-                icon.className = "vote-icon";
-                icon.textContent = votes.includes(name) ? "✅" : "🕐";
-                const label = document.createElement("span");
-                label.textContent = name + (votes.includes(name) ? ` — ${t("voted")}` : ` — ${t("not_voted")}`);
-                row.appendChild(icon);
-                row.appendChild(label);
-                rematchStatus.appendChild(row);
-            });
-            if (presentPlayers.length === 0) {
+
+            if (!presentPlayers.length) {
                 rematchStatus.textContent = t("opponent_left");
                 statusMsg.textContent = "";
-            } else if (myVoted) {
-                const others = presentPlayers.filter(n => n !== myName && !votes.includes(n));
-                if (others.length > 0) {
-                    statusMsg.textContent = t("you_voted", { name: others[0] });
-                } else {
-                    statusMsg.textContent = "";
-                }
+                return;
+            }
+
+            presentPlayers.forEach((name) => {
+                const ready = votes.includes(name);
+                const row = document.createElement("div");
+                row.className = `player-vote${ready ? " is-ready" : ""}`;
+                row.innerHTML = `
+                    <span class="player-vote-name">${name}</span>
+                    <span class="player-vote-state">${ready ? t("ready") : t("waiting")}</span>
+                `;
+                rematchStatus.appendChild(row);
+            });
+
+            if (myVoted) {
+                const others = presentPlayers.filter((name) => name !== myName && !votes.includes(name));
+                statusMsg.textContent = others.length ? `${t("you_ready")} ${t("waiting_other", { name: others[0] })}` : t("you_ready");
             } else {
-                const others = presentPlayers.filter(n => n !== myName);
-                if (others.length > 0) {
-                    statusMsg.textContent = t("waiting_opponent", { name: others[0] });
-                } else {
-                    statusMsg.textContent = "";
-                }
+                const others = presentPlayers.filter((name) => name !== myName);
+                statusMsg.textContent = others.length ? t("waiting_other", { name: others[0] }) : "";
             }
         }
 
+        renderStaticResult();
+
         if (!roomId) {
-            // No room — solo/bot game or session expired
             document.getElementById("rematchCard").style.display = "none";
             rematchBtn.style.display = "none";
-            statusMsg.textContent = "";
+            document.getElementById("exitBtn").addEventListener("click", () => {
+                window.location.href = "/";
+            });
         } else {
             const socket = io();
+
             socket.on("connect", () => {
                 socket.emit("join_summary", {
                     reconnect_token: reconnectToken,
@@ -315,30 +343,27 @@
             socket.on("rematch_status", (data) => {
                 const votes = data.votes || [];
                 const presentPlayers = data.players || [];
-                if (presentPlayers.length === 0 && !myVoted) {
-                    opponentLeft = true;
-                    document.getElementById("rematchStatus").textContent = t("opponent_left");
-                    statusMsg.textContent = "";
-                    rematchBtn.disabled = true;
-                } else {
-                    opponentLeft = false;
-                    renderRematchStatus(votes, presentPlayers);
-                }
+                opponentLeft = presentPlayers.length === 0;
+                rematchBtn.disabled = myVoted || opponentLeft;
+                renderRematchStatus(votes, presentPlayers);
             });
 
             socket.on("rematch_ready", () => {
-                statusMsg.textContent = t("both_voted");
+                statusMsg.textContent = t("both_ready");
                 rematchBtn.disabled = true;
+                try {
+                    sessionStorage.setItem("pending_same_settings_rematch", "1");
+                } catch (_) {}
                 setTimeout(() => {
                     try { socket.disconnect(); } catch (_) {}
                     window.location.href = "/waiting";
-                }, 800);
+                }, 600);
             });
 
             socket.on("summary_error", () => {
                 document.getElementById("rematchCard").style.display = "none";
                 rematchBtn.style.display = "none";
-                statusMsg.textContent = t("no_room");
+                statusMsg.textContent = t("room_ended");
             });
 
             rematchBtn.addEventListener("click", () => {
@@ -357,17 +382,10 @@
                     username: myName,
                 });
                 try { socket.disconnect(); } catch (_) {}
-                // Clear game state on true exit
                 try { sessionStorage.removeItem("summary_result"); } catch (_) {}
+                try { sessionStorage.removeItem("pending_same_settings_rematch"); } catch (_) {}
                 try { localStorage.removeItem("memory_summary_round_wins"); } catch (_) {}
                 try { localStorage.removeItem("reconnect_token"); } catch (_) {}
-                window.location.href = "/";
-            });
-        }
-
-        // Exit button when no room (solo/bot)
-        if (!roomId) {
-            document.getElementById("exitBtn").addEventListener("click", () => {
                 window.location.href = "/";
             });
         }
