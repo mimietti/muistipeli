@@ -1555,6 +1555,7 @@
             const columns = [
                 { label: targetLangLabel, value: currentTranslationHint.target },
                 { label: nativeLangLabel, value: currentTranslationHint.native },
+                { label: t("translation_english"), value: currentTranslationHint.english },
             ];
 
             translationHintGrid.style.gridTemplateColumns = `repeat(${columns.length}, minmax(0, 1fr))`;

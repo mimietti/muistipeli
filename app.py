@@ -241,9 +241,10 @@ CLEAR_PICTURE_WORD_SUFFIXES = (
 )
 
 RANDOM_WORD_THEMES = [
-    "work","restaurant","family","animal", "food", "sport", "nature", "vehicle", "furniture",
-    "clothing", "tool", "fruit", "vegetable", "music", "body",
-    "weather", "building", "kitchen", "garden", "office", "ocean",
+    "animal", "food", "sport", "vehicle", "furniture",
+    "clothing", "tool", "fruit", "vegetable", "body",
+    "weather", "building", "kitchen", "garden", "farm",
+    "bathroom", "toys", "bird", "insect", "flower", "school",
 ]
 
 
@@ -814,7 +815,7 @@ def build_candidate_labels(words, room=None):
     return {word: get_theme_display_word(word, room=room) for word in (words or [])}
 
 
-def filter_theme_candidate_pool(words, room=None, excluded_display_keys=None):
+def filter_theme_candidate_pool(words, room=None, excluded_display_keys=None, use_display_labels=True):
     filtered = []
     labels = {}
     seen_words = set()
@@ -827,8 +828,8 @@ def filter_theme_candidate_pool(words, room=None, excluded_display_keys=None):
         family_key = normalize_theme_family_key(word)
         if family_key and family_key in seen_families:
             continue
-        display_word = get_theme_display_word(word, room=room)
-        display_key = normalize_display_label(display_word)
+        display_word = get_theme_display_word(word, room=room) if use_display_labels else word
+        display_key = normalize_display_label(display_word) if use_display_labels else None
         if display_key and display_key in seen_display:
             continue
         filtered.append(word)
@@ -979,15 +980,15 @@ def append_selected_lang_pair(word, pair_index, room, source_lang=None):
         return False
     native_lang = room.native_language or "fi"
     # native_word is the word in UI language — if src IS the native lang, use the input word directly
-    if src == native_lang:
+    if room.game_mode == "manual" or src == native_lang:
         native_word = word
     elif native_lang == "en":
-        native_word = translate_word(word, src, "en")
+        native_word = word if src == "en" else (translate_word(word, src, "en") or word)
     else:
         native_word = translate_word(word, src, native_lang)
     if not native_word:
         print(f"[INFO] Käännös ({src}→{native_lang}) ei kelpaa sanalle '{word}', ohitetaan")
-        return False
+        native_word = None
     # english_word for Pixabay search
     english_word = word if src == "en" else (translate_word(word, src, "en") or word)
     print(f"[INFO] Kokeillaan {target_lang}-pariksi '{word}' ({src}) -> '{target_word}' parille {pair_index + 1}")
@@ -1109,13 +1110,13 @@ def fetch_random_game_words(target=8, room=None):
     # Fetching all themes at once kills the early-stop benefit and overloads Datamuse.
     parallel_limit = 6
     requested_pool = max(int(target), 8)
-    theme_target = min(len(RANDOM_WORD_THEMES), max(requested_pool * 3, 18))
+    theme_target = min(len(RANDOM_WORD_THEMES), max(requested_pool * 4, 20))
     all_themes = random.sample(RANDOM_WORD_THEMES, theme_target)
     batch, rest = all_themes[:parallel_limit], all_themes[parallel_limit:]
     print(f"[INFO] Haetaan satunnaissanoja teemoista: {', '.join(all_themes)}")
     theme_results = {}
     def _fetch_theme(theme):
-        theme_results[theme] = fetch_theme_words(theme, max_results=20, require_noun=require_noun, exclude_proper=True)
+        theme_results[theme] = fetch_theme_words(theme, max_results=28, require_noun=require_noun, exclude_proper=True)
     gevent.joinall([gevent.spawn(_fetch_theme, t) for t in batch], timeout=20)
     pool = []
     seen = set()
@@ -1125,20 +1126,20 @@ def fetch_random_game_words(target=8, room=None):
                 seen.add(w)
                 pool.append(w)
     for theme in rest:
-        if len(pool) >= requested_pool * 6:
+        if len(pool) >= requested_pool * 8:
             break
-        for w in fetch_theme_words(theme, max_results=20, require_noun=require_noun, exclude_proper=True):
+        for w in fetch_theme_words(theme, max_results=28, require_noun=require_noun, exclude_proper=True):
             if w and w not in seen and is_word_allowed_for_filter_mode(w, room):
                 seen.add(w)
                 pool.append(w)
     print(f"[INFO] Raaka sanapooli: {len(pool)} sanaa")
-    # Pre-warm display-word translations in parallel before filtering (avoids ~80 serial API calls)
+    # Keep random-word filtering cheap: UI/display translations are optional later.
     ui_language = room.ui_language if room else "en"
-    if ui_language != "en":
+    if False and ui_language != "en":
         jobs = [gevent.spawn(translate_word, w, "en", ui_language) for w in pool]
         gevent.joinall(jobs, timeout=30)
         print(f"[INFO] Pool-käännökset esivalmistelltu ({len(pool)} sanaa, {ui_language})")
-    pool, _ = filter_theme_candidate_pool(pool, room=room)
+    pool, _ = filter_theme_candidate_pool(pool, room=room, use_display_labels=False)
     if len(pool) < requested_pool:
         return pool
     return random.sample(pool, requested_pool)
@@ -1231,17 +1232,22 @@ def translate_word(word, source_lang, target_lang):
         )
         response.raise_for_status()
         payload = response.json()
-    except (requests.RequestException, ValueError) as e:
+    except requests.RequestException as e:
+        status_code = getattr(getattr(e, "response", None), "status_code", None)
+        if status_code == 429:
+            return None
         print(f"[WARNING] Käännös epäonnistui sanalle '{normalized_word}': {e}")
+        translation_cache[cache_key] = None
+        return None
+
+    except ValueError as e:
+        print(f"[WARNING] KÃ¤Ã¤nnÃ¶s epÃ¤onnistui sanalle '{normalized_word}': {e}")
         translation_cache[cache_key] = None
         return None
 
     translated_text = ((payload.get("responseData") or {}).get("translatedText") or "")
     normalized_translation = pick_translation_candidate(translated_text)
     if not normalized_translation:
-        translation_cache[cache_key] = None
-        return None
-    if target_lang != "es" and normalize_candidate_word(normalized_translation) == normalized_word:
         translation_cache[cache_key] = None
         return None
     translation_cache[cache_key] = normalized_translation
@@ -1421,7 +1427,7 @@ def get_image_pair_display_word(word, room):
 def append_word_images_to_grid(word, room, pair_index=None, display_word=None):
     search_word = word
     if room.game_mode == "manual":
-        search_word = translate_word_to_english(word, "fi" if room.ui_language == "fi" else "en") or word
+        search_word = translate_word_to_english(word, room.ui_language or "en") or word
         if normalize_candidate_word(search_word) != normalize_candidate_word(word):
             print(f"[INFO] Manual-pelin Pixabay-haku englanniksi: '{word}' -> '{search_word}'")
     result = fetch_and_save_pixabay_images(search_word, room)
@@ -2647,7 +2653,8 @@ def handle_start_custom_game(data=None):
 
         def run_random_game():
             # Fetch a larger pool so we can skip words that fail without showing errors
-            candidates = fetch_random_game_words(target=24, room=room)
+            candidate_target = 64 if room.card_mode in {"image_word", "words"} else 24
+            candidates = fetch_random_game_words(target=candidate_target, room=room)
             print(f"[INFO] Satunnaissana-kandidaatit: {', '.join(candidates)}")
 
             # UI signal: drawing phase starts — emit before pre-warming so user sees progress sooner
@@ -2661,18 +2668,11 @@ def handle_start_custom_game(data=None):
                 "total_pairs": 8,
             }, room_id=room.room_id)
 
-            # Pre-warm translation cache AND Pixabay cache in parallel
+            # Pre-warm only image cache. Translations are resolved lazily.
             if room.card_mode in {"image_word", "words"}:
-                target_lang = room.target_language or "es"
-                native_lang = room.native_language or "fi"
-                def _warm(word):
-                    translate_word(word, "en", target_lang)
-                    if native_lang != "en":
-                        translate_word(word, "en", native_lang)
-                    _prefetch_pixabay_cache(word)
-                jobs = [gevent.spawn(_warm, w) for w in candidates]
+                jobs = [gevent.spawn(_prefetch_pixabay_cache, w) for w in candidates]
                 gevent.joinall(jobs, timeout=30)
-                print(f"[INFO] Käännökset ja kuvat esivalmisteltu ({len(candidates)} sanaa)")
+                print(f"[INFO] Kuvat esivalmisteltu ({len(candidates)} sanaa)")
             else:
                 pix_jobs = [gevent.spawn(_prefetch_pixabay_cache, w) for w in candidates]
                 gevent.joinall(pix_jobs, timeout=30)
