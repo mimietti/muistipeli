@@ -1274,28 +1274,37 @@ def translate_word(word, source_lang, target_lang):
     if cache_key in translation_cache:
         return translation_cache[cache_key]
 
+    params: dict = {"q": normalized_word, "langpair": f"{source_lang}|{target_lang}"}
+    mymemory_email = (os.getenv("MYMEMORY_EMAIL") or "").strip()
+    if mymemory_email:
+        params["de"] = mymemory_email
+
     try:
-        response = requests.get(
-            TRANSLATION_API_URL,
-            params={"q": normalized_word, "langpair": f"{source_lang}|{target_lang}"},
-            timeout=5
-        )
+        response = requests.get(TRANSLATION_API_URL, params=params, timeout=5)
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException as e:
         status_code = getattr(getattr(e, "response", None), "status_code", None)
         if status_code == 429:
-            return None
+            return None  # rate-limited — don't cache so retries can succeed later
         print(f"[WARNING] Käännös epäonnistui sanalle '{normalized_word}': {e}")
         translation_cache[cache_key] = None
         return None
-
     except ValueError as e:
-        print(f"[WARNING] KÃ¤Ã¤nnÃ¶s epÃ¤onnistui sanalle '{normalized_word}': {e}")
+        print(f"[WARNING] Käännös (JSON) epäonnistui sanalle '{normalized_word}': {e}")
         translation_cache[cache_key] = None
         return None
 
+    # MyMemory signals quota exceeded via responseStatus 429 or a warning in the text
+    response_status = payload.get("responseStatus")
+    if response_status == 429 or payload.get("quotaFinished"):
+        print(f"[WARNING] MyMemory kiintiö täynnä — ei välimuistita käännöstä sanalle '{normalized_word}'")
+        return None  # don't cache — next request after quota reset should work
     translated_text = ((payload.get("responseData") or {}).get("translatedText") or "")
+    if "MYMEMORY WARNING" in translated_text.upper():
+        print(f"[WARNING] MyMemory varoitus sanalle '{normalized_word}': {translated_text[:80]}")
+        return None  # don't cache
+
     normalized_translation = pick_translation_candidate(translated_text)
     if not normalized_translation:
         translation_cache[cache_key] = None
