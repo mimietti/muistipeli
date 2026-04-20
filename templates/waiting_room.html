@@ -1219,7 +1219,9 @@
                 queue_summary_language: "Language",
                 queue_summary_word_style: "Word style",
                 queue_source_manual: "Own words",
+                queue_source_manual_images: "Own image ideas",
                 queue_source_theme: "Theme",
+                queue_source_theme_images: "Image theme",
                 queue_source_random: "Random",
                 ready_multiplayer_title: "Ready multiplayer games",
                 ready_multiplayer_help: "Join a prepared round right away, or build your own game below.",
@@ -1227,19 +1229,25 @@
                 join_opponent: "Join now",
                 match_found_msg: "Opponent found! Starting game...",
                 label_word_source: "Word selection",
+                label_image_source: "Image source",
                 label_card_mode: "Cards",
                 label_lang: "Target language",
                 label_word_filter_mode: "Word style",
+                label_image_filter_mode: "Image search",
                 label_bot_difficulty: "Bot difficulty",
                 bot_difficulty_summary: "Difficulty: {difficulty}",
                 word_filter_clear: "Clear picture words",
                 word_filter_broad: "Broader vocabulary",
+                word_filter_clear_images: "Clear image ideas",
+                word_filter_broad_images: "Broader image search",
                 bot_difficulty_easy: "Easy",
                 bot_difficulty_medium: "Medium",
                 bot_difficulty_hard: "Hard",
                 queue_bot_hint: "Tired of waiting?",
                 queue_play_bot: "🤖 Play against bot",
                 card_mode_images: "Images",
+                enter_words_images: "Enter image ideas",
+                enter_theme_images: "Enter image theme",
                 enter_random: "Random",
                 setup_status_random: "Finding random words...",
                 setup_status_random_creating: "Creating cards...",
@@ -1347,7 +1355,9 @@
                 queue_summary_language: "Kieli",
                 queue_summary_word_style: "Sanatyyppi",
                 queue_source_manual: "Omat sanat",
+                queue_source_manual_images: "Omat hakusanat",
                 queue_source_theme: "Teema",
+                queue_source_theme_images: "Kuvateema",
                 queue_source_random: "Satunnaiset",
                 ready_multiplayer_title: "Valmiit moninpelit",
                 ready_multiplayer_help: "Liity heti valmiiseen erään tai valmistele oma peli alempaa.",
@@ -1355,19 +1365,25 @@
                 join_opponent: "Liity heti",
                 match_found_msg: "Vastustaja löytyi! Peli alkaa...",
                 label_word_source: "Sanavalinta",
+                label_image_source: "Kuvien lähde",
                 label_card_mode: "Kortit",
                 label_lang: "Opiskeltava kieli",
                 label_word_filter_mode: "Sanatyyppi",
+                label_image_filter_mode: "Kuvahaku",
                 label_bot_difficulty: "Botin vaikeusaste",
                 bot_difficulty_summary: "Vaikeusaste: {difficulty}",
                 word_filter_clear: "Selkeät kuvasanat",
                 word_filter_broad: "Laajempi sanavalinta",
+                word_filter_clear_images: "Selkeät kuvaideat",
+                word_filter_broad_images: "Laajempi kuvahaku",
                 bot_difficulty_easy: "Helppo",
                 bot_difficulty_medium: "Keskitaso",
                 bot_difficulty_hard: "Vaikea",
                 queue_bot_hint: "Etkö jaksa odottaa?",
                 queue_play_bot: "🤖 Pelaa bottia vastaan",
                 card_mode_images: "Kuvat",
+                enter_words_images: "Syötä omat hakusanat",
+                enter_theme_images: "Syötä kuvateema",
                 enter_random: "Satunnaiset",
                 setup_status_random: "Etsitään satunnaisia sanoja...",
                 setup_status_random_creating: "Luodaan kortteja...",
@@ -1502,9 +1518,10 @@
             return labels[lang] || labels.en;
         }
 
-        function getQueueWordSourceLabel(mode) {
-            if (mode === "manual") return t("queue_source_manual");
-            if (mode === "theme") return t("queue_source_theme");
+        function getQueueWordSourceLabel(mode, cardMode = null) {
+            const imagesOnly = (cardMode || window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word") === "images";
+            if (mode === "manual") return t(imagesOnly ? "queue_source_manual_images" : "queue_source_manual");
+            if (mode === "theme") return t(imagesOnly ? "queue_source_theme_images" : "queue_source_theme");
             return t("queue_source_random");
         }
 
@@ -1519,7 +1536,11 @@
             return labels[getLanguage()] || labels.en || String(code || "").toUpperCase();
         }
 
-        function getQueueWordFilterLabel(mode) {
+        function getQueueWordFilterLabel(mode, cardMode = null) {
+            const imagesOnly = (cardMode || window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word") === "images";
+            if (imagesOnly) {
+                return mode === "broad" ? t("word_filter_broad_images") : t("word_filter_clear_images");
+            }
             return mode === "broad" ? t("word_filter_broad") : t("word_filter_clear");
         }
 
@@ -1595,7 +1616,7 @@
             }
 
             const chips = [];
-            chips.push([t("queue_summary_word_source"), getQueueWordSourceLabel(payload.game_mode || "random")]);
+            chips.push([t("queue_summary_word_source"), getQueueWordSourceLabel(payload.game_mode || "random", payload.card_mode || "image_word")]);
             if (payload.pending_theme) {
                 chips.push([t("queue_summary_theme"), payload.pending_theme]);
             }
@@ -1604,7 +1625,7 @@
                 chips.push([t("queue_summary_language"), getQueueLanguageLabel(payload.target_language)]);
             }
             if (payload.game_mode === "theme" || payload.game_mode === "random") {
-                chips.push([t("queue_summary_word_style"), getQueueWordFilterLabel(payload.word_filter_mode || "clear")]);
+                chips.push([t("queue_summary_word_style"), getQueueWordFilterLabel(payload.word_filter_mode || "clear", payload.card_mode || "image_word")]);
             }
 
             titleEl.textContent = t("queue_summary_title");
@@ -1628,6 +1649,7 @@
             const playMode = localStorage.getItem("play_mode") || "";
             const isBotMode = playMode === "bot";
             const isSoloMode = playMode === "solo";
+            const imagesOnly = (window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word") === "images";
             const titleKey = isSoloMode ? "page_title_solo" : (isBotMode ? "page_title_bot" : "page_title");
             const introKey = isSoloMode ? "intro_text_solo" : (isBotMode ? "intro_text_bot" : "intro_text");
             document.documentElement.lang = getLanguage();
@@ -1648,19 +1670,19 @@
             document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
                 btn.textContent = t(`settings_motion_${btn.dataset.uiMotionChoice}`);
             });
-            el("labelWordSource").textContent = t("label_word_source");
+            el("labelWordSource").textContent = t(imagesOnly ? "label_image_source" : "label_word_source");
             el("labelCardMode").textContent = t("label_card_mode");
             el("labelLang").textContent = t("label_lang");
-            el("labelWordFilterMode").textContent = t("label_word_filter_mode");
+            el("labelWordFilterMode").textContent = t(imagesOnly ? "label_image_filter_mode" : "label_word_filter_mode");
             el("labelBotDifficulty").textContent = t("label_bot_difficulty");
-            el("srcManualBtn").textContent = t("enter_words");
-            el("srcThemeBtn").textContent = t("enter_theme");
+            el("srcManualBtn").textContent = t(imagesOnly ? "enter_words_images" : "enter_words");
+            el("srcThemeBtn").textContent = t(imagesOnly ? "enter_theme_images" : "enter_theme");
             el("srcRandomBtn").textContent = t("enter_random");
             el("cardModeImages").textContent = "🖼 " + t("card_mode_images");
             el("cardModeImageWord").textContent = "🖼 📝 " + t("card_mode_image_word");
             el("cardModeWords").textContent = "📝 📝 " + t("card_mode_words");
-            el("wordFilterClear").textContent = t("word_filter_clear");
-            el("wordFilterBroad").textContent = t("word_filter_broad");
+            el("wordFilterClear").textContent = t(imagesOnly ? "word_filter_clear_images" : "word_filter_clear");
+            el("wordFilterBroad").textContent = t(imagesOnly ? "word_filter_broad_images" : "word_filter_broad");
             el("botDifficultyEasy").textContent = getDifficultyLabel("easy");
             el("botDifficultyMedium").textContent = getDifficultyLabel("medium");
             el("botDifficultyHard").textContent = getDifficultyLabel("hard");
@@ -2214,6 +2236,7 @@
                 }
                 if (payload && payload.card_mode && ["images", "image_word", "words"].includes(payload.card_mode)) {
                     selectedCardMode = payload.card_mode;
+                    window.currentWaitingCardMode = selectedCardMode;
                     try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (_) {}
                 }
                 if (payload && payload.target_language) {
@@ -2267,6 +2290,7 @@
                 document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
                 });
+                applyTranslations();
                 document.querySelectorAll(".lang-flag-btn").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.lang === selectedLang);
                 });
@@ -2769,7 +2793,7 @@
                 browserDiv.style.display = "block";
                 listDiv.innerHTML = others.map(r => {
                     const chips = [];
-                    const wordSource = getQueueWordSourceLabel(r.game_mode || "random");
+                    const wordSource = getQueueWordSourceLabel(r.game_mode || "random", r.card_mode || "image_word");
                     if (wordSource) chips.push(wordSource);
                     if (r.pending_theme) chips.push(`"${escapeHtml(r.pending_theme)}"`);
                     const cardLabel = `${cardModeIcon[r.card_mode] || ""} ${getQueueCardModeLabel(r.card_mode || "image_word")}`.trim();
@@ -2779,7 +2803,7 @@
                         if (langLabel) chips.push(langLabel);
                     }
                     if (r.word_filter_mode && r.card_mode !== "images") {
-                        chips.push(getQueueWordFilterLabel(r.word_filter_mode));
+                        chips.push(getQueueWordFilterLabel(r.word_filter_mode, r.card_mode || "image_word"));
                     }
                     return `<div class="lobby-entry">
                         <div class="lobby-entry-main">
@@ -2873,9 +2897,11 @@
             document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach(btn => {
                 btn.addEventListener("click", () => {
                     selectedCardMode = btn.dataset.mode;
+                    window.currentWaitingCardMode = selectedCardMode;
                     try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (e) {}
                     document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach(b => b.classList.toggle("active", b === btn));
                     updateLangPickerVisibility();
+                    applyTranslations();
                     socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: selectedLang });
                 });
             });
@@ -2883,6 +2909,7 @@
             document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
             });
+            window.currentWaitingCardMode = selectedCardMode;
             document.getElementById("cardModePicker").style.display = "none";
             updateWordFilterVisibility();
             updateLangPickerVisibility();

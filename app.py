@@ -2003,8 +2003,14 @@ def process_card_click(index, resolved_sid, clicker, room):
         if match_key1 == match_key2:
             room.matched_indices.update(room.revealed_cards)
             forget_matched_cards_from_bot_memory(room)
-            debug(f"[DEBUG] Pari löytyi: {word1}")
-            emit_to_room("pair_found", {"indices": room.revealed_cards, "word": word1}, room_id=room.room_id)
+            matched_label = (
+                room.grid_data[idx1].get("display_word")
+                or room.grid_data[idx1].get("native_word")
+                or room.grid_data[idx1].get("word")
+                or word1
+            )
+            debug(f"[DEBUG] Pari löytyi: {matched_label}")
+            emit_to_room("pair_found", {"indices": room.revealed_cards, "word": matched_label}, room_id=room.room_id)
             room.revealed_cards = []
             room.current_click_sid = None
             current_player_name = (
