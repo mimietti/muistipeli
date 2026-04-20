@@ -169,6 +169,7 @@
             en: {
                 title: "Summary",
                 winner: "{name} wins!",
+                draw_label: "Tie",
                 draw: "It's a draw!",
                 score_title: "Points this round",
                 wins_title: "Total wins",
@@ -185,10 +186,13 @@
                 ready: "Ready",
                 waiting: "Waiting",
                 opponent_left: "Opponent has left the game.",
+                draw_count: "draw",
+                draw_count_plural: "draws",
             },
             fi: {
                 title: "Yhteenveto",
                 winner: "{name} voittaa!",
+                draw_label: "Tasapeli",
                 draw: "Tasapeli!",
                 score_title: "Pisteet tällä erällä",
                 wins_title: "Erävoitot yhteensä",
@@ -205,6 +209,8 @@
                 ready: "Valmis",
                 waiting: "Odottaa",
                 opponent_left: "Toinen pelaaja poistui pelistä.",
+                draw_count: "tasapeli",
+                draw_count_plural: "tasapeliä",
             },
         };
 
@@ -234,8 +240,10 @@
         const roomId = result.room_id || "";
         const points = result.points || {};
         const roundWin = result.round_win || {};
+        const roundTies = Number(result.round_ties || 0);
         const winner = result.winner || "";
         const players = Object.keys(points).length ? Object.keys(points) : Object.keys(roundWin);
+        const isDrawWinner = winner === "Tasapeli" || winner === "Tie";
 
         const rematchBtn = document.getElementById("rematchBtn");
         const statusMsg = document.getElementById("statusMsg");
@@ -255,8 +263,9 @@
 
             const winnerLine = document.getElementById("winnerLine");
             if (winner) {
-                winnerLine.textContent = t("winner", { name: winner });
-                winnerLine.style.color = winner === myName ? "#7cf58a" : "#ffd8d8";
+                const winnerName = isDrawWinner ? t("draw_label") : winner;
+                winnerLine.textContent = t("winner", { name: winnerName });
+                winnerLine.style.color = isDrawWinner ? "#fff4a8" : (winner === myName ? "#7cf58a" : "#ffd8d8");
             } else {
                 winnerLine.textContent = t("draw");
                 winnerLine.style.color = "#fff4a8";
@@ -277,7 +286,7 @@
             const winsList = document.getElementById("winsList");
             winsList.replaceChildren();
             const winEntries = Object.entries(roundWin).sort((a, b) => b[1] - a[1]);
-            if (winEntries.length === 0) {
+            if (winEntries.length === 0 && roundTies === 0) {
                 winsList.textContent = "–";
                 return;
             }
@@ -290,6 +299,15 @@
                 `;
                 winsList.appendChild(row);
             });
+            if (roundTies > 0) {
+                const tieRow = document.createElement("div");
+                tieRow.className = "score-row";
+                tieRow.innerHTML = `
+                    <span class="score-name">${t("draw_label")}</span>
+                    <span class="score-val">${roundTies} ${roundTies === 1 ? t("draw_count") : t("draw_count_plural")}</span>
+                `;
+                winsList.appendChild(tieRow);
+            }
         }
 
         function renderRematchStatus(votes, presentPlayers) {

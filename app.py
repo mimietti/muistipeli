@@ -117,7 +117,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.09 (2026-04-19)"
+APP_VERSION = "Beta v0.10 (2026-04-20)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -165,6 +165,7 @@ class RoomState:
     turn: int = 0
     player_points: dict = field(default_factory=dict)
     round_win: defaultdict = field(default_factory=lambda: defaultdict(int))
+    round_ties: int = 0
     pending_pair: int = 0
     pending_player: str | None = None
     pending_theme: str | None = None
@@ -523,6 +524,19 @@ def fetch_deferred_native_words(room):
         _native_translation_tasks.discard(room.room_id)
 
 
+def ensure_deferred_native_words(room):
+    if not room or not room.grid_data:
+        return
+    if (room.card_mode or "image_word") not in {"image_word", "words"}:
+        return
+    if not any(
+        card.get("target_word") is not None and card.get("native_word") is None
+        for card in room.grid_data
+    ):
+        return
+    socketio.start_background_task(fetch_deferred_native_words, room)
+
+
 def emit_queue_round_prepared(room):
     room.status = "waiting"
     room.queue_round_prepared = True
@@ -538,7 +552,7 @@ def emit_queue_round_prepared(room):
     emit_to_room("queue_round_prepared", payload, room_id=room.room_id)
     emit_to_room("player_joined", payload, room_id=room.room_id)
     broadcast_lobby_browser()
-    socketio.start_background_task(fetch_deferred_native_words, room)
+    ensure_deferred_native_words(room)
 
 
 def get_active_bot_identity(room):
@@ -1716,6 +1730,7 @@ def launch_grid_round(room):
         "word_filter_mode": room.word_filter_mode,
         "room_id": room.room_id,
     }, room_id=room.room_id)
+    ensure_deferred_native_words(room)
     schedule_bot_turn_if_needed(room)
 
 
@@ -1779,12 +1794,16 @@ def conclude_round(winner_label, room, surrendered_by=None):
                         round_result=round_result
                     )
 
+    if winner_label in {"Tasapeli", "Tie"}:
+        room.round_ties += 1
+
     mark_room_results_state(room)
 
     emit_to_room("game_over", {
         "winner": winner_label,
         "points": points_payload,
         "round_win": dict(room.round_win),
+        "round_ties": room.round_ties,
         "surrendered_by": surrendered_by,
         "solo_time": solo_time,
         "solo_mistakes": room.solo_mistakes if is_solo(room) else None
@@ -2659,6 +2678,7 @@ def handle_grid_request(data=None):
         "word_filter_mode": room.word_filter_mode,
         "room_id": room.room_id,
     })
+    ensure_deferred_native_words(room)
     schedule_bot_turn_if_needed(room)
 
 
@@ -2682,6 +2702,7 @@ def handle_ready_for_game():
             "bot_difficulty": room.bot_difficulty,
             "word_filter_mode": room.word_filter_mode,
         })
+        ensure_deferred_native_words(room)
 
 
 # ---------------------------------------------------------------------------

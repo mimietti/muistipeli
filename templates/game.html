@@ -1252,6 +1252,7 @@
                     winner: data.winner,
                     points: data.points || {},
                     round_win: data.round_win || {},
+                    round_ties: Number((data && data.round_ties) || 0),
                     room_id: currentRoomId,
                     my_name: myName,
                 }));
