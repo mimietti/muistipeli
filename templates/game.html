@@ -1614,13 +1614,9 @@
                 translationHintGrid.style.gridTemplateColumns = "1fr";
                 const cell = document.createElement("div");
                 cell.className = "translation-col";
-                const label = document.createElement("div");
-                label.className = "translation-col-label";
-                label.textContent = t("pair_found_word_label");
                 const value = document.createElement("div");
                 value.className = "translation-col-value";
                 value.textContent = getImagePairLabelForIndices(indices, word);
-                cell.appendChild(label);
                 cell.appendChild(value);
                 translationHintGrid.replaceChildren(cell);
                 translationHintContainer.style.display = "block";
