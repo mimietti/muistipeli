@@ -183,8 +183,8 @@
                 waiting_other: "Waiting for {name}.",
                 both_ready: "Both players are ready. Opening the next round...",
                 room_ended: "Game session has ended.",
-                ready: "Ready",
-                waiting: "Waiting",
+                ready: "Wants a new round",
+                waiting: "Has not chosen yet",
                 opponent_left: "Opponent has left the game.",
                 draw_count: "draw",
                 draw_count_plural: "draws",
@@ -206,8 +206,8 @@
                 waiting_other: "Odotetaan pelaajaa {name}.",
                 both_ready: "Molemmat ovat valmiina. Avataan uusi erä...",
                 room_ended: "Peli-istunto on päättynyt.",
-                ready: "Valmis",
-                waiting: "Odottaa",
+                ready: "Haluaa uuden erän",
+                waiting: "Ei ole vielä valinnut",
                 opponent_left: "Toinen pelaaja poistui pelistä.",
                 draw_count: "tasapeli",
                 draw_count_plural: "tasapeliä",
@@ -262,10 +262,10 @@
             document.getElementById("footerCredit").textContent = `© Michael Miettinen • ${APP_VERSION}`;
 
             const winnerLine = document.getElementById("winnerLine");
-            if (winner) {
-                const winnerName = isDrawWinner ? t("draw_label") : winner;
+            if (winner && !isDrawWinner) {
+                const winnerName = winner;
                 winnerLine.textContent = t("winner", { name: winnerName });
-                winnerLine.style.color = isDrawWinner ? "#fff4a8" : (winner === myName ? "#7cf58a" : "#ffd8d8");
+                winnerLine.style.color = winner === myName ? "#7cf58a" : "#ffd8d8";
             } else {
                 winnerLine.textContent = t("draw");
                 winnerLine.style.color = "#fff4a8";
