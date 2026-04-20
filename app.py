@@ -2133,6 +2133,25 @@ def ask_next_word(room):
     }, room_id=room.room_id)
 
 
+def replay_active_setup_state(room, sid=None):
+    if not room or room.status != "setup":
+        return
+    if theme_selection_active(room):
+        emit_theme_selection_state(room, sid=sid)
+        return
+    if room.game_mode == "manual" and room.pending_pair < 8:
+        target_player = room.pending_player or get_first_human_player_name(room)
+        if not target_player and room.player_order:
+            target_player = room.player_order[0]
+        if target_player:
+            room.pending_player = target_player
+            debug(f"[DEBUG] Toistetaan ask_for_word aktiiviselle setupille -> {target_player}, pari {room.pending_pair + 1}")
+            emit_to_room("ask_for_word", {
+                "player": target_player,
+                "pair": room.pending_pair + 1
+            }, room_id=room.room_id)
+
+
 # ---------------------------------------------------------------------------
 # Matchmaking queue
 # ---------------------------------------------------------------------------
@@ -2534,13 +2553,15 @@ def on_join(data):
     if requested_play_mode == "queue" and len(active_human_players) == 0:
         room.card_mode = room.players[sid].get("pref_card_mode") or preferred_card_mode
         room.target_language = room.players[sid].get("pref_target_language") or preferred_target_language
+    elif requested_play_mode in {"solo", "bot"}:
+        room.card_mode = room.players[sid].get("pref_card_mode") or preferred_card_mode
+        room.target_language = room.players[sid].get("pref_target_language") or preferred_target_language
 
     print(f"[INFO] {username} liittyi peliin (huone: {room_id}).")
     payload = build_lobby_payload(room)
     payload["username"] = username
     emit_to_room("player_joined", payload, room_id=room_id)
-    if theme_selection_active(room):
-        emit_theme_selection_state(room, sid=sid)
+    replay_active_setup_state(room, sid=sid)
     broadcast_lobby_browser()
 
 
@@ -2548,8 +2569,7 @@ def on_join(data):
 def handle_request_lobby_state():
     room = get_room_for_sid(request.sid)
     emit("lobby_state", build_lobby_payload(room))
-    if theme_selection_active(room):
-        emit("theme_selection_updated", build_theme_selection_payload(room))
+    replay_active_setup_state(room, sid=request.sid)
 
 
 @socketio.on("leave_game")
@@ -2633,7 +2653,7 @@ def handle_grid_request(data=None):
         if theme_selection_active(room):
             emit("theme_selection_updated", build_theme_selection_payload(room))
             return
-        if room.pending_pair > 0 or room.pending_player:
+        if room.pending_pair > 0 or room.pending_player or (room.status == "setup" and room.game_mode == "manual"):
             try:
                 if room.game_mode == "theme":
                     emit_to_room("theme_generation_started", {
@@ -2648,10 +2668,7 @@ def handle_grid_request(data=None):
                     return
                 if len(room.player_order) < 1:
                     room.player_order[:] = [v["username"] for v in get_effective_players_ordered(room)]
-                target_player = room.pending_player or get_first_human_player_name(room)
-                if target_player and room.pending_pair < 8:
-                    debug(f"[DEBUG] request_grid: toistetaan ask_for_word → {target_player}, pari {room.pending_pair + 1}")
-                    emit_to_room("ask_for_word", {"player": target_player, "pair": room.pending_pair + 1}, room_id=room.room_id)
+                replay_active_setup_state(room)
             except Exception as e:
                 print(f"[WARNING] request_grid fallback epäonnistui: {e}")
         return
@@ -3384,7 +3401,11 @@ def handle_preference_changed(data=None):
         (player_sid, info) for player_sid, info in room.players.items()
         if not is_bot_player(info) and info.get("connected", False)
     ]
-    if room.play_mode == "queue" and len(connected_humans) == 1 and connected_humans[0][0] == sid:
+    owner_controls_room = (
+        (room.play_mode == "queue" and len(connected_humans) == 1 and connected_humans[0][0] == sid)
+        or (room.play_mode in {"solo", "bot"} and len(connected_humans) == 1 and connected_humans[0][0] == sid)
+    )
+    if owner_controls_room:
         if room.queue_round_prepared:
             clear_round_runtime(room)
             reset_pending_state(room)
