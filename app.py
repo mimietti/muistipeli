@@ -490,8 +490,35 @@ def fetch_deferred_native_words(room):
     _native_translation_tasks.add(room.room_id)
     try:
         native_lang = room.native_language or "fi"
+        target_lang = room.target_language or ""
         if native_lang == "en":
             return  # english_word IS native_word, nothing to fetch
+        if native_lang and native_lang == target_lang:
+            updated_pair_ids = set()
+            for card in room.grid_data:
+                pair_id = card.get("pair_id")
+                target_word = card.get("target_word")
+                if pair_id and target_word and card.get("native_word") is None:
+                    card["native_word"] = target_word
+                    if card.get("card_type") == "word" and card.get("text") == card.get("word"):
+                        card["text"] = target_word
+                    updated_pair_ids.add(pair_id)
+            for pair_id in updated_pair_ids:
+                target_word = next(
+                    (card.get("target_word") for card in room.grid_data if card.get("pair_id") == pair_id and card.get("target_word")),
+                    None,
+                )
+                english_word = next(
+                    (card.get("word") for card in room.grid_data if card.get("pair_id") == pair_id and card.get("word")),
+                    None,
+                )
+                if target_word and english_word:
+                    emit_to_room("translation_update", {
+                        "pair_id": pair_id,
+                        "native_word": target_word,
+                        "english_word": english_word,
+                    }, room_id=room.room_id)
+            return
         pairs_needing: dict = {}
         for card in room.grid_data:
             pid = card.get("pair_id")
@@ -1078,23 +1105,28 @@ def append_selected_lang_pair(word, pair_index, room, source_lang=None):
     """
     target_lang = room.target_language or "es"
     src = source_lang or "en"
-    target_word = translate_word(word, src, target_lang)
+    if src == target_lang:
+        target_word = normalize_candidate_word(word)
+    else:
+        target_word = translate_word(word, src, target_lang)
     if not target_word:
         print(f"[INFO] Käännös ({src}→{target_lang}) ei kelpaa sanalle '{word}'")
         return False
     native_lang = room.native_language or "fi"
+    english_word = word if src == "en" else (translate_word(word, src, "en") or word)
     # native_word is the word in UI language.
     # For manual input or when src already is the native language, use the word directly.
     # When native_lang == "en" and src == "en", the word itself is the answer.
     # Otherwise defer to background translation so image cards can be ready sooner.
-    if room.game_mode == "manual" or src == native_lang:
+    if native_lang == target_lang:
+        native_word = target_word
+    elif room.game_mode == "manual" or src == native_lang:
         native_word = word
     elif native_lang == "en":
-        native_word = word if src == "en" else (translate_word(word, src, "en") or word)
+        native_word = english_word
     else:
         native_word = None  # deferred — fetch_deferred_native_words will fill this in
     # english_word for Pixabay search
-    english_word = word if src == "en" else (translate_word(word, src, "en") or word)
     print(f"[INFO] Kokeillaan {target_lang}-pariksi '{word}' ({src}) -> '{target_word}' parille {pair_index + 1}")
     # Words-only mode: skip Pixabay entirely
     if (room.card_mode or "image_word") == "words":
