@@ -16,17 +16,22 @@
             overflow-x: hidden;
         }
         h1 {
-            margin: 6px 0 4px;
-            font-size: 30px;
-            line-height: 1.1;
+            display: none;
+        }
+        .game-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            width: min(960px, calc(100% - 18px));
+            margin: 4px auto 6px;
+            flex-wrap: wrap;
         }
         #players {
-            margin-top: 2px;
             font-size: 14px;
             line-height: 1.2;
         }
         #roundActions {
-            margin-top: 4px;
             display: flex;
             justify-content: center;
             gap: 10px;
@@ -140,17 +145,13 @@
             }
         }
         @media (max-width: 1024px) and (orientation: portrait) {
-            h1 {
-                margin: 6px 0 4px;
-                font-size: 26px;
-            }
             #players {
-                margin-top: 2px;
                 font-size: 13px;
             }
-            #roundActions {
-                margin-top: 4px;
+            .game-topbar {
                 gap: 10px;
+                width: min(100%, calc(100vw - 8px));
+                margin: 2px auto 6px;
             }
             #grid {
                 width: min(calc(100vw - 8px), 760px);
@@ -378,8 +379,8 @@
         #solo-stats {
             display: none;
             justify-content: center;
-            gap: 24px;
-            margin: 4px 0 6px;
+            gap: 16px;
+            margin: 0;
             font-size: 15px;
             color: #b0c8b0;
         }
@@ -738,23 +739,32 @@
                     <button type="button" class="settings-chip" data-ui-motion-choice="reduced">Reduced</button>
                 </div>
             </div>
+            <div class="settings-group">
+                <div class="settings-group-label" id="settingsTrackerVisibilityLabel">Word list</div>
+                <div class="settings-choice-grid">
+                    <button type="button" class="settings-chip" data-tracker-visibility-choice="show">Show target words</button>
+                    <button type="button" class="settings-chip" data-tracker-visibility-choice="hide">Don't show target words</button>
+                </div>
+            </div>
         </div>
     </div>
     <h1 id="pageTitle">Memory Game</h1>
-    <div id="solo-stats">
-        <div class="solo-stat">
-            <span class="solo-stat-label" id="soloTimeLabel">Aika</span>
-            <span class="solo-stat-value" id="soloTimerDisplay">0:00</span>
+    <div class="game-topbar">
+        <div id="solo-stats">
+            <div class="solo-stat">
+                <span class="solo-stat-label" id="soloTimeLabel">Aika</span>
+                <span class="solo-stat-value" id="soloTimerDisplay">0:00</span>
+            </div>
+            <div class="solo-stat">
+                <span class="solo-stat-label" id="soloMistakesLabel">Virheet</span>
+                <span class="solo-stat-value" id="soloMistakesDisplay">0</span>
+            </div>
         </div>
-        <div class="solo-stat">
-            <span class="solo-stat-label" id="soloMistakesLabel">Virheet</span>
-            <span class="solo-stat-value" id="soloMistakesDisplay">0</span>
+        <div id="players"></div>
+        <div id="roundActions">
+            <button id="surrenderRoundBtn" class="round-action-btn surrender" style="display:none;">Surrender this round</button>
+            <button id="exitGameBtn" class="round-action-btn exit">Exit game</button>
         </div>
-    </div>
-    <div id="players"></div>
-    <div id="roundActions">
-        <button id="surrenderRoundBtn" class="round-action-btn surrender" style="display:none;">Surrender this round</button>
-        <button id="exitGameBtn" class="round-action-btn exit">Exit game</button>
     </div>
     <div id="setup-status" style="display:none; margin-top: 10px; color: #ccc; font-size: 17px;"></div>
     <div id="theme-progress">
@@ -763,7 +773,7 @@
     </div>
     <div id="grid"></div>
     <div id="image-pair-tracker">
-        <div id="image-pair-tracker-label">Find these words</div>
+        <div id="image-pair-tracker-label">Find these pairs</div>
         <div id="image-pair-tracker-list"></div>
     </div>
     <div id="translation-hint" style="display:none;">
@@ -787,8 +797,11 @@
                 settings_language: "Interface language",
                 settings_ui_style: "UI style",
                 settings_motion: "Motion",
+                settings_tracker_visibility: "Word list",
                 settings_motion_normal: "Normal",
                 settings_motion_reduced: "Reduced",
+                settings_tracker_show: "Show target words",
+                settings_tracker_hide: "Don't show target words",
                 ui_style_classic: "Classic arcade",
                 ui_style_cozy: "Cozy table",
                 ui_style_cabinet: "Memory cabinet",
@@ -798,7 +811,7 @@
                 setup_manual: '{name} is entering words for the next round...',
                 ready_label: "Ready:",
                 remaining_label: "Remaining:",
-                image_pair_tracker_label: "Find these words",
+                image_pair_tracker_label: "Find these pairs",
                 translation_native: "Finnish",
                 translation_english: "English",
                 translation_missing: "No translation",
@@ -856,8 +869,11 @@
                 settings_language: "Käyttöliittymän kieli",
                 settings_ui_style: "UI-tyyli",
                 settings_motion: "Liike",
+                settings_tracker_visibility: "Sanalista",
                 settings_motion_normal: "Normaali",
                 settings_motion_reduced: "Vähäinen",
+                settings_tracker_show: "Näytä etsittävät sanat",
+                settings_tracker_hide: "Älä näytä etsittäviä sanoja",
                 ui_style_classic: "Klassinen arcade",
                 ui_style_cozy: "Lämmin pöytä",
                 ui_style_cabinet: "Muistojen kabinetti",
@@ -867,7 +883,7 @@
                 setup_manual: '{name} syöttää sanoja seuraavaa kierrosta varten...',
                 ready_label: "Valmiina:",
                 remaining_label: "Löytämättä:",
-                image_pair_tracker_label: "Etsi nämä sanat",
+                image_pair_tracker_label: "Etsi nämä parit",
                 translation_native: "Suomi",
                 translation_english: "Englanti",
                 translation_missing: "Ei käännöstä",
@@ -915,22 +931,40 @@
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta."
             },
             sv: {
-                image_pair_tracker_label: "Hitta de här orden",
+                settings_tracker_visibility: "Ordlista",
+                settings_tracker_show: "Visa målord",
+                settings_tracker_hide: "Visa inte målord",
+                image_pair_tracker_label: "Hitta de här paren",
             },
             de: {
-                image_pair_tracker_label: "Finde diese Wörter",
+                settings_tracker_visibility: "Wortliste",
+                settings_tracker_show: "Zielwörter anzeigen",
+                settings_tracker_hide: "Zielwörter ausblenden",
+                image_pair_tracker_label: "Finde diese Paare",
             },
             fr: {
-                image_pair_tracker_label: "Trouve ces mots",
+                settings_tracker_visibility: "Liste de mots",
+                settings_tracker_show: "Afficher les mots à trouver",
+                settings_tracker_hide: "Ne pas afficher les mots à trouver",
+                image_pair_tracker_label: "Trouve ces paires",
             },
             es: {
-                image_pair_tracker_label: "Encuentra estas palabras",
+                settings_tracker_visibility: "Lista de palabras",
+                settings_tracker_show: "Mostrar palabras objetivo",
+                settings_tracker_hide: "No mostrar palabras objetivo",
+                image_pair_tracker_label: "Encuentra estas parejas",
             },
             it: {
-                image_pair_tracker_label: "Trova queste parole",
+                settings_tracker_visibility: "Lista parole",
+                settings_tracker_show: "Mostra le parole da trovare",
+                settings_tracker_hide: "Non mostrare le parole da trovare",
+                image_pair_tracker_label: "Trova queste coppie",
             },
             pt: {
-                image_pair_tracker_label: "Encontra estas palavras",
+                settings_tracker_visibility: "Lista de palavras",
+                settings_tracker_show: "Mostrar palavras a encontrar",
+                settings_tracker_hide: "Não mostrar palavras a encontrar",
+                image_pair_tracker_label: "Encontra estes pares",
             }
         };
 
@@ -969,16 +1003,33 @@
             return next;
         }
 
+        function getTrackerVisibility() {
+            const stored = localStorage.getItem("show_target_words");
+            return stored === "hide" ? "hide" : "show";
+        }
+
+        function setTrackerVisibility(mode) {
+            const next = mode === "hide" ? "hide" : "show";
+            localStorage.setItem("show_target_words", next);
+            syncSettingsControls();
+            renderImagePairTracker();
+            return next;
+        }
+
         function syncSettingsControls() {
             const langSelect = document.getElementById("uiLangSelect");
             if (langSelect) langSelect.value = getLanguage();
             const currentStyle = getUiStyle();
             const currentMotion = getUiMotion();
+            const currentTrackerVisibility = getTrackerVisibility();
             document.querySelectorAll("[data-ui-style-choice]").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.uiStyleChoice === currentStyle);
             });
             document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.uiMotionChoice === currentMotion);
+            });
+            document.querySelectorAll("[data-tracker-visibility-choice]").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.trackerVisibilityChoice === currentTrackerVisibility);
             });
         }
 
@@ -1036,13 +1087,18 @@
             document.getElementById("settingsLanguageLabel").textContent = t("settings_language");
             document.getElementById("settingsUiStyleLabel").textContent = t("settings_ui_style");
             document.getElementById("settingsMotionLabel").textContent = t("settings_motion");
+            document.getElementById("settingsTrackerVisibilityLabel").textContent = t("settings_tracker_visibility");
             document.querySelectorAll("[data-ui-style-choice]").forEach((btn) => {
                 btn.textContent = t(`ui_style_${btn.dataset.uiStyleChoice}`);
             });
             document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
                 btn.textContent = t(`settings_motion_${btn.dataset.uiMotionChoice}`);
             });
+            document.querySelectorAll("[data-tracker-visibility-choice]").forEach((btn) => {
+                btn.textContent = t(`settings_tracker_${btn.dataset.trackerVisibilityChoice}`);
+            });
             syncSettingsControls();
+            renderImagePairTracker();
         }
 
         applyPersonalSettings();
@@ -1056,6 +1112,9 @@
         });
         document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
             btn.addEventListener("click", () => setUiMotion(btn.dataset.uiMotionChoice));
+        });
+        document.querySelectorAll("[data-tracker-visibility-choice]").forEach((btn) => {
+            btn.addEventListener("click", () => setTrackerVisibility(btn.dataset.trackerVisibilityChoice));
         });
         function openSettings() {
             const modal = document.getElementById("settingsModal");
@@ -1406,27 +1465,27 @@
         }
 
         function shouldShowImagePairTracker() {
-            return (window.currentCardMode || "images") === "images" && Array.isArray(cards) && cards.length > 0;
+            return getTrackerVisibility() !== "hide" && Array.isArray(cards) && cards.length > 0;
         }
 
         function getImagePairTrackerEntries() {
-            if (Array.isArray(imagePairTrackerEntries) && imagePairTrackerEntries.length > 0) {
-                return imagePairTrackerEntries;
-            }
             const pairs = new Map();
             cards.forEach((card, index) => {
-                if (!card || card.card_type === "word") return;
+                if (!card) return;
                 const key = card.pair_id != null
                     ? `pair-${card.pair_id}`
-                    : `word-${String(card.display_word || card.word || index).toLowerCase()}`;
+                    : `word-${String(card.display_word || card.native_word || card.target_word || card.word || index).toLowerCase()}`;
                 if (!pairs.has(key)) {
                     pairs.set(key, {
                         key,
-                        label: card.display_word || card.word || "",
+                        label: card.display_word || card.native_word || card.target_word || card.word || "",
                         indices: []
                     });
                 }
-                pairs.get(key).indices.push(index);
+                const entry = pairs.get(key);
+                const betterLabel = card.display_word || card.native_word || entry.label || card.target_word || card.word || "";
+                if (betterLabel) entry.label = betterLabel;
+                entry.indices.push(index);
             });
             return Array.from(pairs.values()).filter((entry) => entry.label);
         }
@@ -1862,10 +1921,12 @@
             cards.forEach(card => {
                 if (!card || card.pair_id !== pair_id) return;
                 card.native_word = native_word;
+                card.display_word = native_word;
                 if (card.card_type === "word" && card.text === english_word) {
                     card.text = native_word;
                 }
             });
+            renderImagePairTracker();
         });
 
         socket.on("game_setup_error", (data) => {

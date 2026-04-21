@@ -166,6 +166,8 @@ class RoomState:
     player_points: dict = field(default_factory=dict)
     round_win: defaultdict = field(default_factory=lambda: defaultdict(int))
     round_ties: int = 0
+    round_starter: str | None = None
+    last_round_starter: str | None = None
     pending_pair: int = 0
     pending_player: str | None = None
     pending_theme: str | None = None
@@ -429,6 +431,19 @@ def get_first_human_player_name(room):
         if not is_bot_player(player):
             return player.get("username")
     return room.player_order[0] if room.player_order else None
+
+
+def get_round_starter_name(room):
+    human_names = [
+        data.get("username")
+        for _, data in get_effective_human_player_items(room)
+        if data.get("username")
+    ]
+    if not human_names:
+        return room.player_order[0] if room.player_order else None
+    if len(human_names) == 2 and room.last_round_starter in human_names:
+        return human_names[1] if human_names[0] == room.last_round_starter else human_names[0]
+    return human_names[0]
 
 
 def queue_can_prepare_round_while_waiting(room):
@@ -1730,7 +1745,8 @@ def append_pair_entry_to_grid(entry, pair_index, room):
 def launch_grid_round(room):
     room.matched_indices = set()
     room.revealed_cards = []
-    room.turn = 0
+    starter_name = room.round_starter if room.round_starter in room.player_order else None
+    room.turn = room.player_order.index(starter_name) if starter_name else 0
     room.bot_memory = {}
     if not room.queue_round_prepared:
         random.shuffle(room.grid_data)
@@ -1753,7 +1769,7 @@ def launch_grid_round(room):
         p["in_waiting"] = False
     emit_to_room("init_grid", {
         "cards": room.grid_data,
-        "turn": room.player_order[0] if room.player_order else None,
+        "turn": room.player_order[room.turn] if room.player_order else None,
         "players": room.player_order,
         "solo": is_solo(room),
         "play_mode": room.play_mode,
@@ -1771,6 +1787,7 @@ def launch_grid_round(room):
 
 
 def conclude_round(winner_label, room, surrendered_by=None):
+    room.last_round_starter = room.round_starter
     points_payload = {name: room.player_points.get(name, 0) for name in room.player_order}
     if (isinstance(winner_label, str)
             and winner_label not in {"Tasapeli", "Tie"}
@@ -1847,13 +1864,17 @@ def conclude_round(winner_label, room, surrendered_by=None):
 
 
 def build_image_pair_tracker_entries(room):
-    if (room.card_mode or "image_word") != "images":
-        return []
     entries = []
     by_key = {}
     for index, card in enumerate(room.grid_data or []):
         key = card.get("pair_id", card.get("word"))
-        label = card.get("display_word") or card.get("word") or ""
+        label = (
+            card.get("display_word")
+            or card.get("native_word")
+            or card.get("target_word")
+            or card.get("word")
+            or ""
+        )
         if not key or not label:
             continue
         if key not in by_key:
@@ -2124,7 +2145,7 @@ def ask_next_word(room):
         emit_to_room("game_aborted", {"reason": "Toinen pelaaja poistui. Peli keskeytetty."}, room_id=room.room_id)
         return
 
-    first_player = get_first_human_player_name(room) or (room.player_order[0] if room.player_order else None)
+    first_player = room.round_starter or get_round_starter_name(room) or (room.player_order[0] if room.player_order else None)
     room.pending_player = first_player
 
     if room.game_mode == "theme":
@@ -2797,6 +2818,7 @@ def handle_start_custom_game(data=None):
 
     room.last_tokens = set(v["reconnect_token"] for v in get_effective_players_ordered(room))
     room.player_order = [v["username"] for v in get_effective_players_ordered(room)]
+    room.round_starter = get_round_starter_name(room)
 
     if room.grid_data:
         if queue_prepare_mode and room.status == "waiting":
@@ -2863,7 +2885,7 @@ def handle_start_custom_game(data=None):
             starter["pref_ready"] = False
 
     if room.game_mode == "theme":
-        starter_name = room.players.get(request.sid, {}).get("username")
+        starter_name = room.round_starter or room.players.get(request.sid, {}).get("username")
         emit_to_room("theme_generation_started", {
             "theme": room.pending_theme,
             "pair": room.pending_pair + 1,
@@ -2878,7 +2900,7 @@ def handle_start_custom_game(data=None):
         prepare_theme_selection(starter_name, room)
         return
     if room.game_mode == "random":
-        starter_name = room.players.get(request.sid, {}).get("username")
+        starter_name = room.round_starter or room.players.get(request.sid, {}).get("username")
         emit_to_room("random_word_selection_started", {
             "mode": room.game_mode,
             "card_mode": room.card_mode,
