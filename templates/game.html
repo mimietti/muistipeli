@@ -1101,8 +1101,6 @@
             renderImagePairTracker();
         }
 
-        applyPersonalSettings();
-        applyTranslations();
         document.getElementById("uiLangSelect")?.addEventListener("change", (event) => {
             localStorage.setItem("ui_language", event.target.value);
             applyTranslations();
@@ -1227,6 +1225,8 @@
         };
 
         let currentNativeLanguage = getLanguage();
+        applyPersonalSettings();
+        applyTranslations();
 
         function getLangLabel(langCode) {
             const ui = getLanguage();
