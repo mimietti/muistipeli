@@ -117,7 +117,7 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.10 (2026-04-20)"
+APP_VERSION = "Beta v0.10 (2026-04-21)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -1740,7 +1740,11 @@ def launch_grid_round(room):
         return
     room.queue_round_prepared = False
     room.player_points = {name: 0 for name in room.player_order}
-    if is_solo(room) or has_bot:
+    if is_solo(room):
+        room.solo_start_time = 0.0
+        room.solo_mistakes = 0
+        room.solo_seen_cards = set()
+    elif has_bot:
         room.solo_start_time = time.time()
         room.solo_mistakes = 0
         room.solo_seen_cards = set()
@@ -2014,6 +2018,9 @@ def process_card_click(index, resolved_sid, clicker, room):
         return
     if index in room.matched_indices or index in room.revealed_cards:
         return
+
+    if is_solo(room) and not room.solo_start_time:
+        room.solo_start_time = time.time()
 
     debug(f"[DEBUG] Kortti klikattu: index {index}, sana: {room.grid_data[index]['word']}")
     if len(room.revealed_cards) == 0:

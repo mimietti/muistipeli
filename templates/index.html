@@ -10,12 +10,12 @@
             color: white;
             font-family: sans-serif;
             text-align: center;
-            padding-top: 100px;
+            padding-top: 34px;
         }
         .hero {
             width: min(560px, calc(100% - 32px));
             margin: 0 auto;
-            padding: 32px 28px 36px;
+            padding: 22px 24px 24px;
             border-radius: 24px;
             background:
                 radial-gradient(circle at top, rgba(94, 220, 135, 0.18), transparent 42%),
@@ -35,7 +35,7 @@
         button {
             font-size: 18px;
             padding: 10px 20px;
-            margin-top: 20px;
+            margin-top: 14px;
             border: none;
             border-radius: 5px;
             background-color: limegreen;
@@ -51,22 +51,25 @@
             justify-content: center;
             gap: 12px;
             flex-wrap: wrap;
-            margin-top: 18px;
+            margin-top: 14px;
         }
         .button-row button {
             margin-top: 0;
         }
         .mode-btn {
-            width: 88px;
-            height: 72px;
-            padding: 0;
+            width: 148px;
+            min-height: 98px;
+            padding: 10px 10px 9px;
             display: inline-flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
+            gap: 7px;
             border-radius: 18px;
             border: 1px solid rgba(255,255,255,0.12);
             box-shadow: 0 12px 28px rgba(0,0,0,0.18);
             transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+            text-align: center;
         }
         .mode-btn:hover {
             transform: translateY(-1px);
@@ -76,6 +79,18 @@
             width: 34px;
             height: 34px;
             fill: currentColor;
+        }
+        .mode-btn-label {
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+        .mode-btn-desc {
+            font-size: 11px;
+            line-height: 1.25;
+            max-width: 118px;
+            color: rgba(255,255,255,0.84);
+            font-weight: 500;
         }
         .mode-btn.multiplayer {
             background: #32cd32;
@@ -103,10 +118,10 @@
 
         #error {
             color: red;
-            margin-top: 20px;
+            margin-top: 14px;
         }
         #languagePicker {
-            margin-bottom: 28px;
+            margin-bottom: 14px;
             display: flex;
             justify-content: center;
         }
@@ -240,21 +255,29 @@
         .home-lobby-join:hover {
             background: rgba(48, 112, 63, 0.86);
         }
+        #pageTitle {
+            margin: 0 auto 8px;
+            color: #fff4d7;
+            font-size: 48px;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.02em;
+        }
         #introText {
-            max-width: 470px;
-            margin: 0 auto 24px;
+            max-width: 430px;
+            margin: 0 auto 10px;
             color: #d4ddd4;
-            font-size: 16px;
-            line-height: 1.6;
+            font-size: 14px;
+            line-height: 1.45;
         }
         .footer-credit {
-            margin-top: 26px;
+            margin-top: 18px;
             color: #8c928c;
             font-size: 12px;
             letter-spacing: 0.04em;
         }
         .config-section {
-            margin: 22px auto 0;
+            margin: 16px auto 0;
             max-width: 460px;
         }
         .config-title {
@@ -273,7 +296,7 @@
         }
         .card-mode-btn {
             min-width: 128px;
-            padding: 12px 12px 11px;
+            padding: 10px 12px 9px;
             margin-top: 0;
             border-radius: 16px;
             border: 1px solid rgba(255,255,255,0.12);
@@ -302,6 +325,15 @@
             font-size: 14px;
             font-weight: 700;
             line-height: 1.2;
+        }
+        .card-mode-desc {
+            font-size: 11px;
+            line-height: 1.25;
+            color: #aeb6ae;
+            max-width: 120px;
+        }
+        .card-mode-btn.is-active .card-mode-desc {
+            color: #d9f5db;
         }
     </style>
 </head>
@@ -377,14 +409,17 @@
                 <button type="button" class="card-mode-btn" id="indexCardModeImages" data-mode="images">
                     <span class="card-mode-icon" aria-hidden="true">🖼🖼</span>
                     <span class="card-mode-label" id="indexCardModeImagesText">Image pairs</span>
+                    <span class="card-mode-desc" id="indexCardModeImagesDesc">Match two related images.</span>
                 </button>
                 <button type="button" class="card-mode-btn is-active" id="indexCardModeImageWord" data-mode="image_word">
                     <span class="card-mode-icon" aria-hidden="true">🖼📝</span>
                     <span class="card-mode-label" id="indexCardModeImageWordText">Image + word</span>
+                    <span class="card-mode-desc" id="indexCardModeImageWordDesc">Match a picture with a word.</span>
                 </button>
                 <button type="button" class="card-mode-btn" id="indexCardModeWords" data-mode="words">
                     <span class="card-mode-icon" aria-hidden="true">📝📝</span>
                     <span class="card-mode-label" id="indexCardModeWordsText">Word + word</span>
+                    <span class="card-mode-desc" id="indexCardModeWordsDesc">Match words that mean the same.</span>
                 </button>
             </div>
         </div>
@@ -394,18 +429,24 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M8 11a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm8 0a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7ZM2.5 20.5A5.5 5.5 0 0 1 8 15h0a5.5 5.5 0 0 1 5.5 5.5v.5h-11v-.5Zm10 0A5.5 5.5 0 0 1 18 15h0a5.5 5.5 0 0 1 5.5 5.5v.5h-11v-.5Z"/>
                 </svg>
+                <span class="mode-btn-label" id="joinBtnLabel">Play with another player</span>
+                <span class="mode-btn-desc" id="joinBtnDesc">Create or join a game with another player.</span>
                 <span class="sr-only" id="joinBtnText">Play with another player</span>
             </button>
             <button id="joinBotBtn" class="mode-btn bot" type="button" onclick="joinGame(true)" aria-label="Play against bot" title="Play against bot">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M11 2h2v2h3a3 3 0 0 1 3 3v3.5A3.5 3.5 0 0 1 22 14v4a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4v-4a3.5 3.5 0 0 1 3-3.5V7a3 3 0 0 1 3-3h3V2Zm-3 7h8V7H8v2Zm1.75 7a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Zm4.5 0a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5ZM8 19h8v-2H8v2Z"/>
                 </svg>
+                <span class="mode-btn-label" id="joinBotBtnLabel">Play against bot</span>
+                <span class="mode-btn-desc" id="joinBotBtnDesc">Prepare the cards and challenge Memory Bot.</span>
                 <span class="sr-only" id="joinBotBtnText">Play against bot</span>
             </button>
             <button id="joinSoloBtn" class="mode-btn solo" type="button" onclick="joinGame('solo')" aria-label="Play solo" title="Play solo">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 12a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0 2c4.418 0 8 2.239 8 5v2H4v-2c0-2.761 3.582-5 8-5Z"/>
                 </svg>
+                <span class="mode-btn-label" id="joinSoloBtnLabel">Play solo</span>
+                <span class="mode-btn-desc" id="joinSoloBtnDesc">Play at your own pace without an opponent.</span>
                 <span class="sr-only" id="joinSoloBtnText">Play solo</span>
             </button>
         </div>
@@ -421,11 +462,14 @@
         const APP_VERSION = {{ app_version|tojson }};
         const translations = {
             en: {
-                page_title: "Welcome! Study languages in a new way or play a new kind of memory game!",
-                intro_text: "The game is similar to a traditional memory game where you turn over two cards at a time. In this version, you need to figure out which cards form a pair. Depending on the game type, a pair can be two different pictures connected by the same word, or a combination of a picture card and a word card.",
+                page_title: "MindMatch",
+                intro_text: "Turn two cards and find the matching pair: image pair, image + word, or word pair.",
                 join: "Play with another player",
                 join_bot: "Play against bot",
                 join_solo: "Play solo",
+                join_desc: "Create or join a game with another player.",
+                join_bot_desc: "Prepare the cards and challenge Memory Bot.",
+                join_solo_desc: "Play at your own pace without an opponent.",
                 name_placeholder: "Your name",
                 language: "Language",
                 enter_name_first: "Enter your name first.",
@@ -444,11 +488,14 @@
                 release_notes: "Release notes"
             },
             fi: {
-                page_title: "Tervetuloa opiskelemaan kieliä uudella tavalla tai pelaamaan uudenlaista muistipeliä!",
-                intro_text: "Peli muistuttaa perinteistä muistipeliä, jossa käännetään kaksi korttia kerrallaan. Tässä pelissä pitää päätellä, mitkä kortit muodostavat parin. Pelityypistä riippuen pari voi olla kaksi eri kuvaa, joita yhdistää sama sana, tai kuva- ja sanakortin yhdistelmä.",
+                page_title: "MindMatch",
+                intro_text: "Käännä kaksi korttia ja etsi oikea pari: kuvapari, kuva + sana tai sanapari.",
                 join: "Pelaa toisen kanssa",
                 join_bot: "Pelaa bottia vastaan",
                 join_solo: "Pelaa yksin",
+                join_desc: "Liity toisen pelaajan kanssa samaan peliin.",
+                join_bot_desc: "Valmistele kortit ja haasta Muistibotti.",
+                join_solo_desc: "Pelaa omaan tahtiin ilman vastustajaa.",
                 name_placeholder: "Nimesi",
                 language: "Kieli",
                 enter_name_first: "Syötä nimi ensin.",
@@ -467,8 +514,8 @@
                 release_notes: "Julkaisutiedot"
             },
             sv: {
-                page_title: "Välkommen! Lär dig språk på ett nytt sätt eller spela en ny sorts memoryspel!",
-                intro_text: "Spelet liknar ett traditionellt memory där du vänder två kort åt gången. I den här versionen behöver du lista ut vilka kort som bildar ett par. Beroende på speltyp kan ett par vara två olika bilder som hör ihop med samma ord, eller en kombination av ett bildkort och ett ordkort.",
+                page_title: "MindMatch",
+                intro_text: "Vänd två kort och hitta rätt par: bildpar, bild + ord eller ordpar.",
                 join: "Spela med en annan spelare",
                 join_bot: "Spela mot botten",
                 join_solo: "Spela ensam",
@@ -483,8 +530,8 @@
                 release_notes: "Versionsinfo"
             },
             de: {
-                page_title: "Willkommen! Lerne Sprachen auf neue Weise oder spiele eine neue Art von Memory!",
-                intro_text: "Das Spiel ähnelt einem klassischen Memory, bei dem man immer zwei Karten aufdeckt. In dieser Version musst du herausfinden, welche Karten ein Paar bilden. Je nach Spieltyp kann ein Paar aus zwei verschiedenen Bildern bestehen, die durch dasselbe Wort verbunden sind, oder aus einer Bildkarte und einer Wortkarte.",
+                page_title: "MindMatch",
+                intro_text: "Decke zwei Karten auf und finde das passende Paar: Bildpaar, Bild + Wort oder Wortpaar.",
                 join: "Mit anderer Person spielen",
                 join_bot: "Gegen Bot spielen",
                 join_solo: "Allein spielen",
@@ -499,8 +546,8 @@
                 release_notes: "Versionshinweise"
             },
             fr: {
-                page_title: "Bienvenue ! Apprenez les langues autrement ou jouez à une nouvelle version du memory !",
-                intro_text: "Le jeu ressemble à un memory traditionnel où l’on retourne deux cartes à la fois. Dans cette version, il faut comprendre quelles cartes forment une paire. Selon le type de jeu, une paire peut être composée de deux images différentes liées par le même mot, ou d’une carte image et d’une carte mot.",
+                page_title: "MindMatch",
+                intro_text: "Retournez deux cartes et trouvez la bonne paire : deux images, image + mot ou deux mots.",
                 join: "Jouer avec une autre personne",
                 join_bot: "Jouer contre le bot",
                 join_solo: "Jouer en solo",
@@ -515,8 +562,8 @@
                 release_notes: "Notes de version"
             },
             es: {
-                page_title: "¡Bienvenido! Aprende idiomas de una forma nueva o juega a un nuevo tipo de memory.",
-                intro_text: "El juego se parece a un memory tradicional en el que se giran dos cartas a la vez. En esta versión debes descubrir qué cartas forman una pareja. Según el tipo de juego, una pareja puede ser dos imágenes diferentes unidas por la misma palabra, o una combinación de una carta con imagen y una carta con palabra.",
+                page_title: "MindMatch",
+                intro_text: "Gira dos cartas y encuentra la pareja correcta: imagen + imagen, imagen + palabra o palabra + palabra.",
                 join: "Jugar con otra persona",
                 join_bot: "Jugar contra el bot",
                 join_solo: "Jugar en solitario",
@@ -531,8 +578,8 @@
                 release_notes: "Notas de la versión"
             },
             it: {
-                page_title: "Benvenuto! Studia le lingue in un modo nuovo oppure gioca a un nuovo tipo di memory!",
-                intro_text: "Il gioco ricorda un memory tradizionale in cui si girano due carte alla volta. In questa versione bisogna capire quali carte formano una coppia. A seconda del tipo di gioco, una coppia può essere composta da due immagini diverse collegate dalla stessa parola, oppure da una carta immagine e una carta parola.",
+                page_title: "MindMatch",
+                intro_text: "Gira due carte e trova la coppia giusta: immagine + immagine, immagine + parola o parola + parola.",
                 join: "Gioca con un’altra persona",
                 join_bot: "Gioca contro il bot",
                 join_solo: "Gioca da solo",
@@ -547,8 +594,8 @@
                 release_notes: "Note di rilascio"
             },
             pt: {
-                page_title: "Bem-vindo! Aprende línguas de uma nova forma ou joga um novo tipo de jogo da memória!",
-                intro_text: "O jogo é parecido com um jogo da memória tradicional em que se viram duas cartas de cada vez. Nesta versão, tens de descobrir quais cartas formam um par. Dependendo do tipo de jogo, um par pode ser duas imagens diferentes ligadas pela mesma palavra, ou uma combinação de uma carta com imagem e uma carta com palavra.",
+                page_title: "MindMatch",
+                intro_text: "Vira duas cartas e encontra o par certo: imagem + imagem, imagem + palavra ou palavra + palavra.",
                 join: "Jogar com outra pessoa",
                 join_bot: "Jogar contra o bot",
                 join_solo: "Jogar sozinho",
@@ -566,14 +613,30 @@
 
         const UI_LANGS = ["fi", "en", "sv", "de", "fr", "es", "it", "pt"];
         const cardModeTranslations = {
-            en: { title: "Card type", images: "Image pairs", image_word: "Image + word", words: "Word + word" },
-            fi: { title: "Korttityyppi", images: "Kuvaparit", image_word: "Kuva + sana", words: "Sana + sana" },
-            sv: { title: "Korttyp", images: "Bildpar", image_word: "Bild + ord", words: "Ord + ord" },
-            de: { title: "Kartentyp", images: "Bildpaare", image_word: "Bild + Wort", words: "Wort + Wort" },
-            fr: { title: "Type de cartes", images: "Paires d'images", image_word: "Image + mot", words: "Mot + mot" },
-            es: { title: "Tipo de cartas", images: "Parejas de imágenes", image_word: "Imagen + palabra", words: "Palabra + palabra" },
-            it: { title: "Tipo di carte", images: "Coppie di immagini", image_word: "Immagine + parola", words: "Parola + parola" },
-            pt: { title: "Tipo de cartas", images: "Pares de imagens", image_word: "Imagem + palavra", words: "Palavra + palavra" }
+            en: {
+                title: "Card type",
+                images: "Image pairs",
+                image_word: "Image + word",
+                words: "Word + word",
+                images_desc: "Match two related images.",
+                image_word_desc: "Match a picture with a word.",
+                words_desc: "Match words that mean the same."
+            },
+            fi: {
+                title: "Korttityyppi",
+                images: "Kuvaparit",
+                image_word: "Kuva + sana",
+                words: "Sana + sana",
+                images_desc: "Etsi kaksi toisiinsa sopivaa kuvaa.",
+                image_word_desc: "Yhdistä kuva ja sana.",
+                words_desc: "Yhdistä samaa tarkoittavat sanat."
+            },
+            sv: { title: "Korttyp", images: "Bildpar", image_word: "Bild + ord", words: "Ord + ord", images_desc: "Match two related images.", image_word_desc: "Match a picture with a word.", words_desc: "Match words that mean the same." },
+            de: { title: "Kartentyp", images: "Bildpaare", image_word: "Bild + Wort", words: "Wort + Wort", images_desc: "Match two related images.", image_word_desc: "Match a picture with a word.", words_desc: "Match words that mean the same." },
+            fr: { title: "Type de cartes", images: "Paires d'images", image_word: "Image + mot", words: "Mot + mot", images_desc: "Match two related images.", image_word_desc: "Match a picture with a word.", words_desc: "Match words that mean the same." },
+            es: { title: "Tipo de cartas", images: "Parejas de imágenes", image_word: "Imagen + palabra", words: "Palabra + palabra", images_desc: "Match two related images.", image_word_desc: "Match a picture with a word.", words_desc: "Match words that mean the same." },
+            it: { title: "Tipo di carte", images: "Coppie di immagini", image_word: "Immagine + parola", words: "Parola + parola", images_desc: "Match two related images.", image_word_desc: "Match a picture with a word.", words_desc: "Match words that mean the same." },
+            pt: { title: "Tipo de cartas", images: "Pares de imagens", image_word: "Imagem + palavra", words: "Palavra + palavra", images_desc: "Match two related images.", image_word_desc: "Match a picture with a word.", words_desc: "Match words that mean the same." }
         };
 
         function getLanguage() {
@@ -628,6 +691,9 @@
             document.getElementById("indexCardModeImagesText").textContent = cardTexts.images;
             document.getElementById("indexCardModeImageWordText").textContent = cardTexts.image_word;
             document.getElementById("indexCardModeWordsText").textContent = cardTexts.words;
+            document.getElementById("indexCardModeImagesDesc").textContent = cardTexts.images_desc;
+            document.getElementById("indexCardModeImageWordDesc").textContent = cardTexts.image_word_desc;
+            document.getElementById("indexCardModeWordsDesc").textContent = cardTexts.words_desc;
             const joinBtn = document.getElementById("joinBtn");
             const joinBotBtn = document.getElementById("joinBotBtn");
             const joinSoloBtn = document.getElementById("joinSoloBtn");
@@ -637,6 +703,12 @@
             joinBotBtn.setAttribute("title", t("join_bot"));
             joinSoloBtn.setAttribute("aria-label", t("join_solo"));
             joinSoloBtn.setAttribute("title", t("join_solo"));
+            document.getElementById("joinBtnLabel").textContent = t("join");
+            document.getElementById("joinBotBtnLabel").textContent = t("join_bot");
+            document.getElementById("joinSoloBtnLabel").textContent = t("join_solo");
+            document.getElementById("joinBtnDesc").textContent = t("join_desc");
+            document.getElementById("joinBotBtnDesc").textContent = t("join_bot_desc");
+            document.getElementById("joinSoloBtnDesc").textContent = t("join_solo_desc");
             document.getElementById("joinBtnText").textContent = t("join");
             document.getElementById("joinBotBtnText").textContent = t("join_bot");
             document.getElementById("joinSoloBtnText").textContent = t("join_solo");
