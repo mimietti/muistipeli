@@ -2085,6 +2085,10 @@ def process_card_click(index, resolved_sid, clicker, room):
             indices_to_hide = list(room.revealed_cards)
             room.revealed_cards = []
             room.current_click_sid = None
+            next_turn_name = None
+            if room.player_order:
+                room.turn = (room.turn + 1) % len(room.player_order)
+                next_turn_name = room.player_order[room.turn]
 
             def hide_later():
                 socketio.sleep(2)
@@ -2092,10 +2096,12 @@ def process_card_click(index, resolved_sid, clicker, room):
                     "indices": indices_to_hide,
                     "solo_mistakes": room.solo_mistakes if is_solo(room) else None
                 }, room_id=room.room_id)
+                debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")
+                emit_to_room("update_turn", {"turn": next_turn_name}, room_id=room.room_id)
+                schedule_bot_turn_if_needed(room)
 
             socketio.start_background_task(hide_later)
-            if room.player_order:
-                room.turn = (room.turn + 1) % len(room.player_order)
+            return
 
         next_turn_name = room.player_order[room.turn] if room.player_order else None
         debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")

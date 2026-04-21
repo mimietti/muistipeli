@@ -1178,7 +1178,7 @@
                 ui_style_minimal: "Minimal slate",
                 intro_text: "Prepare the round settings. Another player can join when the cards are ready.",
                 intro_text_bot: "Choose the round settings for your duel with Memory Bot. The game starts as soon as the cards are prepared.",
-                intro_text_solo: "Prepare the round settings. The game starts when the cards are ready.",
+                intro_text_solo: "Prepare the round settings. Find the pairs as quickly and carefully as you can. Missing an already seen pair adds a time penalty.",
                 welcome_player: "Welcome, {name}!",
                 spectator_player: "Welcome, {name}!",
                 status_waiting_for_player: "Waiting for another player.",
@@ -1282,9 +1282,9 @@
                 word_filter_broad: "Varied",
                 word_filter_clear_images: "Clear",
                 word_filter_broad_images: "Varied",
-                bot_difficulty_easy: "Easy",
-                bot_difficulty_medium: "Medium",
-                bot_difficulty_hard: "Hard",
+                bot_difficulty_easy: "Forgetful",
+                bot_difficulty_medium: "Challenger",
+                bot_difficulty_hard: "Relentless",
                 queue_bot_hint: "Tired of waiting?",
                 queue_play_bot: "🤖 Play against bot",
                 card_mode_images: "Images",
@@ -1316,7 +1316,7 @@
                 ui_style_minimal: "Pelkistetty",
                 intro_text: "Tee valinnat valmiiksi. Toinen pelaaja voi liittyä huoneeseen, kun kortit ovat valmiita.",
                 intro_text_bot: "Valitse erän asetukset kaksintaisteluun Muistibotin kanssa. Peli alkaa heti, kun kortit on valmisteltu.",
-                intro_text_solo: "Tee valinnat valmiiksi. Peli alkaa, kun kortit ovat valmiit.",
+                intro_text_solo: "Peli alkaa, kun kortit ovat valmiina. Yritä löytää parit nopeasti mutta huolellisesti. Jo nähdyn parin missaamisesta tulee aikasakko.",
                 welcome_player: "Tervetuloa, {name}!",
                 spectator_player: "Tervetuloa, {name}!",
                 status_waiting_for_player: "Odotetaan toista pelaajaa.",
@@ -1421,9 +1421,9 @@
                 word_filter_broad: "Monipuoliset",
                 word_filter_clear_images: "Selkeät",
                 word_filter_broad_images: "Monipuoliset",
-                bot_difficulty_easy: "Helppo",
-                bot_difficulty_medium: "Keskitaso",
-                bot_difficulty_hard: "Vaikea",
+                bot_difficulty_easy: "Hajamielinen",
+                bot_difficulty_medium: "Haastaja",
+                bot_difficulty_hard: "Armoton",
                 queue_bot_hint: "Etkö jaksa odottaa?",
                 queue_play_bot: "🤖 Pelaa bottia vastaan",
                 card_mode_images: "Kuvat",
@@ -1493,9 +1493,9 @@
 
         const UI_LANGS = ["en","fi","sv","de","fr","es","it","pt"];
         const DIFFICULTY_LABELS = {
-            easy:   { en: "Easy",   fi: "Helppo",      sv: "Lätt",        de: "Leicht",      fr: "Facile",      es: "Fácil",       it: "Facile",      pt: "Fácil" },
-            medium: { en: "Medium", fi: "Keskitaso",   sv: "Medel",       de: "Mittel",      fr: "Intermédiaire", es: "Intermedio", it: "Medio",       pt: "Médio" },
-            hard:   { en: "Hard",   fi: "Vaikea",      sv: "Svår",        de: "Schwer",      fr: "Difficile",   es: "Difícil",     it: "Difficile",   pt: "Difícil" }
+            easy:   { en: "Forgetful",  fi: "Hajamielinen", sv: "Lätt",        de: "Leicht",      fr: "Facile",        es: "Fácil",       it: "Facile",      pt: "Fácil" },
+            medium: { en: "Challenger", fi: "Haastaja",     sv: "Medel",       de: "Mittel",      fr: "Intermédiaire", es: "Intermedio",  it: "Medio",       pt: "Médio" },
+            hard:   { en: "Relentless", fi: "Armoton",      sv: "Svår",        de: "Schwer",      fr: "Difficile",     es: "Difícil",     it: "Difficile",   pt: "Difícil" }
         };
         const UI_STYLE_OPTIONS = ["classic", "cozy", "cabinet", "minimal"];
         const UI_MOTION_OPTIONS = ["normal", "reduced"];
@@ -1653,7 +1653,7 @@
                         hintDiv.textContent = "";
                     }
                 } else if (queueSearchActive) {
-                    hintDiv.textContent = queueRoundPrepared ? t("queue_round_ready") : t("queue_prepare_round");
+                    hintDiv.textContent = "";
                 } else {
                     const myIndex = window.latestPlayersInfo.findIndex(p => p && p.reconnect_token === myToken);
                     if (myIndex === 1) {
