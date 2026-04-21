@@ -60,14 +60,10 @@
         }
 
         h1 {
-            margin-top: 14px;
-            margin-bottom: 10px;
-            font-size: 34px;
+            display: none;
         }
         body.compact-lobby h1 {
-            margin-top: 12px;
-            margin-bottom: 10px;
-            font-size: 30px;
+            display: none;
         }
         #introText {
             max-width: 560px;
@@ -83,11 +79,11 @@
         }
 
         #players {
-            margin: 14px 0;
+            margin: 8px 0 14px;
             font-size: 24px;
         }
         body.compact-lobby #players {
-            margin: 10px 0 14px;
+            margin: 6px 0 12px;
             font-size: 20px;
         }
         #playerRole {
@@ -235,6 +231,17 @@
             flex-wrap: wrap;
             gap: 8px;
         }
+        #wordSourcePicker .option-group-btns {
+            flex-wrap: nowrap;
+            gap: 6px;
+        }
+        #wordSourcePicker .opt-btn {
+            flex: 1 1 0;
+            min-width: 0;
+            padding: 9px 12px;
+            font-size: 14px;
+            white-space: nowrap;
+        }
         .opt-btn {
             padding: 10px 16px;
             border-radius: 16px;
@@ -273,6 +280,9 @@
             background: rgba(124,245,138,0.15);
             border-color: rgba(124,245,138,0.5);
             color: #7cf58a;
+        }
+        #wordFilterPicker {
+            margin-top: 20px;
         }
         #langPicker {
             display: none;
@@ -1015,9 +1025,9 @@
                 </div>
             </div>
         </div>
+        <div id="players"></div>
         <h1 id="pageTitle">Waiting Room</h1>
         <p id="introText"></p>
-        <div id="players"></div>
         <div id="playModeSelect">
             <p id="playModeText"></p>
             <button class="play-mode-btn bot-btn" id="botModeBtn"></button>
@@ -1166,9 +1176,9 @@
                 ui_style_cozy: "Cozy table",
                 ui_style_cabinet: "Memory cabinet",
                 ui_style_minimal: "Minimal slate",
-                intro_text: "The first player prepares the round in advance. When another player joins, the game starts immediately.",
+                intro_text: "Prepare the round settings. Another player can join when the cards are ready.",
                 intro_text_bot: "Choose the round settings for your duel with Memory Bot. The game starts as soon as the cards are prepared.",
-                intro_text_solo: "Choose the round settings for your solo game. The game starts as soon as the cards are prepared.",
+                intro_text_solo: "Prepare the round settings. The game starts when the cards are ready.",
                 welcome_player: "Welcome, {name}!",
                 spectator_player: "Welcome, {name}!",
                 status_waiting_for_player: "Waiting for another player.",
@@ -1261,7 +1271,7 @@
                 join_opponent: "Join now",
                 match_found_msg: "Opponent found! Starting game...",
                 label_word_source: "Word selection",
-                label_image_source: "Image source",
+                label_image_source: "Images",
                 label_card_mode: "Cards",
                 label_lang: "Target language",
                 label_word_filter_mode: "Vocabulary",
@@ -1278,8 +1288,8 @@
                 queue_bot_hint: "Tired of waiting?",
                 queue_play_bot: "🤖 Play against bot",
                 card_mode_images: "Images",
-                enter_words_images: "Enter image ideas",
-                enter_theme_images: "Enter image theme",
+                enter_words_images: "Own ideas",
+                enter_theme_images: "Theme",
                 enter_random: "Random",
                 setup_status_random: "Finding random words...",
                 setup_status_random_creating: "Creating cards...",
@@ -1304,9 +1314,9 @@
                 ui_style_cozy: "Lämmin pöytä",
                 ui_style_cabinet: "Muistojen kabinetti",
                 ui_style_minimal: "Pelkistetty",
-                intro_text: "Ensimmäinen pelaaja tekee erän valinnat valmiiksi. Peli alkaa heti, kun toinen pelaaja liittyy huoneeseen.",
+                intro_text: "Tee valinnat valmiiksi. Toinen pelaaja voi liittyä huoneeseen, kun kortit ovat valmiita.",
                 intro_text_bot: "Valitse erän asetukset kaksintaisteluun Muistibotin kanssa. Peli alkaa heti, kun kortit on valmisteltu.",
-                intro_text_solo: "Valitse erän asetukset yksinpeliin. Peli alkaa heti, kun kortit on valmisteltu.",
+                intro_text_solo: "Tee valinnat valmiiksi. Peli alkaa, kun kortit ovat valmiit.",
                 welcome_player: "Tervetuloa, {name}!",
                 spectator_player: "Tervetuloa, {name}!",
                 status_waiting_for_player: "Odotetaan toista pelaajaa.",
@@ -1327,7 +1337,7 @@
                 card_mode_words: "Sana + sana",
                 card_mode_images_desc: "Etsi kaksi toisiinsa sopivaa kuvaa.",
                 card_mode_image_word_desc: "Yhdistä kuva ja sana.",
-                card_mode_words_desc: "Yhdistä samaa tarkoittavat sanat.",
+                card_mode_words_desc: "Yhdistä eri kielillä samaa tarkoittavat sanat.",
                 enter_spanish_theme_prompt: "Anna teema:",
                 setup_failed: "Pelin alustus epäonnistui.",
                 disconnect_alert: "Yhteys katkesi palvelimeen. Yritetään uudelleen...",
@@ -1390,9 +1400,9 @@
                 queue_summary_language: "Kieli",
                 queue_summary_word_style: "Sanasto",
                 queue_source_manual: "Omat sanat",
-                queue_source_manual_images: "Omat hakusanat",
+                queue_source_manual_images: "Omat ideat",
                 queue_source_theme: "Teema",
-                queue_source_theme_images: "Kuvateema",
+                queue_source_theme_images: "Teema",
                 queue_source_random: "Satunnaiset",
                 ready_multiplayer_title: "Valmiit moninpelit",
                 ready_multiplayer_help: "Liity heti valmiiseen erään tai valmistele oma peli alempaa.",
@@ -1400,7 +1410,7 @@
                 join_opponent: "Liity heti",
                 match_found_msg: "Vastustaja löytyi! Peli alkaa...",
                 label_word_source: "Sanavalinta",
-                label_image_source: "Kuvien lähde",
+                label_image_source: "Kuvat",
                 label_card_mode: "Kortit",
                 label_lang: "Opiskeltava kieli",
                 label_word_filter_mode: "Sanasto",
@@ -1417,8 +1427,8 @@
                 queue_bot_hint: "Etkö jaksa odottaa?",
                 queue_play_bot: "🤖 Pelaa bottia vastaan",
                 card_mode_images: "Kuvat",
-                enter_words_images: "Syötä omat hakusanat",
-                enter_theme_images: "Syötä kuvateema",
+                enter_words_images: "Omat ideat",
+                enter_theme_images: "Teema",
                 enter_random: "Satunnaiset",
                 setup_status_random: "Etsitään satunnaisia sanoja...",
                 setup_status_random_creating: "Luodaan kortteja...",
