@@ -1808,6 +1808,7 @@ def append_same_chord_pair_to_grid(chord_entry, room, pair_index=None):
         "word": label,
         "display_word": label,
         "chord_label": label,
+        "reference_audio": reference_audio_url,
         "audio": audio_url,
         "pair_id": pair_id,
         "card_type": "audio",

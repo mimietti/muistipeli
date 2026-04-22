@@ -1453,6 +1453,7 @@
             stopChordPreview();
             audioRevealLock = true;
             const previewToken = activeChordPreview.token;
+
             const markPreviewFinished = () => {
                 if (activeChordPreview.token !== previewToken) return;
                 audioRevealLock = false;
@@ -1463,26 +1464,29 @@
                     reconnect_token: getReconnectToken()
                 });
             };
+
+            // Preload target immediately so it's ready when reference ends
+            const targetAudio = new Audio(cardData.audio);
+            targetAudio.preload = "auto";
+            activeChordPreview.target = targetAudio;
+            targetAudio.onended = () => {
+                if (activeChordPreview.token === previewToken) {
+                    activeChordPreview.target = null;
+                    markPreviewFinished();
+                }
+            };
+
             const startTargetAudio = () => {
                 if (activeChordPreview.token !== previewToken) return;
-                activeChordPreview.pauseTimer = null;
-                const targetAudio = new Audio(cardData.audio);
-                targetAudio.preload = "auto";
-                activeChordPreview.target = targetAudio;
-                targetAudio.onended = () => {
-                    if (activeChordPreview.token === previewToken) {
-                        activeChordPreview.target = null;
-                        markPreviewFinished();
-                    }
-                };
-                targetAudio.play().catch(() => {
-                    markPreviewFinished();
-                });
+                activeChordPreview.reference = null;
+                targetAudio.play().catch(() => markPreviewFinished());
             };
+
             if (!cardData.reference_audio) {
-                startTargetAudio();
+                targetAudio.play().catch(() => markPreviewFinished());
                 return;
             }
+
             const referenceAudio = new Audio(cardData.reference_audio);
             referenceAudio.preload = "auto";
             activeChordPreview.reference = referenceAudio;
@@ -1491,9 +1495,7 @@
                 startTargetAudio();
             };
             referenceAudio.play().catch(() => {
-                if (activeChordPreview.token === previewToken) {
-                    startTargetAudio();
-                }
+                if (activeChordPreview.token === previewToken) startTargetAudio();
             });
         }
 
