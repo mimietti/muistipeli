@@ -1082,6 +1082,10 @@
                             <span class="opt-btn-title" id="cardModeChordsTitle">🎵 🎼 Chords</span>
                             <span class="opt-btn-desc" id="cardModeChordsDesc">Match a chord name with its sound.</span>
                         </button>
+                        <button class="opt-btn" data-mode="same_chords" id="cardModeSameChords">
+                            <span class="opt-btn-title" id="cardModeSameChordsTitle">🎵 🎵 Note + note</span>
+                            <span class="opt-btn-desc" id="cardModeSameChordsDesc">Match two sounds of the same chord.</span>
+                        </button>
                     </div>
                 </div>
             <div class="option-group" id="langPicker">
@@ -1203,10 +1207,12 @@
                 card_mode_image_word: "Image + word",
                 card_mode_words: "Word + word",
                 card_mode_chords: "Chords",
+                card_mode_same_chords: "Note + note",
                 card_mode_images_desc: "Match two related images.",
                 card_mode_image_word_desc: "Match a picture with a word.",
                 card_mode_words_desc: "Match words that mean the same.",
                 card_mode_chords_desc: "Match a chord name with its sound.",
+                card_mode_same_chords_desc: "Match two sounds of the same chord.",
                 setup_failed: "Game setup failed.",
                 disconnect_alert: "Connection to the server was lost. Trying again...",
                 opponent_reconnecting: "Waiting for {name} to reconnect…",
@@ -1299,6 +1305,7 @@
                 queue_play_bot: "🤖 Play against bot",
                 card_mode_images: "Images",
                 card_mode_chords: "Chords",
+                card_mode_same_chords: "Note + note",
                 enter_words_images: "Own ideas",
                 enter_theme_images: "Theme",
                 enter_random: "Random",
@@ -1347,10 +1354,12 @@
                 card_mode_image_word: "Kuva + sana",
                 card_mode_words: "Sana + sana",
                 card_mode_chords: "Soinnut",
+                card_mode_same_chords: "Nuotti + nuotti",
                 card_mode_images_desc: "Etsi kaksi toisiinsa sopivaa kuvaa.",
                 card_mode_image_word_desc: "Yhdistä kuva ja sana.",
                 card_mode_words_desc: "Yhdistä eri kielillä samaa tarkoittavat sanat.",
                 card_mode_chords_desc: "Yhdistä soinnun nimi ja sointu äänenä.",
+                card_mode_same_chords_desc: "Etsi kaksi samaa soivaa sointua.",
                 enter_spanish_theme_prompt: "Anna teema:",
                 setup_failed: "Pelin alustus epäonnistui.",
                 disconnect_alert: "Yhteys katkesi palvelimeen. Yritetään uudelleen...",
@@ -1444,6 +1453,7 @@
                 queue_play_bot: "🤖 Pelaa bottia vastaan",
                 card_mode_images: "Kuvat",
                 card_mode_chords: "Soinnut",
+                card_mode_same_chords: "Nuotti + nuotti",
                 enter_words_images: "Omat ideat",
                 enter_theme_images: "Teema",
                 enter_random: "Satunnaiset",
@@ -1456,10 +1466,12 @@
                 label_word_filter_mode: "Ordtyp",
                 label_word_filter_mode: "Ordförråd",
                 card_mode_chords: "Ackord",
+                card_mode_same_chords: "Not + not",
                 card_mode_images_desc: "Matcha två bilder som hör ihop.",
                 card_mode_image_word_desc: "Matcha en bild med ett ord.",
                 card_mode_words_desc: "Matcha ord som betyder samma sak.",
                 card_mode_chords_desc: "Matcha ett ackords namn med dess ljud.",
+                card_mode_same_chords_desc: "Hitta två ljud av samma ackord.",
                 word_filter_clear: "Tydliga",
                 word_filter_broad: "Mångsidiga",
                 queue_source_chords: "Ackord"
@@ -1468,10 +1480,12 @@
                 bot_difficulty_summary: "Schwierigkeit: {difficulty}",
                 label_word_filter_mode: "Wortschatz",
                 card_mode_chords: "Akkorde",
+                card_mode_same_chords: "Note + Note",
                 card_mode_images_desc: "Finde zwei zusammengehörige Bilder.",
                 card_mode_image_word_desc: "Ordne ein Bild einem Wort zu.",
                 card_mode_words_desc: "Verbinde Wörter mit derselben Bedeutung.",
                 card_mode_chords_desc: "Ordne einen Akkordnamen seinem Klang zu.",
+                card_mode_same_chords_desc: "Finde zwei Klänge desselben Akkords.",
                 word_filter_clear: "Klar",
                 word_filter_broad: "Vielseitig",
                 queue_source_chords: "Akkorde"
@@ -1480,10 +1494,12 @@
                 bot_difficulty_summary: "Difficulté : {difficulty}",
                 label_word_filter_mode: "Vocabulaire",
                 card_mode_chords: "Accords",
+                card_mode_same_chords: "Note + note",
                 card_mode_images_desc: "Associez deux images liées.",
                 card_mode_image_word_desc: "Associez une image à un mot.",
                 card_mode_words_desc: "Associez des mots qui ont le même sens.",
                 card_mode_chords_desc: "Associez le nom d'un accord à son son.",
+                card_mode_same_chords_desc: "Trouvez deux sons du même accord.",
                 word_filter_clear: "Clair",
                 word_filter_broad: "Varié",
                 queue_source_chords: "Accords"
@@ -1492,10 +1508,12 @@
                 bot_difficulty_summary: "Dificultad: {difficulty}",
                 label_word_filter_mode: "Vocabulario",
                 card_mode_chords: "Acordes",
+                card_mode_same_chords: "Nota + nota",
                 card_mode_images_desc: "Relaciona dos imágenes conectadas.",
                 card_mode_image_word_desc: "Relaciona una imagen con una palabra.",
                 card_mode_words_desc: "Relaciona palabras que significan lo mismo.",
                 card_mode_chords_desc: "Relaciona el nombre de un acorde con su sonido.",
+                card_mode_same_chords_desc: "Encuentra dos sonidos del mismo acorde.",
                 word_filter_clear: "Claras",
                 word_filter_broad: "Variadas",
                 queue_source_chords: "Acordes"
@@ -1504,10 +1522,12 @@
                 bot_difficulty_summary: "Difficoltà: {difficulty}",
                 label_word_filter_mode: "Vocabolario",
                 card_mode_chords: "Accordi",
+                card_mode_same_chords: "Nota + nota",
                 card_mode_images_desc: "Abbina due immagini collegate tra loro.",
                 card_mode_image_word_desc: "Abbina un'immagine a una parola.",
                 card_mode_words_desc: "Abbina parole con lo stesso significato.",
                 card_mode_chords_desc: "Abbina il nome di un accordo al suo suono.",
+                card_mode_same_chords_desc: "Trova due suoni dello stesso accordo.",
                 word_filter_clear: "Chiare",
                 word_filter_broad: "Varie",
                 queue_source_chords: "Accordi"
@@ -1516,10 +1536,12 @@
                 bot_difficulty_summary: "Dificuldade: {difficulty}",
                 label_word_filter_mode: "Vocabulário",
                 card_mode_chords: "Acordes",
+                card_mode_same_chords: "Nota + nota",
                 card_mode_images_desc: "Relaciona duas imagens ligadas entre si.",
                 card_mode_image_word_desc: "Relaciona uma imagem com uma palavra.",
                 card_mode_words_desc: "Relaciona palavras com o mesmo significado.",
                 card_mode_chords_desc: "Relaciona o nome de um acorde com o seu som.",
+                card_mode_same_chords_desc: "Encontra dois sons do mesmo acorde.",
                 word_filter_clear: "Claras",
                 word_filter_broad: "Variadas",
                 queue_source_chords: "Acordes"
@@ -1629,6 +1651,7 @@
         function getQueueCardModeLabel(mode) {
             if (mode === "images") return t("card_mode_images");
             if (mode === "chords") return t("card_mode_chords");
+            if (mode === "same_chords") return t("card_mode_same_chords");
             if (mode === "words") return t("card_mode_words");
             return t("card_mode_image_word");
         }
@@ -1640,7 +1663,7 @@
 
         function getQueueWordFilterLabel(mode, cardMode = null) {
             const effectiveMode = cardMode || window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word";
-            if (effectiveMode === "chords") return "";
+            if (effectiveMode === "chords" || effectiveMode === "same_chords") return "";
             const imagesOnly = effectiveMode === "images";
             if (imagesOnly) {
                 return mode === "broad" ? t("word_filter_broad_images") : t("word_filter_clear_images");
@@ -1790,6 +1813,8 @@
             el("cardModeWordsDesc").textContent = t("card_mode_words_desc");
             el("cardModeChordsTitle").textContent = "🎵 🎼 " + t("card_mode_chords");
             el("cardModeChordsDesc").textContent = t("card_mode_chords_desc");
+            el("cardModeSameChordsTitle").textContent = "🎵 🎵 " + t("card_mode_same_chords");
+            el("cardModeSameChordsDesc").textContent = t("card_mode_same_chords_desc");
             el("wordFilterClear").textContent = t(imagesOnly ? "word_filter_clear_images" : "word_filter_clear");
             el("wordFilterBroad").textContent = t(imagesOnly ? "word_filter_broad_images" : "word_filter_broad");
             el("botDifficultyEasy").textContent = getDifficultyLabel("easy");
@@ -2396,7 +2421,7 @@
                 document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.wordFilterMode === selectedWordFilterMode);
                 });
-                document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords").forEach((btn) => {
+                document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
                 });
                 applyTranslations();
@@ -2425,7 +2450,7 @@
                             username: myName,
                             reconnect_token: reconnectToken,
                             card_mode: selectedCardMode,
-                            target_language: !["images", "chords"].includes(selectedCardMode) ? selectedLang : ""
+                            target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : ""
                         });
                     }
                 }
@@ -2655,7 +2680,7 @@
                     bot_mode: localStorage.getItem("bot_mode") === "1",
                     solo_mode: isSolo,
                     card_mode: selectedCardMode,
-                    target_language: !["images", "chords"].includes(selectedCardMode) ? selectedLang : ""
+                    target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : ""
                 };
                 console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
                 socket.emit("join", joinPayload);
@@ -2906,7 +2931,7 @@
                 maybeStartPendingSameSettingsRematch();
             });
 
-            const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝", chords: "🎵\u200d🎼" };
+            const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝", chords: "🎵\u200d🎼", same_chords: "🎵\u200d🎵" };
             const langFlagEmoji = { es: "🇪🇸", sv: "🇸🇪", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", pt: "🇵🇹", en: "🇬🇧", fi: "🇫🇮" };
             const escapeHtml = (value) => String(value || "")
                 .replace(/&/g, "&amp;")
@@ -2937,7 +2962,7 @@
                     if (r.pending_theme) chips.push(`"${escapeHtml(r.pending_theme)}"`);
                     const cardLabel = `${cardModeIcon[r.card_mode] || ""} ${getQueueCardModeLabel(r.card_mode || "image_word")}`.trim();
                     if (cardLabel) chips.push(cardLabel);
-                    if (r.target_language && r.card_mode !== "chords") {
+                    if (r.target_language && !["chords", "same_chords"].includes(r.card_mode)) {
                         const langLabel = `${langFlagEmoji[r.target_language] || ""} ${getQueueLanguageLabel(r.target_language)}`.trim();
                         if (langLabel) chips.push(langLabel);
                     }
@@ -2975,9 +3000,9 @@
 
             // --- Round options state ---
             let selectedWordSource = "random"; // "manual" | "theme" | "random"
-            let selectedCardMode = ["images", "image_word", "words", "chords"].includes(localStorage.getItem("preferred_card_mode"))
+            let selectedCardMode = ["images", "image_word", "words", "chords", "same_chords"].includes(localStorage.getItem("preferred_card_mode"))
                 ? localStorage.getItem("preferred_card_mode")
-                : "image_word"; // "images" | "image_word" | "words"
+                : "image_word"; // "images" | "image_word" | "words" | "chords" | "same_chords"
             let selectedLang = "es";
             let selectedWordFilterMode = ["clear", "broad"].includes(localStorage.getItem("preferred_word_filter_mode"))
                 ? localStorage.getItem("preferred_word_filter_mode")
@@ -2987,7 +3012,7 @@
                 : "easy";
 
             function updateLangPickerVisibility() {
-                const needsLang = !["images", "chords"].includes(selectedCardMode);
+                const needsLang = !["images", "chords", "same_chords"].includes(selectedCardMode);
                 document.getElementById("langPicker").style.display = needsLang ? "block" : "none";
             }
 
@@ -2997,7 +3022,7 @@
             }
 
             function updateWordFilterVisibility() {
-                const showWordFilter = selectedCardMode !== "chords" && (selectedWordSource === "theme" || selectedWordSource === "random");
+                const showWordFilter = !["chords", "same_chords"].includes(selectedCardMode) && (selectedWordSource === "theme" || selectedWordSource === "random");
                 document.getElementById("wordFilterPicker").style.display = showWordFilter ? "block" : "none";
             }
 
@@ -3009,18 +3034,19 @@
                 const langPickerEl = document.getElementById("langPicker");
                 const botDifficultyPickerEl = document.getElementById("botDifficultyPicker");
                 const startRoundBtnEl = document.getElementById("startRoundBtn");
+                const isChordMode = ["chords", "same_chords"].includes(selectedCardMode);
                 if (!active) {
-                    wordSourcePickerEl.style.display = selectedCardMode === "chords" ? "none" : "";
-                    wordFilterPickerEl.style.display = selectedCardMode === "chords" ? "none" : "";
+                    wordSourcePickerEl.style.display = isChordMode ? "none" : "";
+                    wordFilterPickerEl.style.display = isChordMode ? "none" : "";
                     botDifficultyPickerEl.style.display = (localStorage.getItem("play_mode") || "") === "bot" ? "block" : "none";
                     startRoundBtnEl.style.display = "";
                     return;
                 }
                 startOptionsEl.style.display = prepared ? "none" : "block";
-                wordSourcePickerEl.style.display = (prepared || selectedCardMode === "chords") ? "none" : "";
-                wordFilterPickerEl.style.display = (prepared || selectedCardMode === "chords") ? "none" : "";
+                wordSourcePickerEl.style.display = (prepared || isChordMode) ? "none" : "";
+                wordFilterPickerEl.style.display = (prepared || isChordMode) ? "none" : "";
                 cardModePickerEl.style.display = "none";
-                langPickerEl.style.display = prepared ? "none" : (!["images", "chords"].includes(selectedCardMode) ? "block" : "none");
+                langPickerEl.style.display = prepared ? "none" : (!["images", "chords", "same_chords"].includes(selectedCardMode) ? "block" : "none");
                 botDifficultyPickerEl.style.display = "none";
                 startRoundBtnEl.style.display = prepared ? "none" : "";
             }
@@ -3033,25 +3059,25 @@
                 });
             });
 
-            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords").forEach(btn => {
+            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords").forEach(btn => {
                 btn.addEventListener("click", () => {
                     selectedCardMode = btn.dataset.mode;
                     window.currentWaitingCardMode = selectedCardMode;
                     try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (e) {}
-                    if (selectedCardMode === "chords") {
+                    if (selectedCardMode === "chords" || selectedCardMode === "same_chords") {
                         selectedWordSource = "random";
                         document.querySelectorAll("#srcManualBtn, #srcThemeBtn, #srcRandomBtn").forEach(b => b.classList.toggle("active", b.id === "srcRandomBtn"));
                     }
-                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords").forEach(b => b.classList.toggle("active", b === btn));
+                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords").forEach(b => b.classList.toggle("active", b === btn));
                     updateLangPickerVisibility();
                     updateWordFilterVisibility();
                     renderQueuePreferencePicker(isQueueSearchLobby(window.latestLobbyPayload, window.latestPlayersInfo), Boolean(window.latestLobbyPayload && window.latestLobbyPayload.queue_round_prepared));
                     applyTranslations();
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords"].includes(selectedCardMode) ? selectedLang : "" });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "" });
                 });
             });
 
-            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords").forEach((btn) => {
+            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
             });
             window.currentWaitingCardMode = selectedCardMode;
@@ -3088,7 +3114,7 @@
                 btn.addEventListener("click", () => {
                     selectedLang = btn.dataset.lang;
                     document.querySelectorAll(".lang-flag-btn").forEach(b => b.classList.toggle("active", b === btn));
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords"].includes(selectedCardMode) ? selectedLang : "" });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "" });
                 });
             });
 
@@ -3102,6 +3128,14 @@
                         payload.bot_difficulty = selectedBotDifficulty;
                     }
                     beginRoundPreparation({ mode: "chords", phase: "drawing_cards" }, payload);
+                    return;
+                }
+                if (selectedCardMode === "same_chords") {
+                    const payload = { mode: "same_chords", card_mode: "same_chords", ui_language: getLanguage() };
+                    if ((localStorage.getItem("play_mode") || "") === "bot") {
+                        payload.bot_difficulty = selectedBotDifficulty;
+                    }
+                    beginRoundPreparation({ mode: "same_chords", phase: "drawing_cards" }, payload);
                     return;
                 }
                 if (selectedWordSource === "random") {

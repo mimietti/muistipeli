@@ -263,8 +263,16 @@ RANDOM_WORD_THEMES = [
     "bathroom", "toys", "bird", "insect", "flower", "school",
 ]
 
-CHORD_SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "static", "audio", "chords")
+CHORD_SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "static", "audio", "chords", "c_harmony")
 CHORD_REFERENCE_LABEL = "C major"
+CHORD_QUALITY_LABELS = {
+    "major": "major",
+    "minor": "minor",
+    "maj7": "maj7",
+    "7": "7",
+    "sus4": "sus4",
+    "dim": "dim",
+}
 
 
 def prettify_chord_label_from_filename(filename):
@@ -273,9 +281,9 @@ def prettify_chord_label_from_filename(filename):
     if len(parts) < 2:
         return base.replace("_", " ").title()
     note = parts[0].upper()
-    quality = parts[1].lower()
-    if quality not in {"major", "minor"}:
-        quality = quality.title()
+    quality = next((CHORD_QUALITY_LABELS[part.lower()] for part in parts[1:] if part.lower() in CHORD_QUALITY_LABELS), None)
+    if not quality:
+        quality = parts[1].title()
     return f"{note} {quality}".strip()
 
 
@@ -284,12 +292,12 @@ def load_chord_library():
         return []
     entries = []
     for name in sorted(os.listdir(CHORD_SAMPLE_DIR)):
-        if not name.lower().endswith(".mp3"):
+        if not name.lower().endswith(".mp3") or name.startswith("._"):
             continue
         entries.append({
             "filename": name,
             "label": prettify_chord_label_from_filename(name),
-            "url": f"/static/audio/chords/{name}",
+            "url": f"/static/audio/chords/c_harmony/{name}",
         })
     return entries
 
@@ -1785,6 +1793,53 @@ def append_chord_pair_to_grid(chord_entry, room, pair_index=None):
     return True
 
 
+def append_same_chord_pair_to_grid(chord_entry, room, pair_index=None):
+    """Two identical audio cards for the same chord (same_chords mode)."""
+    if not chord_entry:
+        return False
+    resolved_pair_index = room.pending_pair if pair_index is None else pair_index
+    pair_id = resolved_pair_index + 1
+    label = chord_entry.get("label") or ""
+    audio_url = chord_entry.get("url")
+    reference_audio_url = (CHORD_REFERENCE_ENTRY or chord_entry).get("url")
+    if not label or not audio_url or not reference_audio_url:
+        return False
+    common = {
+        "word": label,
+        "display_word": label,
+        "chord_label": label,
+        "reference_audio": reference_audio_url,
+        "audio": audio_url,
+        "pair_id": pair_id,
+        "card_type": "audio",
+    }
+    room.grid_data.append(dict(common))
+    room.grid_data.append(dict(common))
+    return True
+
+
+def build_same_chord_round(room):
+    available = list(CHORD_LIBRARY)
+    if len(available) < 8:
+        return False
+    random.shuffle(available)
+    room.grid_data.clear()
+    for pair_index, chord_entry in enumerate(available[:8]):
+        if not append_same_chord_pair_to_grid(chord_entry, room, pair_index=pair_index):
+            return False
+        emit_to_room("random_drawing_started", {
+            "mode": "same_chords",
+            "card_mode": "same_chords",
+            "phase": "drawing_cards",
+            "progress_count": pair_index + 1,
+            "total_pairs": 8,
+        }, room_id=room.room_id)
+        socketio.sleep(0)
+    room.pending_pair = 8
+    room.pending_player = None
+    return True
+
+
 def build_theme_pair_entry(word, room):
     result = fetch_and_save_pixabay_images(word, room)
     if not result:
@@ -1801,7 +1856,7 @@ def build_theme_pair_entry(word, room):
 
 def build_pair_entry_for_mode(word, pair_index, room):
     card_mode = room.card_mode or "image_word"
-    if card_mode == "chords":
+    if card_mode in {"chords", "same_chords"}:
         return None
     if card_mode == "images":
         return build_theme_pair_entry(word, room)
@@ -2615,7 +2670,7 @@ def leaderboard():
                         if len(grouped[key]) < 10:
                             grouped[key].append(row[2:])  # drop grouping prefix
                     # define canonical order
-                    cm_order = ["images", "image_word", "words", "chords"]
+                    cm_order = ["images", "image_word", "words", "chords", "same_chords"]
                     seen = set()
                     for cm in cm_order:
                         for key in sorted(grouped.keys()):
@@ -2668,10 +2723,10 @@ def on_join(data):
     wants_solo = bool((data or {}).get("solo_mode"))
     requested_play_mode = "solo" if wants_solo else ("bot" if wants_bot else "queue")
     preferred_card_mode = str((data or {}).get("card_mode") or "image_word").strip().lower()
-    if preferred_card_mode not in {"images", "image_word", "words", "chords"}:
+    if preferred_card_mode not in {"images", "image_word", "words", "chords", "same_chords"}:
         preferred_card_mode = "image_word"
     preferred_target_language = str((data or {}).get("target_language") or "").strip().lower()
-    if preferred_card_mode in {"images", "chords"}:
+    if preferred_card_mode in {"images", "chords", "same_chords"}:
         preferred_target_language = ""
 
     if not reconnect_token:
@@ -2985,9 +3040,9 @@ def handle_start_custom_game(data=None):
         if not card_mode:
             card_mode = "image_word"
         data.setdefault("target_language", "es")
-    if mode not in {"manual", "theme", "random", "chords"}:
+    if mode not in {"manual", "theme", "random", "chords", "same_chords"}:
         mode = "manual"
-    if card_mode not in {"images", "image_word", "words", "chords"}:
+    if card_mode not in {"images", "image_word", "words", "chords", "same_chords"}:
         card_mode = "image_word"
     all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
     room.ui_language = ui_language if ui_language in all_ui_langs else "en"
@@ -3050,6 +3105,30 @@ def handle_start_custom_game(data=None):
             launch_grid_round(room)
 
         socketio.start_background_task(run_chord_game)
+        return
+
+    if room.card_mode == "same_chords" or room.game_mode == "same_chords":
+        starter_name = room.round_starter or room.players.get(request.sid, {}).get("username")
+
+        def run_same_chord_game():
+            emit_to_room("random_drawing_started", {
+                "mode": "same_chords",
+                "card_mode": room.card_mode,
+                "starter_name": starter_name,
+                "owner_name": starter_name,
+                "phase": "drawing_cards",
+                "progress_count": 0,
+                "total_pairs": 8,
+            }, room_id=room.room_id)
+            socketio.sleep(0)
+            if not build_same_chord_round(room):
+                emit_to_room("game_setup_error", {"reason": "Sointuja ei löytynyt tarpeeksi. Lisää 8 mp3-tiedostoa kansioon static/audio/chords."}, room_id=room.room_id)
+                room.grid_data.clear()
+                reset_pending_state(room)
+                return
+            launch_grid_round(room)
+
+        socketio.start_background_task(run_same_chord_game)
         return
 
     if room.game_mode == "theme":
@@ -3654,14 +3733,14 @@ def handle_join_queue(data=None):
             print(f"[INFO] Ohitetaan join_queue: {username} on jo matchatussa huoneessa {mapped_room_id}.")
             return
     card_mode = str(data.get("card_mode") or "image_word").strip().lower()
-    if card_mode not in {"images", "image_word", "words", "chords"}:
+    if card_mode not in {"images", "image_word", "words", "chords", "same_chords"}:
         card_mode = "image_word"
     target_language = str(data.get("target_language") or "").strip().lower()
     player_info["in_waiting"] = True
     player_info["pref_card_mode"] = card_mode
-    player_info["pref_target_language"] = "" if card_mode in {"images", "chords"} else target_language
+    player_info["pref_target_language"] = "" if card_mode in {"images", "chords", "same_chords"} else target_language
     player_info["pref_ready"] = (
-        card_mode in {"images", "chords"}
+        card_mode in {"images", "chords", "same_chords"}
         or bool(player_info["pref_target_language"])
     )
     room.card_mode = player_info["pref_card_mode"] or room.card_mode
@@ -3686,10 +3765,10 @@ def handle_preference_changed(data=None):
     if not room or sid not in room.players:
         return
     card_mode = str(data.get("card_mode") or "").strip().lower()
-    if card_mode in {"images", "image_word", "words", "chords"}:
+    if card_mode in {"images", "image_word", "words", "chords", "same_chords"}:
         room.players[sid]["pref_card_mode"] = card_mode
     target_language = str(data.get("target_language") or "").strip().lower()
-    if room.players[sid].get("pref_card_mode") in {"images", "chords"}:
+    if room.players[sid].get("pref_card_mode") in {"images", "chords", "same_chords"}:
         target_language = ""
     room.players[sid]["pref_target_language"] = target_language
     room.players[sid]["pref_ready"] = True

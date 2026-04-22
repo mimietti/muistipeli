@@ -1578,7 +1578,12 @@
             const pairs = new Map();
             (imagePairTrackerEntries || []).forEach((entry) => {
                 if (!entry) return;
-                const key = entry.key || (entry.pair_id != null ? `pair-${entry.pair_id}` : null);
+                let key = entry.key || null;
+                if (entry.pair_id != null) {
+                    key = `pair-${entry.pair_id}`;
+                } else if (key != null && /^\d+$/.test(String(key))) {
+                    key = `pair-${key}`;
+                }
                 const label = entry.label || "";
                 const indices = Array.isArray(entry.indices) ? [...entry.indices] : [];
                 if (!key || !label) return;
