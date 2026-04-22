@@ -258,6 +258,12 @@
             background: linear-gradient(160deg, #1f3528, #122018);
             border: 1px solid rgba(255,255,255,0.08);
         }
+        .card.audio-card {
+            background:
+                radial-gradient(circle at top, rgba(255, 233, 176, 0.12), transparent 48%),
+                linear-gradient(160deg, #2b2237, #171223);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
         .card-word-text {
             width: 100%;
             padding: 14px;
@@ -267,6 +273,13 @@
             line-height: 1;
             text-align: center;
             white-space: nowrap;
+        }
+        .card-audio-icon {
+            font-size: clamp(42px, 6vw, 64px);
+            line-height: 1;
+            color: #fff2c9;
+            text-shadow: 0 0 18px rgba(255, 211, 97, 0.22);
+            transform: translateY(-2px);
         }
         .card:hover {
             transform: scale(1.05);
@@ -843,6 +856,8 @@
                 word_invalid: "That word is not valid. Use only letters (no numbers or special characters).",
                 pixabay_retry: "Pixabay could not find an image for that word. Try another word.",
                 found_word: "Pair found: {word}",
+                opponent_reconnecting: "Waiting for {name} to reconnect…",
+                opponent_returned: "{name} is back.",
                 pair_found_label: "Pair found",
                 pair_found_word_label: "Word",
                 solo_time_label: "Time",
@@ -915,6 +930,8 @@
                 word_invalid: "Sana ei kelpaa. Käytä vain kirjaimia (ei numeroita tai erikoismerkkejä).",
                 pixabay_retry: "Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.",
                 found_word: "Pari löytyi: {word}",
+                opponent_reconnecting: "Odotetaan, että {name} yhdistää uudelleen…",
+                opponent_returned: "{name} palasi peliin.",
                 pair_found_label: "Pari löytyi",
                 pair_found_word_label: "Sana",
                 solo_time_label: "Aika",
@@ -1225,6 +1242,7 @@
         };
 
         let currentNativeLanguage = getLanguage();
+        let activeChordPreview = { reference: null, target: null, pauseTimer: null, token: 0 };
         applyPersonalSettings();
         applyTranslations();
 
@@ -1398,9 +1416,61 @@
         function hideCardElement(cardElement) {
             cardElement.classList.add("hidden");
             cardElement.classList.remove("matched-highlight", "removed", "revealed-first", "revealed-second");
-            cardElement.classList.remove("word-card");
+            cardElement.classList.remove("word-card", "audio-card");
             cardElement.style.backgroundImage = "none";
             cardElement.replaceChildren();
+        }
+
+        function stopChordPreview() {
+            if (activeChordPreview.pauseTimer) {
+                clearTimeout(activeChordPreview.pauseTimer);
+                activeChordPreview.pauseTimer = null;
+            }
+            [activeChordPreview.reference, activeChordPreview.target].forEach((audio) => {
+                if (!audio) return;
+                try {
+                    audio.pause();
+                    audio.currentTime = 0;
+                } catch (_) {}
+            });
+            activeChordPreview.reference = null;
+            activeChordPreview.target = null;
+            activeChordPreview.token += 1;
+        }
+
+        function playChordPreview(cardData) {
+            if (!cardData || cardData.card_type !== "audio" || !cardData.audio) return;
+            stopChordPreview();
+            const previewToken = activeChordPreview.token;
+            const startTargetAudio = () => {
+                if (activeChordPreview.token !== previewToken) return;
+                activeChordPreview.pauseTimer = null;
+                const targetAudio = new Audio(cardData.audio);
+                targetAudio.preload = "auto";
+                activeChordPreview.target = targetAudio;
+                targetAudio.onended = () => {
+                    if (activeChordPreview.token === previewToken) {
+                        activeChordPreview.target = null;
+                    }
+                };
+                targetAudio.play().catch(() => {});
+            };
+            if (!cardData.reference_audio) {
+                startTargetAudio();
+                return;
+            }
+            const referenceAudio = new Audio(cardData.reference_audio);
+            referenceAudio.preload = "auto";
+            activeChordPreview.reference = referenceAudio;
+            referenceAudio.onended = () => {
+                if (activeChordPreview.token !== previewToken) return;
+                activeChordPreview.pauseTimer = setTimeout(startTargetAudio, 500);
+            };
+            referenceAudio.play().catch(() => {
+                if (activeChordPreview.token === previewToken) {
+                    startTargetAudio();
+                }
+            });
         }
 
         function updateRevealedHighlights() {
@@ -1424,12 +1494,20 @@
             cardElement.replaceChildren();
             cardElement.style.backgroundImage = "none";
             cardElement.classList.toggle("word-card", cardData.card_type === "word");
+            cardElement.classList.toggle("audio-card", cardData.card_type === "audio");
             if (cardData.card_type === "word") {
                 const text = document.createElement("div");
                 text.className = "card-word-text";
                 text.textContent = cardData.text || cardData.word || "";
                 cardElement.appendChild(text);
                 fitWordText(text, cardElement);
+                return;
+            }
+            if (cardData.card_type === "audio") {
+                const icon = document.createElement("div");
+                icon.className = "card-audio-icon";
+                icon.textContent = "♪";
+                cardElement.appendChild(icon);
                 return;
             }
             cardElement.style.backgroundImage = `url('${cardData.image}')`;
@@ -1610,7 +1688,7 @@
         }
 
         function getTranslationHintWords(card) {
-            if (!card || card.card_type !== "word") return null;
+            if (!card || card.card_type !== "word" || card.chord_label) return null;
             const target = card.target_word || card.spanish_word || card.text;
             const english = card.word || "";
             const native = (card.native_word && String(card.native_word).trim()) ? card.native_word
@@ -1729,7 +1807,7 @@
 
         function removeMatchedCardElement(cardElement) {
             if (!cardElement) return;
-            cardElement.classList.remove("matched-highlight", "word-card", "hidden", "revealed-first", "revealed-second");
+            cardElement.classList.remove("matched-highlight", "word-card", "audio-card", "hidden", "revealed-first", "revealed-second");
             cardElement.style.backgroundImage = "none";
             cardElement.replaceChildren();
             cardElement.classList.add("removed");
@@ -1754,8 +1832,32 @@
             // Vain UI-päivitystä varten; varsinainen aloitus tehdään odotushuoneessa
         });
 
+        function showOpponentStatusToast(text, autoHideMs) {
+            const toast = document.getElementById("toast");
+            if (!toast) return;
+            toast.textContent = text;
+            toast.style.display = "block";
+            clearTimeout(window._toastTimer);
+            if (autoHideMs) {
+                window._toastTimer = setTimeout(() => {
+                    toast.style.display = "none";
+                }, autoHideMs);
+            }
+        }
+        socket.on("opponent_reconnecting", (data) => {
+            const name = (data && data.username) || "";
+            if (!name || name === myName) return;
+            showOpponentStatusToast(t("opponent_reconnecting", { name }), null);
+        });
+        socket.on("opponent_returned", (data) => {
+            const name = (data && data.username) || "";
+            if (!name || name === myName) return;
+            showOpponentStatusToast(t("opponent_returned", { name }), 3000);
+        });
+
         // Kun peli käynnistyy, aseta front-flag
         socket.on("init_grid", (data) => {
+            stopChordPreview();
             if (data.room_id) currentRoomId = data.room_id;
             gameOverShown = false;
             if (gridRetryTimer) {
@@ -1980,6 +2082,7 @@
                 revealedOrder.push(data.index);
                 revealedOrder = revealedOrder.slice(-2);
                 revealCardElement(card, cardData);
+                playChordPreview(cardData);
                 updateRevealedHighlights();
                 showTranslationHintForCard(cardData, data.index);
             }
@@ -1987,6 +2090,7 @@
 
         socket.on("hide_cards", (data) => {
             console.log("[DEBUG] Piilotetaan kortit:", data.indices);
+            stopChordPreview();
             revealedOrder = revealedOrder.filter((index) => !data.indices.includes(index));
             data.indices.forEach(i => {
                 const card = document.getElementById(`card-${i}`);
@@ -2004,6 +2108,7 @@
 
         socket.on("pair_found", (data) => {
             console.log("[DEBUG] Pari löytyi:", data.word);
+            stopChordPreview();
             data.indices.forEach(i => matched.add(i));
             revealedOrder = revealedOrder.filter((index) => !data.indices.includes(index));
             data.indices.forEach((i) => {
@@ -2021,6 +2126,7 @@
         });
 
         socket.on("game_over", (data) => {
+            stopChordPreview();
             if (gameOverShown) {
                 console.log("[DEBUG] game_over ohitettu, tulosnakyma on jo auki.");
                 return;
@@ -2228,6 +2334,7 @@
         });
 
         socket.on("game_aborted", (data) => {
+            stopChordPreview();
             if (gridRetryTimer) {
                 clearTimeout(gridRetryTimer);
                 gridRetryTimer = null;

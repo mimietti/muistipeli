@@ -186,6 +186,8 @@
                 ready: "Wants a new round",
                 waiting: "Has not chosen yet",
                 opponent_left: "Opponent has left the game.",
+                opponent_reconnecting: "Waiting for {name} to reconnect…",
+                opponent_returned: "{name} is back.",
                 draw_count: "draw",
                 draw_count_plural: "draws",
             },
@@ -209,6 +211,8 @@
                 ready: "Haluaa uuden erän",
                 waiting: "Ei ole vielä valinnut",
                 opponent_left: "Toinen pelaaja poistui pelistä.",
+                opponent_reconnecting: "Odotetaan, että {name} yhdistää uudelleen…",
+                opponent_returned: "{name} palasi peliin.",
                 draw_count: "tasapeli",
                 draw_count_plural: "tasapeliä",
             },
@@ -364,6 +368,21 @@
                 opponentLeft = presentPlayers.length === 0;
                 rematchBtn.disabled = myVoted || opponentLeft;
                 renderRematchStatus(votes, presentPlayers);
+            });
+
+            let _summaryStatusTimer = null;
+            socket.on("opponent_reconnecting", (data) => {
+                const name = (data && data.username) || "";
+                if (!name || name === myName) return;
+                statusMsg.textContent = t("opponent_reconnecting", { name });
+                if (_summaryStatusTimer) { clearTimeout(_summaryStatusTimer); _summaryStatusTimer = null; }
+            });
+            socket.on("opponent_returned", (data) => {
+                const name = (data && data.username) || "";
+                if (!name || name === myName) return;
+                statusMsg.textContent = t("opponent_returned", { name });
+                if (_summaryStatusTimer) clearTimeout(_summaryStatusTimer);
+                _summaryStatusTimer = setTimeout(() => { statusMsg.textContent = ""; }, 3000);
             });
 
             socket.on("rematch_ready", () => {

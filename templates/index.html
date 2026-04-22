@@ -421,6 +421,11 @@
                     <span class="card-mode-label" id="indexCardModeWordsText">Word + word</span>
                     <span class="card-mode-desc" id="indexCardModeWordsDesc">Match words that mean the same.</span>
                 </button>
+                <button type="button" class="card-mode-btn" id="indexCardModeChords" data-mode="chords">
+                    <span class="card-mode-icon" aria-hidden="true">🎵🎼</span>
+                    <span class="card-mode-label" id="indexCardModeChordsText">Chords</span>
+                    <span class="card-mode-desc" id="indexCardModeChordsDesc">Match a chord name with its sound.</span>
+                </button>
             </div>
         </div>
         <br>
@@ -636,25 +641,29 @@
                 images: "Image pairs",
                 image_word: "Image + word",
                 words: "Word + word",
+                chords: "Chords",
                 images_desc: "Match two related images.",
                 image_word_desc: "Match a picture with a word.",
-                words_desc: "Match words that mean the same."
+                words_desc: "Match words that mean the same.",
+                chords_desc: "Match a chord name with its sound."
             },
             fi: {
                 title: "Korttityyppi",
                 images: "Kuvaparit",
                 image_word: "Kuva + sana",
                 words: "Sana + sana",
+                chords: "Soinnut",
                 images_desc: "Etsi kaksi toisiinsa sopivaa kuvaa.",
                 image_word_desc: "Yhdistä kuva ja sana.",
-                words_desc: "Yhdistä eri kielillä samaa tarkoittavat sanat."
+                words_desc: "Yhdistä eri kielillä samaa tarkoittavat sanat.",
+                chords_desc: "Yhdistä soinnun nimi ja sointu äänenä."
             },
-            sv: { title: "Korttyp", images: "Bildpar", image_word: "Bild + ord", words: "Ord + ord", images_desc: "Matcha två bilder som hör ihop.", image_word_desc: "Matcha en bild med ett ord.", words_desc: "Matcha ord som betyder samma sak." },
-            de: { title: "Kartentyp", images: "Bildpaare", image_word: "Bild + Wort", words: "Wort + Wort", images_desc: "Finde zwei zusammengehörige Bilder.", image_word_desc: "Ordne ein Bild einem Wort zu.", words_desc: "Verbinde Wörter mit derselben Bedeutung." },
-            fr: { title: "Type de cartes", images: "Paires d'images", image_word: "Image + mot", words: "Mot + mot", images_desc: "Associez deux images liées.", image_word_desc: "Associez une image à un mot.", words_desc: "Associez des mots qui ont le même sens." },
-            es: { title: "Tipo de cartas", images: "Parejas de imágenes", image_word: "Imagen + palabra", words: "Palabra + palabra", images_desc: "Relaciona dos imágenes conectadas.", image_word_desc: "Relaciona una imagen con una palabra.", words_desc: "Relaciona palabras que significan lo mismo." },
-            it: { title: "Tipo di carte", images: "Coppie di immagini", image_word: "Immagine + parola", words: "Parola + parola", images_desc: "Abbina due immagini collegate tra loro.", image_word_desc: "Abbina un'immagine a una parola.", words_desc: "Abbina parole con lo stesso significato." },
-            pt: { title: "Tipo de cartas", images: "Pares de imagens", image_word: "Imagem + palavra", words: "Palavra + palavra", images_desc: "Relaciona duas imagens ligadas entre si.", image_word_desc: "Relaciona uma imagem com uma palavra.", words_desc: "Relaciona palavras com o mesmo significado." }
+            sv: { title: "Korttyp", images: "Bildpar", image_word: "Bild + ord", words: "Ord + ord", chords: "Ackord", images_desc: "Matcha två bilder som hör ihop.", image_word_desc: "Matcha en bild med ett ord.", words_desc: "Matcha ord som betyder samma sak.", chords_desc: "Matcha ackordets namn med dess ljud." },
+            de: { title: "Kartentyp", images: "Bildpaare", image_word: "Bild + Wort", words: "Wort + Wort", chords: "Akkorde", images_desc: "Finde zwei zusammengehörige Bilder.", image_word_desc: "Ordne ein Bild einem Wort zu.", words_desc: "Verbinde Wörter mit derselben Bedeutung.", chords_desc: "Ordne einen Akkordnamen seinem Klang zu." },
+            fr: { title: "Type de cartes", images: "Paires d'images", image_word: "Image + mot", words: "Mot + mot", chords: "Accords", images_desc: "Associez deux images liées.", image_word_desc: "Associez une image à un mot.", words_desc: "Associez des mots qui ont le même sens.", chords_desc: "Associez le nom de l'accord à son son." },
+            es: { title: "Tipo de cartas", images: "Parejas de imágenes", image_word: "Imagen + palabra", words: "Palabra + palabra", chords: "Acordes", images_desc: "Relaciona dos imágenes conectadas.", image_word_desc: "Relaciona una imagen con una palabra.", words_desc: "Relaciona palabras que significan lo mismo.", chords_desc: "Relaciona el nombre del acorde con su sonido." },
+            it: { title: "Tipo di carte", images: "Coppie di immagini", image_word: "Immagine + parola", words: "Parola + parola", chords: "Accordi", images_desc: "Abbina due immagini collegate tra loro.", image_word_desc: "Abbina un'immagine a una parola.", words_desc: "Abbina parole con lo stesso significato.", chords_desc: "Abbina il nome dell'accordo al suo suono." },
+            pt: { title: "Tipo de cartas", images: "Pares de imagens", image_word: "Imagem + palavra", words: "Palavra + palavra", chords: "Acordes", images_desc: "Relaciona duas imagens ligadas entre si.", image_word_desc: "Relaciona uma imagem com uma palavra.", words_desc: "Relaciona palavras com o mesmo significado.", chords_desc: "Relaciona o nome do acorde com o seu som." }
         };
 
         function getLanguage() {
@@ -664,11 +673,11 @@
 
         function getSelectedCardMode() {
             const stored = localStorage.getItem("preferred_card_mode");
-            return ["images", "image_word", "words"].includes(stored) ? stored : "image_word";
+            return ["images", "image_word", "words", "chords"].includes(stored) ? stored : "image_word";
         }
 
         function setSelectedCardMode(mode) {
-            const next = ["images", "image_word", "words"].includes(mode) ? mode : "image_word";
+            const next = ["images", "image_word", "words", "chords"].includes(mode) ? mode : "image_word";
             localStorage.setItem("preferred_card_mode", next);
             return next;
         }
@@ -709,9 +718,11 @@
             document.getElementById("indexCardModeImagesText").textContent = cardTexts.images;
             document.getElementById("indexCardModeImageWordText").textContent = cardTexts.image_word;
             document.getElementById("indexCardModeWordsText").textContent = cardTexts.words;
+            document.getElementById("indexCardModeChordsText").textContent = cardTexts.chords || cardModeTranslations.en.chords;
             document.getElementById("indexCardModeImagesDesc").textContent = cardTexts.images_desc;
             document.getElementById("indexCardModeImageWordDesc").textContent = cardTexts.image_word_desc;
             document.getElementById("indexCardModeWordsDesc").textContent = cardTexts.words_desc;
+            document.getElementById("indexCardModeChordsDesc").textContent = cardTexts.chords_desc || cardModeTranslations.en.chords_desc;
             const joinBtn = document.getElementById("joinBtn");
             const joinBotBtn = document.getElementById("joinBotBtn");
             const joinSoloBtn = document.getElementById("joinSoloBtn");
@@ -921,7 +932,7 @@
                 return;
             }
             const langFlags = { fi: "🇫🇮", en: "🇬🇧", es: "🇪🇸", sv: "🇸🇪", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", pt: "🇵🇹" };
-            const cardIcons = { images: "🖼🖼", image_word: "🖼📝", words: "📝📝" };
+            const cardIcons = { images: "🖼🖼", image_word: "🖼📝", words: "📝📝", chords: "🎵🎼" };
             lobbyStatus.classList.remove("is-empty");
             lobbyStatus.innerHTML = `
                 <div class="home-lobby-panel">
@@ -933,7 +944,7 @@
                             chips.push(getQueueWordSourceLabel(room.game_mode || "random"));
                             if (room.pending_theme) chips.push(`"${room.pending_theme}"`);
                             chips.push(`${cardIcons[room.card_mode] || ""} ${getQueueCardModeLabel(room.card_mode || "image_word")}`.trim());
-                            if (room.target_language) chips.push(`${langFlags[room.target_language] || ""} ${getQueueLanguageLabel(room.target_language)}`.trim());
+                            if (room.target_language && room.card_mode !== "chords") chips.push(`${langFlags[room.target_language] || ""} ${getQueueLanguageLabel(room.target_language)}`.trim());
                             return `<div class="home-lobby-entry">
                                 <div class="home-lobby-main">
                                     <span class="home-lobby-name">${escapeHtml(room.username || "?")}</span>

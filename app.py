@@ -117,7 +117,8 @@ socketio = SocketIO(
 VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "yes"}
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
-APP_VERSION = "Beta v0.10 (2026-04-21)"
+DISCONNECT_NOTIFY_DELAY_SECONDS = 10
+APP_VERSION = "Beta v0.10 (2026-04-22)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -150,7 +151,7 @@ class RoomState:
     room_id: str
     status: str = "waiting"          # waiting | setup | playing | results
     game_mode: str = "manual"        # word source: manual | theme | language(legacy)
-    card_mode: str = "image_word"    # card display: images | image_word | words
+    card_mode: str = "image_word"    # card display: images | image_word | words | chords
     play_mode: str = "local"         # local | bot | queue | solo
     ui_language: str = "en"
     native_language: str = "fi"
@@ -257,6 +258,40 @@ RANDOM_WORD_THEMES = [
     "weather", "building", "kitchen", "garden", "farm",
     "bathroom", "toys", "bird", "insect", "flower", "school",
 ]
+
+CHORD_SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "static", "audio", "chords")
+CHORD_REFERENCE_LABEL = "C major"
+
+
+def prettify_chord_label_from_filename(filename):
+    base = os.path.splitext(os.path.basename(filename))[0].strip().lower()
+    parts = [part for part in base.split("_") if part]
+    if len(parts) < 2:
+        return base.replace("_", " ").title()
+    note = parts[0].upper()
+    quality = parts[1].lower()
+    if quality not in {"major", "minor"}:
+        quality = quality.title()
+    return f"{note} {quality}".strip()
+
+
+def load_chord_library():
+    if not os.path.isdir(CHORD_SAMPLE_DIR):
+        return []
+    entries = []
+    for name in sorted(os.listdir(CHORD_SAMPLE_DIR)):
+        if not name.lower().endswith(".mp3"):
+            continue
+        entries.append({
+            "filename": name,
+            "label": prettify_chord_label_from_filename(name),
+            "url": f"/static/audio/chords/{name}",
+        })
+    return entries
+
+
+CHORD_LIBRARY = load_chord_library()
+CHORD_REFERENCE_ENTRY = next((entry for entry in CHORD_LIBRARY if entry["label"] == CHORD_REFERENCE_LABEL), None)
 
 
 # ---------------------------------------------------------------------------
@@ -413,9 +448,13 @@ def is_solo(room):
     return room.play_mode == "solo"
 
 
+def is_bot_mode(room):
+    return room.play_mode == "bot"
+
+
 def solo_or_enough_players(room):
-    """True if the game can proceed: solo mode OR 2+ players."""
-    return is_solo(room) or get_effective_player_count(room) >= 2
+    """True if the game can proceed: solo mode, bot mode, or 2+ players."""
+    return is_solo(room) or is_bot_mode(room) or get_effective_player_count(room) >= 2
 
 
 def get_human_player_items(room):
@@ -637,13 +676,23 @@ def ensure_bot_opponent(room):
 # Player event resolution
 # ---------------------------------------------------------------------------
 
+def _notify_opponent_returned(room, player_info, username, was_disconnected):
+    if not was_disconnected or not username or not player_info:
+        return
+    if not player_info.pop("notified_disconnect", False):
+        return
+    emit_to_room("opponent_returned", {"username": username}, room_id=room.room_id)
+
+
 def resolve_player_for_event(data=None):
     sid = request.sid
     room = get_room_for_sid(sid)
     player_info = room.players.get(sid)
     if player_info:
+        was_disconnected = not player_info.get("connected", True)
         player_info["connected"] = True
         player_info["disconnected_at"] = None
+        _notify_opponent_returned(room, player_info, player_info.get("username"), was_disconnected)
         return sid, player_info
 
     reconnect_token = ((data or {}).get("reconnect_token") or "").strip()
@@ -653,6 +702,7 @@ def resolve_player_for_event(data=None):
     for r in rooms.values():
         for existing_sid, info in list(r.players.items()):
             if reconnect_token and info.get("reconnect_token") == reconnect_token:
+                was_disconnected = not info.get("connected", True)
                 updated = {**info, "connected": True, "disconnected_at": None}
                 r.players[sid] = updated
                 if r.current_click_sid == existing_sid:
@@ -661,8 +711,10 @@ def resolve_player_for_event(data=None):
                     del r.players[existing_sid]
                     _sid_to_room_id.pop(existing_sid, None)
                 _sid_to_room_id[sid] = r.room_id
+                _notify_opponent_returned(r, r.players[sid], updated.get("username"), was_disconnected)
                 return sid, r.players[sid]
             if username_hint and info.get("username") == username_hint:
+                was_disconnected = not info.get("connected", True)
                 updated = {**info, "connected": True, "disconnected_at": None}
                 r.players[sid] = updated
                 if r.current_click_sid == existing_sid:
@@ -671,6 +723,7 @@ def resolve_player_for_event(data=None):
                     del r.players[existing_sid]
                     _sid_to_room_id.pop(existing_sid, None)
                 _sid_to_room_id[sid] = r.room_id
+                _notify_opponent_returned(r, r.players[sid], updated.get("username"), was_disconnected)
                 return sid, r.players[sid]
 
     return sid, None
@@ -1694,6 +1747,37 @@ def append_lang_learning_pair_to_grid(pair, room, card_mode=None):
         })
 
 
+def append_chord_pair_to_grid(chord_entry, room, pair_index=None):
+    if not chord_entry:
+        return False
+    resolved_pair_index = room.pending_pair if pair_index is None else pair_index
+    pair_id = resolved_pair_index + 1
+    label = chord_entry.get("label") or ""
+    audio_url = chord_entry.get("url")
+    reference_audio_url = (CHORD_REFERENCE_ENTRY or chord_entry).get("url")
+    if not label or not audio_url or not reference_audio_url:
+        return False
+    common = {
+        "word": label,
+        "display_word": label,
+        "chord_label": label,
+        "reference_audio": reference_audio_url,
+        "audio": audio_url,
+    }
+    room.grid_data.append({
+        "pair_id": pair_id,
+        "card_type": "word",
+        "text": label,
+        **common,
+    })
+    room.grid_data.append({
+        "pair_id": pair_id,
+        "card_type": "audio",
+        **common,
+    })
+    return True
+
+
 def build_theme_pair_entry(word, room):
     result = fetch_and_save_pixabay_images(word, room)
     if not result:
@@ -1710,6 +1794,8 @@ def build_theme_pair_entry(word, room):
 
 def build_pair_entry_for_mode(word, pair_index, room):
     card_mode = room.card_mode or "image_word"
+    if card_mode == "chords":
+        return None
     if card_mode == "images":
         return build_theme_pair_entry(word, room)
     if card_mode in {"image_word", "words"}:
@@ -1882,6 +1968,28 @@ def build_image_pair_tracker_entries(room):
             entries.append(by_key[key])
         by_key[key]["indices"].append(index)
     return entries
+
+
+def build_chord_round(room):
+    available = list(CHORD_LIBRARY)
+    if len(available) < 8:
+        return False
+    random.shuffle(available)
+    room.grid_data.clear()
+    for pair_index, chord_entry in enumerate(available[:8]):
+        if not append_chord_pair_to_grid(chord_entry, room, pair_index=pair_index):
+            return False
+        emit_to_room("random_drawing_started", {
+            "mode": "chords",
+            "card_mode": "chords",
+            "phase": "drawing_cards",
+            "progress_count": pair_index + 1,
+            "total_pairs": 8
+        }, room_id=room.room_id)
+        socketio.sleep(0)
+    room.pending_pair = 8
+    room.pending_player = None
+    return True
 
 
 def finalize_theme_selection(room):
@@ -2529,10 +2637,10 @@ def on_join(data):
     wants_solo = bool((data or {}).get("solo_mode"))
     requested_play_mode = "solo" if wants_solo else ("bot" if wants_bot else "queue")
     preferred_card_mode = str((data or {}).get("card_mode") or "image_word").strip().lower()
-    if preferred_card_mode not in {"images", "image_word", "words"}:
+    if preferred_card_mode not in {"images", "image_word", "words", "chords"}:
         preferred_card_mode = "image_word"
     preferred_target_language = str((data or {}).get("target_language") or "").strip().lower()
-    if preferred_card_mode == "images":
+    if preferred_card_mode in {"images", "chords"}:
         preferred_target_language = ""
 
     if not reconnect_token:
@@ -2563,6 +2671,10 @@ def on_join(data):
 
     if existing_room_belongs_to_self and room_id in rooms:
         existing_room = rooms[room_id]
+        if requested_play_mode == "queue" and existing_room.play_mode in {"bot", "solo"}:
+            requested_play_mode = existing_room.play_mode
+            wants_bot = requested_play_mode == "bot"
+            wants_solo = requested_play_mode == "solo"
         existing_has_bot = any(is_bot_player(info) for info in existing_room.players.values())
         should_rotate_private_room = (
             existing_room.play_mode not in {requested_play_mode, "multiplayer"}
@@ -2593,9 +2705,10 @@ def on_join(data):
 
     active_human_players = get_effective_human_player_items(room)
 
-    if wants_solo:
+    if requested_play_mode == "solo":
         room.play_mode = "solo"
-    elif wants_bot and not get_effective_human_player_items(room):
+        remove_bot_players(room)
+    elif requested_play_mode == "bot":
         room.play_mode = "bot"
         ensure_bot_opponent(room)
     elif not existing_room_belongs_to_self:
@@ -2841,9 +2954,9 @@ def handle_start_custom_game(data=None):
         if not card_mode:
             card_mode = "image_word"
         data.setdefault("target_language", "es")
-    if mode not in {"manual", "theme", "random"}:
+    if mode not in {"manual", "theme", "random", "chords"}:
         mode = "manual"
-    if card_mode not in {"images", "image_word", "words"}:
+    if card_mode not in {"images", "image_word", "words", "chords"}:
         card_mode = "image_word"
     all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
     room.ui_language = ui_language if ui_language in all_ui_langs else "en"
@@ -2883,6 +2996,30 @@ def handle_start_custom_game(data=None):
             starter["pref_card_mode"] = room.card_mode
             starter["pref_target_language"] = room.target_language
             starter["pref_ready"] = False
+
+    if room.card_mode == "chords" or room.game_mode == "chords":
+        starter_name = room.round_starter or room.players.get(request.sid, {}).get("username")
+
+        def run_chord_game():
+            emit_to_room("random_drawing_started", {
+                "mode": "chords",
+                "card_mode": room.card_mode,
+                "starter_name": starter_name,
+                "owner_name": starter_name,
+                "phase": "drawing_cards",
+                "progress_count": 0,
+                "total_pairs": 8,
+            }, room_id=room.room_id)
+            socketio.sleep(0)
+            if not build_chord_round(room):
+                emit_to_room("game_setup_error", {"reason": "Sointuja ei löytynyt tarpeeksi. Lisää 8 mp3-tiedostoa kansioon static/audio/chords."}, room_id=room.room_id)
+                room.grid_data.clear()
+                reset_pending_state(room)
+                return
+            launch_grid_round(room)
+
+        socketio.start_background_task(run_chord_game)
+        return
 
     if room.game_mode == "theme":
         starter_name = room.round_starter or room.players.get(request.sid, {}).get("username")
@@ -3226,6 +3363,35 @@ def _broadcast_rematch_status(room):
     }, room_id=room.room_id)
 
 
+def _summary_connected_usernames(room):
+    connected = set()
+    for uname, summary_sid in room.summary_sids.items():
+        info = room.players.get(summary_sid)
+        if info and info.get("connected", False):
+            connected.add(uname)
+    return connected
+
+
+def _maybe_fire_rematch_ready(room):
+    all_players = set(room.summary_sids.keys())
+    if not all_players:
+        return False
+    connected = _summary_connected_usernames(room)
+    if connected != all_players:
+        # Someone is still in reconnect grace — wait for them
+        return False
+    if not (room.rematch_votes >= all_players):
+        return False
+    room.rematch_votes.clear()
+    room.summary_sids.clear()
+    room.status = "waiting"
+    emit_to_room("rematch_ready", {
+        "same_settings": True,
+        "room_id": room.room_id,
+    }, room_id=room.room_id)
+    return True
+
+
 @socketio.on("join_summary")
 def on_join_summary(data):
     reconnect_token = data.get("reconnect_token")
@@ -3249,6 +3415,7 @@ def on_join_summary(data):
         pass
     room.summary_sids[username] = sid
     _broadcast_rematch_status(room)
+    _maybe_fire_rematch_ready(room)
 
 
 @socketio.on("want_rematch")
@@ -3262,17 +3429,8 @@ def on_want_rematch(data):
     if not room or room.status != "results":
         return
     room.rematch_votes.add(username)
-    present = set(room.summary_sids.keys())
     _broadcast_rematch_status(room)
-    if present and room.rematch_votes >= present:
-        # All present players want rematch — reset and let them return to waiting room
-        room.rematch_votes.clear()
-        room.summary_sids.clear()
-        room.status = "waiting"
-        emit_to_room("rematch_ready", {
-            "same_settings": True,
-            "room_id": room_id,
-        }, room_id=room_id)
+    _maybe_fire_rematch_ready(room)
 
 
 @socketio.on("leave_summary")
@@ -3294,6 +3452,7 @@ def on_leave_summary(data):
     except Exception:
         pass
     _broadcast_rematch_status(room)
+    _maybe_fire_rematch_ready(room)
 
 
 @socketio.on("start_same_settings_rematch")
@@ -3336,11 +3495,6 @@ def on_disconnect():
     player_info["connected"] = False
     player_info["disconnected_at"] = time.monotonic()
     leave_matchmaking_queue(sid)
-    # Clean up summary state if player disconnects from summary
-    if username in room.summary_sids and room.summary_sids.get(username) == sid:
-        room.summary_sids.pop(username, None)
-        room.rematch_votes.discard(username)
-        _broadcast_rematch_status(room)
     try:
         leave_room(room.room_id)
     except Exception:
@@ -3350,6 +3504,22 @@ def on_disconnect():
     payload = build_lobby_payload(room)
     payload["username"] = username
     emit_to_room("player_joined", payload, room_id=room.room_id)
+
+    disconnected_at = player_info["disconnected_at"]
+
+    def notify_reconnecting(sid_to_watch, uname, snapshot_ts, r):
+        gevent.sleep(DISCONNECT_NOTIFY_DELAY_SECONDS)
+        info = r.players.get(sid_to_watch)
+        if not info:
+            return
+        if info.get("connected", False):
+            return
+        if info.get("disconnected_at") != snapshot_ts:
+            return
+        info["notified_disconnect"] = True
+        emit_to_room("opponent_reconnecting", {"username": uname}, room_id=r.room_id)
+
+    socketio.start_background_task(notify_reconnecting, sid, username, disconnected_at, room)
 
     def remove_later(sid_to_remove, uname, expected_token, r):
         gevent.sleep(RECONNECT_GRACE_SECONDS)
@@ -3363,6 +3533,12 @@ def on_disconnect():
         clear_reconnect_token_room(r.players[sid_to_remove].get("reconnect_token"))
         _sid_to_room_id.pop(sid_to_remove, None)
         del r.players[sid_to_remove]
+
+        if uname in r.summary_sids and r.summary_sids.get(uname) == sid_to_remove:
+            r.summary_sids.pop(uname, None)
+            r.rematch_votes.discard(uname)
+            _broadcast_rematch_status(r)
+            _maybe_fire_rematch_ready(r)
 
         if not get_effective_human_player_items(r):
             remove_bot_players(r)
@@ -3431,14 +3607,14 @@ def handle_join_queue(data=None):
             print(f"[INFO] Ohitetaan join_queue: {username} on jo matchatussa huoneessa {mapped_room_id}.")
             return
     card_mode = str(data.get("card_mode") or "image_word").strip().lower()
-    if card_mode not in {"images", "image_word", "words"}:
+    if card_mode not in {"images", "image_word", "words", "chords"}:
         card_mode = "image_word"
     target_language = str(data.get("target_language") or "").strip().lower()
     player_info["in_waiting"] = True
     player_info["pref_card_mode"] = card_mode
-    player_info["pref_target_language"] = "" if card_mode == "images" else target_language
+    player_info["pref_target_language"] = "" if card_mode in {"images", "chords"} else target_language
     player_info["pref_ready"] = (
-        card_mode == "images"
+        card_mode in {"images", "chords"}
         or bool(player_info["pref_target_language"])
     )
     room.card_mode = player_info["pref_card_mode"] or room.card_mode
@@ -3463,10 +3639,10 @@ def handle_preference_changed(data=None):
     if not room or sid not in room.players:
         return
     card_mode = str(data.get("card_mode") or "").strip().lower()
-    if card_mode in {"images", "image_word", "words"}:
+    if card_mode in {"images", "image_word", "words", "chords"}:
         room.players[sid]["pref_card_mode"] = card_mode
     target_language = str(data.get("target_language") or "").strip().lower()
-    if room.players[sid].get("pref_card_mode") == "images":
+    if room.players[sid].get("pref_card_mode") in {"images", "chords"}:
         target_language = ""
     room.players[sid]["pref_target_language"] = target_language
     room.players[sid]["pref_ready"] = True
