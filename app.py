@@ -2335,11 +2335,28 @@ def process_card_click(index, resolved_sid, clicker, room):
     room.revealed_cards.append(index)
     emit_to_room("reveal_card", {"index": index, "card": room.grid_data[index]}, room_id=room.room_id)
     remember_card_for_bot(room, index)
-    if room.grid_data[index].get("card_type") == "audio" and not is_bot_player(clicker):
-        room.audio_preview_pending = True
-        room.audio_preview_index = index
-        room.audio_preview_lock_until = time.time() + CHORD_PREVIEW_LOCK_SECONDS
-        return
+    if room.grid_data[index].get("card_type") == "audio":
+        if not is_bot_player(clicker):
+            # Human: wait for audio_preview_finished event from client
+            room.audio_preview_pending = True
+            room.audio_preview_index = index
+            room.audio_preview_lock_until = time.time() + CHORD_PREVIEW_LOCK_SECONDS
+            return
+        if len(room.revealed_cards) == 2:
+            # Bot second flip: delay finalize so client can hear both chords play
+            room.audio_preview_pending = True
+            room.audio_preview_index = index
+            room.audio_preview_lock_until = time.time() + CHORD_PREVIEW_LOCK_SECONDS
+            snap_clicker = clicker
+            def bot_audio_auto_finalize(r=room, c=snap_clicker):
+                socketio.sleep(CHORD_PREVIEW_LOCK_SECONDS)
+                print(f"[BOT] Auto-finalize after audio delay")
+                if r.audio_preview_pending:
+                    clear_audio_preview_lock(r)
+                    finalize_revealed_cards(r, clicker=c)
+            socketio.start_background_task(bot_audio_auto_finalize)
+            return
+        # Bot first flip: no lock, just sits in revealed_cards waiting for second flip
 
     if len(room.revealed_cards) == 2:
         finalize_revealed_cards(room, clicker=clicker)
