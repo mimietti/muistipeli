@@ -273,18 +273,30 @@ CHORD_QUALITY_LABELS = {
     "sus4": "sus4",
     "dim": "dim",
 }
+CHORD_POSITION_IGNORE = {"open", "shape", "barre", "capo", "position", "pos"}
 
 
 def prettify_chord_label_from_filename(filename):
     base = os.path.splitext(os.path.basename(filename))[0].strip().lower()
     parts = [part for part in base.split("_") if part]
-    if len(parts) < 2:
-        return base.replace("_", " ").title()
-    note = parts[0].upper()
-    quality = next((CHORD_QUALITY_LABELS[part.lower()] for part in parts[1:] if part.lower() in CHORD_QUALITY_LABELS), None)
-    if not quality:
-        quality = parts[1].title()
-    return f"{note} {quality}".strip()
+    if not parts:
+        return filename
+    note_raw = parts[0]
+    note = note_raw[0].upper() + note_raw[1:]
+    quality = None
+    for part in parts[1:]:
+        if part in CHORD_POSITION_IGNORE:
+            continue
+        if len(part) == 1 and part in "abcdefg":
+            continue
+        if part in CHORD_QUALITY_LABELS:
+            quality = CHORD_QUALITY_LABELS[part]
+            break
+        quality = part.title()
+        break
+    if quality:
+        return f"{note} {quality}".strip()
+    return note
 
 
 def load_chord_library():
