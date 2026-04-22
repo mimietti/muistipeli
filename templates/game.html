@@ -1243,6 +1243,7 @@
 
         let currentNativeLanguage = getLanguage();
         let activeChordPreview = { reference: null, target: null, pauseTimer: null, token: 0 };
+        let audioRevealLock = false;
         applyPersonalSettings();
         applyTranslations();
 
@@ -1422,6 +1423,7 @@
         }
 
         function stopChordPreview() {
+            audioRevealLock = false;
             if (activeChordPreview.pauseTimer) {
                 clearTimeout(activeChordPreview.pauseTimer);
                 activeChordPreview.pauseTimer = null;
@@ -1438,10 +1440,20 @@
             activeChordPreview.token += 1;
         }
 
-        function playChordPreview(cardData) {
+        function playChordPreview(cardData, index) {
             if (!cardData || cardData.card_type !== "audio" || !cardData.audio) return;
             stopChordPreview();
+            audioRevealLock = true;
             const previewToken = activeChordPreview.token;
+            const markPreviewFinished = () => {
+                if (activeChordPreview.token !== previewToken) return;
+                audioRevealLock = false;
+                socket.emit("audio_preview_finished", {
+                    index,
+                    username: myName,
+                    reconnect_token: getReconnectToken()
+                });
+            };
             const startTargetAudio = () => {
                 if (activeChordPreview.token !== previewToken) return;
                 activeChordPreview.pauseTimer = null;
@@ -1451,9 +1463,12 @@
                 targetAudio.onended = () => {
                     if (activeChordPreview.token === previewToken) {
                         activeChordPreview.target = null;
+                        markPreviewFinished();
                     }
                 };
-                targetAudio.play().catch(() => {});
+                targetAudio.play().catch(() => {
+                    markPreviewFinished();
+                });
             };
             if (!cardData.reference_audio) {
                 startTargetAudio();
@@ -1464,7 +1479,7 @@
             activeChordPreview.reference = referenceAudio;
             referenceAudio.onended = () => {
                 if (activeChordPreview.token !== previewToken) return;
-                activeChordPreview.pauseTimer = setTimeout(startTargetAudio, 500);
+                startTargetAudio();
             };
             referenceAudio.play().catch(() => {
                 if (activeChordPreview.token === previewToken) {
@@ -2082,7 +2097,7 @@
                 revealedOrder.push(data.index);
                 revealedOrder = revealedOrder.slice(-2);
                 revealCardElement(card, cardData);
-                playChordPreview(cardData);
+                playChordPreview(cardData, data.index);
                 updateRevealedHighlights();
                 showTranslationHintForCard(cardData, data.index);
             }
@@ -2357,7 +2372,7 @@
                 div.dataset.index = String(index);
                 div.addEventListener("click", () => {
                     console.log(`[DEBUG] Klikattiin korttia: ${index}`);
-                    if ((isSoloMode || myName === currentTurn) && !matched.has(index)) {
+                    if ((isSoloMode || myName === currentTurn) && !matched.has(index) && !audioRevealLock) {
                         if (isSoloMode && !soloTimerStarted) {
                             startSoloTimer();
                         }

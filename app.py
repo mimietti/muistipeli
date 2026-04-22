@@ -123,6 +123,7 @@ BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
 FINAL_PAIR_REVEAL_SECONDS = 3.2
+CHORD_PREVIEW_LOCK_SECONDS = 8.0
 BOT_MEMORY_USE_PROBABILITY = {
     "easy": 0.0,
     "medium": 0.55,
@@ -179,6 +180,9 @@ class RoomState:
     used_image_ids: set = field(default_factory=set)
     lang_generation_in_progress: bool = False
     theme_generation_in_progress: bool = False
+    audio_preview_pending: bool = False
+    audio_preview_index: int | None = None
+    audio_preview_lock_until: float = 0.0
     bot_turn_scheduled: bool = False
     bot_difficulty: str = "easy"
     bot_memory: dict = field(default_factory=dict)  # card_index -> pair_id
@@ -389,6 +393,9 @@ def reset_pending_state(room):
     room.game_mode = "manual"
     room.ui_language = "en"
     room.queue_round_prepared = False
+    room.audio_preview_pending = False
+    room.audio_preview_index = None
+    room.audio_preview_lock_until = 0.0
     if not room.grid_data:
         room.status = "waiting"
 
@@ -1873,6 +1880,7 @@ def launch_grid_round(room):
 
 
 def conclude_round(winner_label, room, surrendered_by=None):
+    clear_audio_preview_lock(room)
     room.last_round_starter = room.round_starter
     points_payload = {name: room.player_points.get(name, 0) for name in room.player_order}
     if (isinstance(winner_label, str)
@@ -1990,6 +1998,90 @@ def build_chord_round(room):
     room.pending_pair = 8
     room.pending_player = None
     return True
+
+
+def clear_audio_preview_lock(room):
+    room.audio_preview_pending = False
+    room.audio_preview_index = None
+    room.audio_preview_lock_until = 0.0
+
+
+def finalize_revealed_cards(room, clicker=None):
+    if len(room.revealed_cards) != 2:
+        return
+    idx1, idx2 = room.revealed_cards
+    word1 = room.grid_data[idx1]["word"]
+    word2 = room.grid_data[idx2]["word"]
+    match_key1 = room.grid_data[idx1].get("pair_id", word1)
+    match_key2 = room.grid_data[idx2].get("pair_id", word2)
+
+    if match_key1 == match_key2:
+        room.matched_indices.update(room.revealed_cards)
+        forget_matched_cards_from_bot_memory(room)
+        matched_label = (
+            room.grid_data[idx1].get("display_word")
+            or room.grid_data[idx1].get("native_word")
+            or room.grid_data[idx1].get("word")
+            or word1
+        )
+        debug(f"[DEBUG] Pari lÃ¶ytyi: {matched_label}")
+        emit_to_room("pair_found", {"indices": room.revealed_cards, "word": matched_label}, room_id=room.room_id)
+        room.revealed_cards = []
+        room.current_click_sid = None
+        current_player_name = (
+            room.player_order[room.turn] if 0 <= room.turn < len(room.player_order) else None
+        )
+        if current_player_name is not None:
+            room.player_points[current_player_name] = room.player_points.get(current_player_name, 0) + 1
+            debug(f"[DEBUG] Piste {current_player_name}. Pisteet: {room.player_points}")
+
+        if len(room.matched_indices) == len(room.grid_data):
+            print("[INFO] Kaikki parit lÃ¶ytyneet â€“ peli ohi!")
+            if room.player_points:
+                max_pts = max(room.player_points.values())
+                winners = [n for n, p in room.player_points.items() if p == max_pts]
+                winner_label = winners[0] if len(winners) == 1 else "Tasapeli"
+                def conclude_after_last_pair():
+                    socketio.sleep(FINAL_PAIR_REVEAL_SECONDS)
+                    conclude_round(winner_label, room)
+                socketio.start_background_task(conclude_after_last_pair)
+                return
+            else:
+                print("[ERROR] Ei voittajaa, player_points on tyhjÃ¤Ã¤.")
+    else:
+        debug(f"[DEBUG] Ei paria: {word1} vs {word2}")
+        has_bot = any(info.get("is_bot") for info in room.players.values())
+        clicker_is_human = not is_bot_player(clicker or {})
+        if (is_solo(room) or (has_bot and clicker_is_human)):
+            if idx1 in room.solo_seen_cards and idx2 in room.solo_seen_cards:
+                room.solo_mistakes += 1
+            room.solo_seen_cards.add(idx1)
+            room.solo_seen_cards.add(idx2)
+        indices_to_hide = list(room.revealed_cards)
+        room.revealed_cards = []
+        room.current_click_sid = None
+        next_turn_name = None
+        if room.player_order:
+            room.turn = (room.turn + 1) % len(room.player_order)
+            next_turn_name = room.player_order[room.turn]
+
+        def hide_later():
+            socketio.sleep(2)
+            emit_to_room("hide_cards", {
+                "indices": indices_to_hide,
+                "solo_mistakes": room.solo_mistakes if is_solo(room) else None
+            }, room_id=room.room_id)
+            debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")
+            emit_to_room("update_turn", {"turn": next_turn_name}, room_id=room.room_id)
+            schedule_bot_turn_if_needed(room)
+
+        socketio.start_background_task(hide_later)
+        return
+
+    next_turn_name = room.player_order[room.turn] if room.player_order else None
+    debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")
+    emit_to_room("update_turn", {"turn": next_turn_name}, room_id=room.room_id)
+    schedule_bot_turn_if_needed(room)
 
 
 def finalize_theme_selection(room):
@@ -2145,6 +2237,12 @@ def process_card_click(index, resolved_sid, clicker, room):
     if not clicker_name or clicker_name != current_player_name:
         debug(f"[DEBUG] Hylättiin klikkaus ei-aktiiviselta: {clicker_name} (vuoro: {current_player_name})")
         return
+    if room.audio_preview_pending:
+        if room.audio_preview_lock_until and time.time() > room.audio_preview_lock_until:
+            clear_audio_preview_lock(room)
+        else:
+            debug("[DEBUG] Hylätty klikkaus, äänikortin toisto kesken")
+            return
     if index in room.matched_indices or index in room.revealed_cards:
         return
 
@@ -2160,8 +2258,15 @@ def process_card_click(index, resolved_sid, clicker, room):
     room.revealed_cards.append(index)
     emit_to_room("reveal_card", {"index": index, "card": room.grid_data[index]}, room_id=room.room_id)
     remember_card_for_bot(room, index)
+    if room.grid_data[index].get("card_type") == "audio":
+        room.audio_preview_pending = True
+        room.audio_preview_index = index
+        room.audio_preview_lock_until = time.time() + CHORD_PREVIEW_LOCK_SECONDS
+        return
 
     if len(room.revealed_cards) == 2:
+        finalize_revealed_cards(room, clicker=clicker)
+        return
         idx1, idx2 = room.revealed_cards
         word1 = room.grid_data[idx1]["word"]
         word2 = room.grid_data[idx2]["word"]
@@ -3303,6 +3408,22 @@ def handle_card_click(data):
     resolved_sid, clicker = resolve_player_for_event(data)
     room = resolve_room_for_event(data, clicker)
     process_card_click(index, resolved_sid, clicker, room)
+
+
+@socketio.on("audio_preview_finished")
+def handle_audio_preview_finished(data=None):
+    _, player_info = resolve_player_for_event(data)
+    if not player_info:
+        return
+    room = resolve_room_for_event(data, player_info)
+    if not room.audio_preview_pending:
+        return
+    preview_index = (data or {}).get("index")
+    if room.audio_preview_index is not None and preview_index is not None and int(preview_index) != room.audio_preview_index:
+        return
+    clear_audio_preview_lock(room)
+    if len(room.revealed_cards) == 2:
+        finalize_revealed_cards(room, clicker=player_info)
 
 
 @socketio.on("surrender_round")
