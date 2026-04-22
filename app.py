@@ -118,7 +118,7 @@ VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "y
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 DISCONNECT_NOTIFY_DELAY_SECONDS = 10
-APP_VERSION = "Beta v0.11 (2026-04-22)"
+APP_VERSION = "Beta v0.11 (2026-04-23)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -2313,7 +2313,7 @@ def process_card_click(index, resolved_sid, clicker, room):
     room.revealed_cards.append(index)
     emit_to_room("reveal_card", {"index": index, "card": room.grid_data[index]}, room_id=room.room_id)
     remember_card_for_bot(room, index)
-    if room.grid_data[index].get("card_type") == "audio":
+    if room.grid_data[index].get("card_type") == "audio" and not is_bot_player(clicker):
         room.audio_preview_pending = True
         room.audio_preview_index = index
         room.audio_preview_lock_until = time.time() + CHORD_PREVIEW_LOCK_SECONDS

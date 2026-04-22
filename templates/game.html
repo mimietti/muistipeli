@@ -2408,7 +2408,7 @@
                     console.log(`[DEBUG] Klikattiin korttia: ${index}`);
                     const cardData = cards[index];
                     // Re-play already-revealed audio card without affecting game state
-                    if (revealedOrder.includes(index) && cardData && cardData.card_type === "audio" && !matched.has(index) && !audioRevealLock) {
+                    if (revealedOrder.includes(index) && cardData && cardData.card_type === "audio" && !matched.has(index) && !audioRevealLock && (isSoloMode || currentTurn === myName)) {
                         const replay = new Audio(cardData.audio);
                         replay.play().catch(() => {});
                         return;
