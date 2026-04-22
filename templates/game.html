@@ -2404,6 +2404,13 @@
                 div.dataset.index = String(index);
                 div.addEventListener("click", () => {
                     console.log(`[DEBUG] Klikattiin korttia: ${index}`);
+                    const cardData = cards[index];
+                    // Re-play already-revealed audio card without affecting game state
+                    if (revealedOrder.includes(index) && cardData && cardData.card_type === "audio" && !matched.has(index) && !audioRevealLock) {
+                        const replay = new Audio(cardData.audio);
+                        replay.play().catch(() => {});
+                        return;
+                    }
                     if ((isSoloMode || myName === currentTurn) && !matched.has(index) && !audioRevealLock) {
                         if (isSoloMode && !soloTimerStarted) {
                             startSoloTimer();
