@@ -293,6 +293,11 @@
             outline: 2px solid rgba(255, 216, 92, 0.92);
             outline-offset: -2px;
         }
+        .card.revealed-audio-pending {
+            box-shadow: 0 0 0 4px rgba(255, 216, 92, 0.98), 0 0 18px rgba(255, 216, 92, 0.32);
+            outline: 2px solid rgba(255, 216, 92, 0.92);
+            outline-offset: -2px;
+        }
         .card.revealed-second {
             box-shadow: 0 0 0 4px rgba(255, 102, 102, 0.98), 0 0 18px rgba(255, 102, 102, 0.32);
             outline: 2px solid rgba(255, 102, 102, 0.92);
@@ -562,6 +567,9 @@
             box-shadow: 0 0 0 5px var(--success-ring), 0 0 28px rgba(113, 240, 161, 0.45);
         }
         .card.revealed-first {
+            box-shadow: 0 0 0 4px var(--warning-ring), 0 0 18px rgba(255, 216, 92, 0.28);
+        }
+        .card.revealed-audio-pending {
             box-shadow: 0 0 0 4px var(--warning-ring), 0 0 18px rgba(255, 216, 92, 0.28);
         }
         .card.revealed-second {
@@ -1416,7 +1424,7 @@
 
         function hideCardElement(cardElement) {
             cardElement.classList.add("hidden");
-            cardElement.classList.remove("matched-highlight", "removed", "revealed-first", "revealed-second");
+            cardElement.classList.remove("matched-highlight", "removed", "revealed-first", "revealed-second", "revealed-audio-pending");
             cardElement.classList.remove("word-card", "audio-card");
             cardElement.style.backgroundImage = "none";
             cardElement.replaceChildren();
@@ -1448,6 +1456,7 @@
             const markPreviewFinished = () => {
                 if (activeChordPreview.token !== previewToken) return;
                 audioRevealLock = false;
+                updateRevealedHighlights();
                 socket.emit("audio_preview_finished", {
                     index,
                     username: myName,
@@ -1489,8 +1498,8 @@
         }
 
         function updateRevealedHighlights() {
-            document.querySelectorAll(".card.revealed-first, .card.revealed-second").forEach((element) => {
-                element.classList.remove("revealed-first", "revealed-second");
+            document.querySelectorAll(".card.revealed-first, .card.revealed-second, .card.revealed-audio-pending").forEach((element) => {
+                element.classList.remove("revealed-first", "revealed-second", "revealed-audio-pending");
             });
             revealedOrder.forEach((index, orderIndex) => {
                 const cardElement = document.getElementById(`card-${index}`);
@@ -1498,14 +1507,18 @@
                 if (orderIndex === 0) {
                     cardElement.classList.add("revealed-first");
                 } else if (orderIndex === 1) {
-                    cardElement.classList.add("revealed-second");
+                    if (audioRevealLock && cards[index] && cards[index].card_type === "audio") {
+                        cardElement.classList.add("revealed-audio-pending");
+                    } else {
+                        cardElement.classList.add("revealed-second");
+                    }
                 }
             });
         }
 
         function revealCardElement(cardElement, cardData) {
             if (!cardElement || !cardData) return;
-            cardElement.classList.remove("hidden", "removed", "matched-highlight", "revealed-first", "revealed-second");
+            cardElement.classList.remove("hidden", "removed", "matched-highlight", "revealed-first", "revealed-second", "revealed-audio-pending");
             cardElement.replaceChildren();
             cardElement.style.backgroundImage = "none";
             cardElement.classList.toggle("word-card", cardData.card_type === "word");
@@ -1563,6 +1576,14 @@
 
         function getImagePairTrackerEntries() {
             const pairs = new Map();
+            (imagePairTrackerEntries || []).forEach((entry) => {
+                if (!entry) return;
+                const key = entry.key || (entry.pair_id != null ? `pair-${entry.pair_id}` : null);
+                const label = entry.label || "";
+                const indices = Array.isArray(entry.indices) ? [...entry.indices] : [];
+                if (!key || !label) return;
+                pairs.set(key, { key, label, indices });
+            });
             cards.forEach((card, index) => {
                 if (!card) return;
                 const key = card.pair_id != null
@@ -1578,7 +1599,7 @@
                 const entry = pairs.get(key);
                 const betterLabel = card.display_word || card.native_word || entry.label || card.target_word || card.word || "";
                 if (betterLabel) entry.label = betterLabel;
-                entry.indices.push(index);
+                if (!entry.indices.includes(index)) entry.indices.push(index);
             });
             return Array.from(pairs.values()).filter((entry) => entry.label);
         }
@@ -1822,7 +1843,7 @@
 
         function removeMatchedCardElement(cardElement) {
             if (!cardElement) return;
-            cardElement.classList.remove("matched-highlight", "word-card", "audio-card", "hidden", "revealed-first", "revealed-second");
+            cardElement.classList.remove("matched-highlight", "word-card", "audio-card", "hidden", "revealed-first", "revealed-second", "revealed-audio-pending");
             cardElement.style.backgroundImage = "none";
             cardElement.replaceChildren();
             cardElement.classList.add("removed");
@@ -2035,6 +2056,12 @@
         socket.on("translation_update", (data) => {
             const { pair_id, native_word, english_word } = data || {};
             if (!pair_id || !native_word) return;
+            imagePairTrackerEntries = (imagePairTrackerEntries || []).map((entry) => {
+                const pairKey = `pair-${pair_id}`;
+                return entry && entry.key === pairKey
+                    ? { ...entry, label: native_word }
+                    : entry;
+            });
             cards.forEach(card => {
                 if (!card || card.pair_id !== pair_id) return;
                 card.native_word = native_word;

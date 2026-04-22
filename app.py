@@ -118,7 +118,7 @@ VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "y
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 DISCONNECT_NOTIFY_DELAY_SECONDS = 10
-APP_VERSION = "Beta v0.10 (2026-04-22)"
+APP_VERSION = "Beta v0.11 (2026-04-22)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -2267,80 +2267,6 @@ def process_card_click(index, resolved_sid, clicker, room):
     if len(room.revealed_cards) == 2:
         finalize_revealed_cards(room, clicker=clicker)
         return
-        idx1, idx2 = room.revealed_cards
-        word1 = room.grid_data[idx1]["word"]
-        word2 = room.grid_data[idx2]["word"]
-        match_key1 = room.grid_data[idx1].get("pair_id", word1)
-        match_key2 = room.grid_data[idx2].get("pair_id", word2)
-
-        if match_key1 == match_key2:
-            room.matched_indices.update(room.revealed_cards)
-            forget_matched_cards_from_bot_memory(room)
-            matched_label = (
-                room.grid_data[idx1].get("display_word")
-                or room.grid_data[idx1].get("native_word")
-                or room.grid_data[idx1].get("word")
-                or word1
-            )
-            debug(f"[DEBUG] Pari löytyi: {matched_label}")
-            emit_to_room("pair_found", {"indices": room.revealed_cards, "word": matched_label}, room_id=room.room_id)
-            room.revealed_cards = []
-            room.current_click_sid = None
-            current_player_name = (
-                room.player_order[room.turn] if 0 <= room.turn < len(room.player_order) else None
-            )
-            if current_player_name is not None:
-                room.player_points[current_player_name] = room.player_points.get(current_player_name, 0) + 1
-                debug(f"[DEBUG] Piste {current_player_name}. Pisteet: {room.player_points}")
-
-            if len(room.matched_indices) == len(room.grid_data):
-                print("[INFO] Kaikki parit löytyneet – peli ohi!")
-                if room.player_points:
-                    max_pts = max(room.player_points.values())
-                    winners = [n for n, p in room.player_points.items() if p == max_pts]
-                    winner_label = winners[0] if len(winners) == 1 else "Tasapeli"
-                    def conclude_after_last_pair():
-                        socketio.sleep(FINAL_PAIR_REVEAL_SECONDS)
-                        conclude_round(winner_label, room)
-                    socketio.start_background_task(conclude_after_last_pair)
-                    return
-                else:
-                    print("[ERROR] Ei voittajaa, player_points on tyhjää.")
-        else:
-            debug(f"[DEBUG] Ei paria: {word1} vs {word2}")
-            has_bot = any(info.get("is_bot") for info in room.players.values())
-            clicker_is_human = not is_bot_player(clicker or {})
-            if (is_solo(room) or (has_bot and clicker_is_human)):
-                # Mistake only if both cards have been seen before
-                if idx1 in room.solo_seen_cards and idx2 in room.solo_seen_cards:
-                    room.solo_mistakes += 1
-                room.solo_seen_cards.add(idx1)
-                room.solo_seen_cards.add(idx2)
-            indices_to_hide = list(room.revealed_cards)
-            room.revealed_cards = []
-            room.current_click_sid = None
-            next_turn_name = None
-            if room.player_order:
-                room.turn = (room.turn + 1) % len(room.player_order)
-                next_turn_name = room.player_order[room.turn]
-
-            def hide_later():
-                socketio.sleep(2)
-                emit_to_room("hide_cards", {
-                    "indices": indices_to_hide,
-                    "solo_mistakes": room.solo_mistakes if is_solo(room) else None
-                }, room_id=room.room_id)
-                debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")
-                emit_to_room("update_turn", {"turn": next_turn_name}, room_id=room.room_id)
-                schedule_bot_turn_if_needed(room)
-
-            socketio.start_background_task(hide_later)
-            return
-
-        next_turn_name = room.player_order[room.turn] if room.player_order else None
-        debug(f"[DEBUG] Vuoro nyt: {next_turn_name}")
-        emit_to_room("update_turn", {"turn": next_turn_name}, room_id=room.room_id)
-        schedule_bot_turn_if_needed(room)
 
 
 def ask_next_word(room):
@@ -2689,7 +2615,7 @@ def leaderboard():
                         if len(grouped[key]) < 10:
                             grouped[key].append(row[2:])  # drop grouping prefix
                     # define canonical order
-                    cm_order = ["images", "image_word", "words"]
+                    cm_order = ["images", "image_word", "words", "chords"]
                     seen = set()
                     for cm in cm_order:
                         for key in sorted(grouped.keys()):
