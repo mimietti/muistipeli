@@ -799,14 +799,21 @@ def schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS):
             if len(available) < 2:
                 return
             first_i, second_i = choose_bot_turn_indices(room, available)
+            first_card = room.grid_data[first_i] if 0 <= first_i < len(room.grid_data) else {}
+            is_audio_turn = first_card.get("card_type") == "audio"
+            second_delay = CHORD_PREVIEW_LOCK_SECONDS if is_audio_turn else BOT_SECOND_FLIP_DELAY_SECONDS
+            print(f"[BOT] Flipping card {first_i} (type={first_card.get('card_type')}, label={first_card.get('chord_label') or first_card.get('word')}), waiting {second_delay}s before second flip")
             process_card_click(first_i, bot_sid, bot_info, room)
-            socketio.sleep(BOT_SECOND_FLIP_DELAY_SECONDS)
+            socketio.sleep(second_delay)
             if (room.grid_data and room.player_order
                     and room.turn < len(room.player_order)
                     and is_bot_player(room.player_order[room.turn], room)):
+                second_card = room.grid_data[second_i] if 0 <= second_i < len(room.grid_data) else {}
+                print(f"[BOT] Flipping second card {second_i} (type={second_card.get('card_type')}, label={second_card.get('chord_label') or second_card.get('word')})")
                 if second_i not in room.matched_indices and second_i not in room.revealed_cards:
                     process_card_click(second_i, bot_sid, bot_info, room)
                 else:
+                    print(f"[BOT] second_i {second_i} already matched/revealed, picking fallback")
                     remaining = [
                         i for i in range(len(room.grid_data))
                         if i not in room.matched_indices and i not in room.revealed_cards
@@ -814,7 +821,10 @@ def schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS):
                     if remaining:
                         fallback_i = choose_bot_second_index(room, first_i, remaining)
                         if fallback_i is not None:
+                            print(f"[BOT] Fallback flip: {fallback_i}")
                             process_card_click(fallback_i, bot_sid, bot_info, room)
+            else:
+                print(f"[BOT] Turn changed or game ended after first flip, skipping second flip")
         finally:
             room.bot_turn_scheduled = False
             if (room.grid_data and room.player_order
