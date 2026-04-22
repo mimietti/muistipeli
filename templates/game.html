@@ -1224,21 +1224,27 @@
         const translationHintGrid = document.getElementById("translation-hint-grid");
         const translationHintLabel = document.getElementById("translation-hint-label");
         const NASHVILLE_C_MAJOR = {
-            "C major": "I",
-            "D minor": "ii",
-            "E minor": "iii",
-            "F major": "IV",
-            "G major": "V",
-            "G7": "V7",
-            "A minor": "vi",
-            "B dim": "vii°",
+            "C major": { num: "I", order: 1 },
+            "D minor": { num: "ii", order: 2 },
+            "E minor": { num: "iii", order: 3 },
+            "F major": { num: "IV", order: 4 },
+            "G major": { num: "V", order: 5 },
+            "G7":      { num: "V7", order: 6 },
+            "A minor": { num: "vi", order: 7 },
+            "B dim":   { num: "vii°", order: 8 },
         };
         function nashvilleChipLabel(entry) {
             if (!entry.indices.length) return entry.label;
             const firstCard = cards[entry.indices[0]];
             if (!firstCard || firstCard.card_type !== "audio") return entry.label;
-            const num = NASHVILLE_C_MAJOR[entry.label];
-            return num ? `${entry.label} (${num})` : entry.label;
+            const info = NASHVILLE_C_MAJOR[entry.label];
+            return info ? `${entry.label} (${info.num})` : entry.label;
+        }
+        function nashvilleSortOrder(entry) {
+            if (!entry.indices.length) return 999;
+            const firstCard = cards[entry.indices[0]];
+            if (!firstCard || firstCard.card_type !== "audio") return 999;
+            return (NASHVILLE_C_MAJOR[entry.label] || {}).order || 999;
         }
 
         let cards = [];
@@ -1644,7 +1650,9 @@
                 return;
             }
             imagePairTrackerLabel.textContent = t("image_pair_tracker_label");
-            const entries = getImagePairTrackerEntries().filter((e) => !removedPairKeys.has(e.key));
+            const entries = getImagePairTrackerEntries()
+                .filter((e) => !removedPairKeys.has(e.key))
+                .sort((a, b) => nashvilleSortOrder(a) - nashvilleSortOrder(b));
             if (!entries.length) {
                 imagePairTracker.style.display = "none";
                 imagePairTrackerList.replaceChildren();
