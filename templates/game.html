@@ -1727,6 +1727,7 @@
             slider.addEventListener("input", () => {
                 document.getElementById("chordTempoValueGame").textContent = slider.value + "s";
                 try { localStorage.setItem("chord_progression_tempo", slider.value); } catch (e) {}
+                socket.emit("preference_changed", { chord_tempo: parseFloat(slider.value) });
             });
         })();
 

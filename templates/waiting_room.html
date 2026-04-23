@@ -3113,7 +3113,7 @@
                     updateChordAudioTypeVisibility();
                     renderQueuePreferencePicker(isQueueSearchLobby(window.latestLobbyPayload, window.latestPlayersInfo), Boolean(window.latestLobbyPayload && window.latestLobbyPayload.queue_round_prepared));
                     applyTranslations();
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5") });
                 });
             });
 
@@ -3123,7 +3123,7 @@
                     try { localStorage.setItem("preferred_chord_audio_type", selectedChordAudioType); } catch (e) {}
                     document.querySelectorAll("#chordAudioSingle, #chordAudioProgression").forEach(b => b.classList.toggle("active", b === btn));
                     updateChordAudioTypeVisibility();
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5") });
                 });
             });
 
@@ -3137,6 +3137,7 @@
                     const v = document.getElementById("chordTempoValue");
                     if (v) v.textContent = slider.value + "s";
                     try { localStorage.setItem("chord_progression_tempo", slider.value); } catch (e) {}
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(slider.value) });
                 });
             })();
 
@@ -3190,7 +3191,7 @@
                     return;
                 }
                 if (selectedCardMode === "chords") {
-                    const payload = { mode: "chords", card_mode: "chords", ui_language: getLanguage(), chord_audio_type: selectedChordAudioType };
+                    const payload = { mode: "chords", card_mode: "chords", ui_language: getLanguage(), chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5") };
                     if ((localStorage.getItem("play_mode") || "") === "bot") {
                         payload.bot_difficulty = selectedBotDifficulty;
                     }
@@ -3198,7 +3199,7 @@
                     return;
                 }
                 if (selectedCardMode === "same_chords") {
-                    const payload = { mode: "same_chords", card_mode: "same_chords", ui_language: getLanguage(), chord_audio_type: selectedChordAudioType };
+                    const payload = { mode: "same_chords", card_mode: "same_chords", ui_language: getLanguage(), chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5") };
                     if ((localStorage.getItem("play_mode") || "") === "bot") {
                         payload.bot_difficulty = selectedBotDifficulty;
                     }

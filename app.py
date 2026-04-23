@@ -196,6 +196,7 @@ class RoomState:
     summary_sids: dict = field(default_factory=dict)  # username -> sid
     queue_round_prepared: bool = False
     chord_audio_type: str = "single"  # single | progression
+    chord_tempo_seconds: float = 2.5  # per-chord duration for bot timing
 
 
 # --- Global indexes (not game state) ---
@@ -829,7 +830,13 @@ def schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS):
             first_card = room.grid_data[first_i] if 0 <= first_i < len(room.grid_data) else {}
             is_audio_turn = first_card.get("card_type") == "audio"
             is_progression = bool(first_card.get("audio_sequence"))
-            second_delay = (CHORD_PROGRESSION_LOCK_SECONDS if is_progression else CHORD_PREVIEW_LOCK_SECONDS) if is_audio_turn else BOT_SECOND_FLIP_DELAY_SECONDS
+            if is_progression:
+                n = len(first_card.get("audio_sequence", []))
+                second_delay = n * room.chord_tempo_seconds + 1.5
+            elif is_audio_turn:
+                second_delay = CHORD_PREVIEW_LOCK_SECONDS
+            else:
+                second_delay = BOT_SECOND_FLIP_DELAY_SECONDS
             print(f"[BOT] Flipping card {first_i} (type={first_card.get('card_type')}, label={first_card.get('chord_label') or first_card.get('word')}), waiting {second_delay}s before second flip")
             process_card_click(first_i, bot_sid, bot_info, room)
             socketio.sleep(second_delay)
@@ -2408,7 +2415,11 @@ def process_card_click(index, resolved_sid, clicker, room):
     emit_to_room("reveal_card", {"index": index, "card": room.grid_data[index]}, room_id=room.room_id)
     remember_card_for_bot(room, index)
     if room.grid_data[index].get("card_type") == "audio":
-        lock_duration = CHORD_PROGRESSION_LOCK_SECONDS if room.grid_data[index].get("audio_sequence") else CHORD_PREVIEW_LOCK_SECONDS
+        if room.grid_data[index].get("audio_sequence"):
+            n = len(room.grid_data[index]["audio_sequence"])
+            lock_duration = n * room.chord_tempo_seconds + 1.5
+        else:
+            lock_duration = CHORD_PREVIEW_LOCK_SECONDS
         if not is_bot_player(clicker):
             # Human: wait for audio_preview_finished event from client
             room.audio_preview_pending = True
@@ -3151,6 +3162,11 @@ def handle_start_custom_game(data=None):
     chord_audio_type = str(data.get("chord_audio_type", "single")).strip().lower()
     if chord_audio_type not in {"single", "progression"}:
         chord_audio_type = "single"
+    try:
+        chord_tempo = float(data.get("chord_tempo", 2.5))
+        chord_tempo = max(0.1, min(10.0, chord_tempo))
+    except (TypeError, ValueError):
+        chord_tempo = 2.5
     # "spanish" / "language" legacy: word_source=theme + card_mode=image_word
     if mode in {"spanish", "language"}:
         mode = "theme"
@@ -3166,6 +3182,7 @@ def handle_start_custom_game(data=None):
     room.native_language = room.ui_language
     room.card_mode = card_mode
     room.chord_audio_type = chord_audio_type
+    room.chord_tempo_seconds = chord_tempo
     if room.play_mode == "bot":
         room.bot_difficulty = bot_difficulty if bot_difficulty in BOT_MEMORY_USE_PROBABILITY else "easy"
     else:
@@ -3894,6 +3911,12 @@ def handle_preference_changed(data=None):
     pref_chord_audio = str(data.get("chord_audio_type") or "").strip().lower()
     if pref_chord_audio in {"single", "progression"}:
         room.players[sid]["pref_chord_audio_type"] = pref_chord_audio
+    try:
+        pref_tempo = float(data.get("chord_tempo") or 0)
+        if pref_tempo >= 0.1:
+            room.players[sid]["pref_chord_tempo"] = max(0.1, min(10.0, pref_tempo))
+    except (TypeError, ValueError):
+        pass
     room.players[sid]["pref_ready"] = True
     connected_humans = [
         (player_sid, info) for player_sid, info in room.players.items()
@@ -3912,6 +3935,9 @@ def handle_preference_changed(data=None):
         chord_at = room.players[sid].get("pref_chord_audio_type")
         if chord_at:
             room.chord_audio_type = chord_at
+        pref_t = room.players[sid].get("pref_chord_tempo")
+        if pref_t:
+            room.chord_tempo_seconds = pref_t
     payload = build_lobby_payload(room)
     emit_to_room("player_joined", payload, room_id=room.room_id)
     broadcast_lobby_browser()
