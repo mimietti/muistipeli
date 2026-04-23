@@ -2074,8 +2074,12 @@
             svg.querySelectorAll(".gomoku-click").forEach(el => {
                 el.addEventListener("click", () => {
                     const idx = parseInt(el.dataset.idx);
+                    const row = Math.floor(idx / (gomokuState ? gomokuState.size : 19));
+                    const col = idx % (gomokuState ? gomokuState.size : 19);
                     console.log("[DEBUG] Gomoku click", {
                         index: idx,
+                        row,
+                        col,
                         myName,
                         currentTurn: gomokuState ? gomokuState.currentTurn : null,
                         roomId,

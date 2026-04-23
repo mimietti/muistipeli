@@ -2780,6 +2780,9 @@ def choose_gomoku_bot_move(room):
     empty = [i for i in range(all_cells) if i not in occupied]
     if not empty:
         return -1
+    center = (GOMOKU_SIZE // 2) * GOMOKU_SIZE + GOMOKU_SIZE // 2
+    if not occupied:
+        return center
     # 1. Win in 1
     for idx in empty:
         perceived[idx] = bot_color
@@ -2795,7 +2798,8 @@ def choose_gomoku_bot_move(room):
             return idx
         del perceived[idx]
     # 3. Best scoring move near existing stones
-    best_score, best_idx = -1, -1
+    best_score = -1
+    best_candidates = []
     near = [i for i in empty if _gomoku_near_stone(i, occupied)]
     candidates = near if near else empty
     for idx in candidates:
@@ -2806,12 +2810,17 @@ def choose_gomoku_bot_move(room):
         opp_score = _gomoku_count_line(perceived, idx, opp_color)
         del perceived[idx]
         score = my_score * 2 + opp_score
-        if score > best_score:
-            best_score = score
-            best_idx = idx
-    if best_idx >= 0:
-        return best_idx
-    center = (GOMOKU_SIZE // 2) * GOMOKU_SIZE + GOMOKU_SIZE // 2
+        distance_penalty = abs((idx // GOMOKU_SIZE) - (GOMOKU_SIZE // 2)) + abs((idx % GOMOKU_SIZE) - (GOMOKU_SIZE // 2))
+        weighted_score = score * 100 - distance_penalty
+        if weighted_score > best_score:
+            best_score = weighted_score
+            best_candidates = [idx]
+        elif weighted_score == best_score:
+            best_candidates.append(idx)
+    if best_candidates:
+        if center in best_candidates:
+            return center
+        return random.choice(best_candidates)
     return center if center not in occupied else random.choice(empty)
 
 
@@ -2882,6 +2891,8 @@ def schedule_gomoku_bot_turn_if_needed(room):
 def process_gomoku_place(idx, player_info, room, sid=None):
     """Core gomoku placement logic called from both handler and bot."""
     player_name = player_info.get("username") or player_info.get("name", "")
+    row = idx // GOMOKU_SIZE if idx >= 0 else -1
+    col = idx % GOMOKU_SIZE if idx >= 0 else -1
     def reject(reason, **payload):
         debug_payload = {"reason": reason, **payload}
         print(f"[WARNING] Gomoku-siirto hylätty: {debug_payload}")
@@ -2889,23 +2900,23 @@ def process_gomoku_place(idx, player_info, room, sid=None):
             socketio.emit("gomoku_rejected", debug_payload, room=sid)
 
     print(
-        f"[INFO] Gomoku-siirtoyritys: room={room.room_id}, player={player_name}, idx={idx}, "
+        f"[INFO] Gomoku-siirtoyritys: room={room.room_id}, player={player_name}, idx={idx}, row={row}, col={col}, "
         f"turn_index={room.turn}, player_order={room.player_order}, status={room.status}"
     )
     if not room.player_order or room.turn >= len(room.player_order):
-        reject("invalid_turn_state", idx=idx, player=player_name)
+        reject("invalid_turn_state", idx=idx, row=row, col=col, player=player_name)
         return
     if room.player_order[room.turn] != player_name:
-        reject("not_your_turn", idx=idx, player=player_name, expected_player=room.player_order[room.turn])
+        reject("not_your_turn", idx=idx, row=row, col=col, player=player_name, expected_player=room.player_order[room.turn])
         return
     if not (0 <= idx < GOMOKU_SIZE * GOMOKU_SIZE):
-        reject("invalid_index", idx=idx, player=player_name)
+        reject("invalid_index", idx=idx, row=row, col=col, player=player_name)
         return
     my_color = "white" if player_name == room.gomoku_white_player else "black"
     opp_color = "black" if my_color == "white" else "white"
     existing = room.gomoku_board.get(idx)
     print(
-        f"[INFO] Gomoku-siirto käsittelyyn: player={player_name}, color={my_color}, idx={idx}, "
+        f"[INFO] Gomoku-siirto käsittelyyn: player={player_name}, color={my_color}, idx={idx}, row={row}, col={col}, "
         f"existing={existing}, white_last={room.gomoku_last_white}, black_last={room.gomoku_last_black}"
     )
     if existing == opp_color:
@@ -2945,7 +2956,7 @@ def process_gomoku_place(idx, player_info, room, sid=None):
     win_line = gomoku_check_win(room.gomoku_board, idx)
     room.turn = (room.turn + 1) % len(room.player_order)
     print(
-        f"[INFO] Gomoku-nappula asetettu: player={player_name}, color={my_color}, idx={idx}, "
+        f"[INFO] Gomoku-nappula asetettu: player={player_name}, color={my_color}, idx={idx}, row={row}, col={col}, "
         f"next_turn={room.player_order[room.turn]}, win={bool(win_line)}"
     )
     emit_to_room("gomoku_update", {
