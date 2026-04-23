@@ -2243,15 +2243,13 @@
             stopChordPreview();
             data.indices.forEach(i => matched.add(i));
             revealedOrder = revealedOrder.filter((index) => !data.indices.includes(index));
-            data.indices.forEach((i) => {
-                const card = document.getElementById(`card-${i}`);
-                if (card) {
+            const matchedCards = data.indices.map(i => document.getElementById(`card-${i}`)).filter(Boolean);
+            requestAnimationFrame(() => {
+                matchedCards.forEach(card => {
                     card.classList.remove("revealed-first", "revealed-second");
                     card.classList.add("matched-highlight");
-                    setTimeout(() => {
-                        removeMatchedCardElement(card);
-                    }, 3000);
-                }
+                    setTimeout(() => removeMatchedCardElement(card), 3000);
+                });
             });
             renderImagePairTracker();
             showPairFoundInHint(data.indices || [], data.word);

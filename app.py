@@ -832,7 +832,7 @@ def schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS):
             is_progression = bool(first_card.get("audio_sequence"))
             if is_progression:
                 n = len(first_card.get("audio_sequence", []))
-                second_delay = n * room.chord_tempo_seconds + 1.5
+                second_delay = n * (room.chord_tempo_seconds + 0.5) + 0.1
             elif is_audio_turn:
                 second_delay = CHORD_PREVIEW_LOCK_SECONDS
             else:
@@ -2418,7 +2418,7 @@ def process_card_click(index, resolved_sid, clicker, room):
     if room.grid_data[index].get("card_type") == "audio":
         if room.grid_data[index].get("audio_sequence"):
             n = len(room.grid_data[index]["audio_sequence"])
-            lock_duration = n * room.chord_tempo_seconds + 1.5
+            lock_duration = n * (room.chord_tempo_seconds + 0.5) + 0.5
         else:
             lock_duration = CHORD_PREVIEW_LOCK_SECONDS
         if not is_bot_player(clicker):
