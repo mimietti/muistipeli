@@ -2004,13 +2004,16 @@
         const GOMOKU_MARGIN = 20;
 
         function gomokuBoardSize(size) {
-            return GOMOKU_MARGIN * 2 + (size - 1) * GOMOKU_CELL;
+            return GOMOKU_MARGIN * 2 + size * GOMOKU_CELL;
         }
 
         function gomokuXY(idx, size) {
             const row = Math.floor(idx / size);
             const col = idx % size;
-            return [GOMOKU_MARGIN + col * GOMOKU_CELL, GOMOKU_MARGIN + row * GOMOKU_CELL];
+            return [
+                GOMOKU_MARGIN + col * GOMOKU_CELL + GOMOKU_CELL / 2,
+                GOMOKU_MARGIN + row * GOMOKU_CELL + GOMOKU_CELL / 2
+            ];
         }
 
         function drawGomokuBoard() {
@@ -2027,18 +2030,18 @@
             // Board background
             html += `<rect width="${dim}" height="${dim}" fill="#dcb167" rx="4"/>`;
             // Grid lines
-            for (let i = 0; i < size; i++) {
+            for (let i = 0; i <= size; i++) {
                 const x = GOMOKU_MARGIN + i * GOMOKU_CELL;
                 const y = GOMOKU_MARGIN + i * GOMOKU_CELL;
-                html += `<line x1="${x}" y1="${GOMOKU_MARGIN}" x2="${x}" y2="${GOMOKU_MARGIN + (size - 1) * GOMOKU_CELL}" stroke="#555" stroke-width="0.8"/>`;
-                html += `<line x1="${GOMOKU_MARGIN}" y1="${y}" x2="${GOMOKU_MARGIN + (size - 1) * GOMOKU_CELL}" y2="${y}" stroke="#555" stroke-width="0.8"/>`;
+                html += `<line x1="${x}" y1="${GOMOKU_MARGIN}" x2="${x}" y2="${GOMOKU_MARGIN + size * GOMOKU_CELL}" stroke="#555" stroke-width="0.8"/>`;
+                html += `<line x1="${GOMOKU_MARGIN}" y1="${y}" x2="${GOMOKU_MARGIN + size * GOMOKU_CELL}" y2="${y}" stroke="#555" stroke-width="0.8"/>`;
             }
-            // Star points (for 19x19: rows/cols 3, 9, 15 zero-indexed)
+            // Star points aligned to the visible cell centers.
             const stars = [3, 9, 15];
             for (const sr of stars) {
                 for (const sc of stars) {
-                    const sx = GOMOKU_MARGIN + sc * GOMOKU_CELL;
-                    const sy = GOMOKU_MARGIN + sr * GOMOKU_CELL;
+                    const sx = GOMOKU_MARGIN + sc * GOMOKU_CELL + GOMOKU_CELL / 2;
+                    const sy = GOMOKU_MARGIN + sr * GOMOKU_CELL + GOMOKU_CELL / 2;
                     html += `<circle cx="${sx}" cy="${sy}" r="3" fill="#444"/>`;
                 }
             }
