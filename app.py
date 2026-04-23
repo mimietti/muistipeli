@@ -336,7 +336,7 @@ def _build_chord_progressions_with_urls():
     for prog in CHORD_PROGRESSIONS_DEF:
         urls = [url_map.get(c) for c in prog["chords"]]
         if all(urls):
-            result.append({"label": prog["label"], "audio_sequence": urls})
+            result.append({"label": prog["label"], "audio_sequence": urls + [urls[0]]})
         else:
             missing = [c for c in prog["chords"] if not url_map.get(c)]
             print(f"[WARNING] Progression '{prog['label']}' missing chords: {missing}")
