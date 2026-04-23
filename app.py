@@ -130,6 +130,8 @@ BOT_MEMORY_USE_PROBABILITY = {
     "medium": 0.55,
     "hard": 0.9,
 }
+GOMOKU_SIZE = 19
+GOMOKU_WIN = 5
 DEFAULT_ROOM_ID = "default"
 MAX_PLAYERS = 2
 
@@ -197,6 +199,11 @@ class RoomState:
     queue_round_prepared: bool = False
     chord_audio_type: str = "single"  # single | progression
     chord_tempo_seconds: float = 2.5  # per-chord duration for bot timing
+    gomoku_board: dict = field(default_factory=dict)   # {cell_idx: "white"|"black"}
+    gomoku_last_white: int = -1   # -1 = none placed yet
+    gomoku_last_black: int = -1
+    gomoku_white_player: str = ""
+    gomoku_black_player: str = ""
 
 
 # --- Global indexes (not game state) ---
@@ -2707,6 +2714,237 @@ def generate_grid():
 
 
 # ---------------------------------------------------------------------------
+# Gomoku helpers
+# ---------------------------------------------------------------------------
+
+def gomoku_check_win(board, idx):
+    color = board.get(idx)
+    if not color:
+        return None
+    row, col = divmod(idx, GOMOKU_SIZE)
+    for dr, dc in [(0, 1), (1, 0), (1, 1), (1, -1)]:
+        line = [idx]
+        for sign in (1, -1):
+            r, c = row + sign * dr, col + sign * dc
+            while 0 <= r < GOMOKU_SIZE and 0 <= c < GOMOKU_SIZE and board.get(r * GOMOKU_SIZE + c) == color:
+                line.append(r * GOMOKU_SIZE + c)
+                r += sign * dr
+                c += sign * dc
+        if len(line) >= GOMOKU_WIN:
+            return line
+    return None
+
+
+def _gomoku_count_line(board, idx, color):
+    row, col = divmod(idx, GOMOKU_SIZE)
+    best = 0
+    for dr, dc in [(0, 1), (1, 0), (1, 1), (1, -1)]:
+        n = 1
+        for sign in (1, -1):
+            r, c = row + sign * dr, col + sign * dc
+            while 0 <= r < GOMOKU_SIZE and 0 <= c < GOMOKU_SIZE and board.get(r * GOMOKU_SIZE + c) == color:
+                n += 1
+                r += sign * dr
+                c += sign * dc
+        best = max(best, n)
+    return best
+
+
+def _gomoku_near_stone(idx, occupied, radius=2):
+    if not occupied:
+        return True
+    row, col = divmod(idx, GOMOKU_SIZE)
+    for oidx in occupied:
+        or_, oc = divmod(oidx, GOMOKU_SIZE)
+        if abs(or_ - row) <= radius and abs(oc - col) <= radius:
+            return True
+    return False
+
+
+def choose_gomoku_bot_move(room):
+    bot_name = next((name for name, info in room.players.items() if info.get("is_bot")), None)
+    if not bot_name:
+        return random.randint(0, GOMOKU_SIZE * GOMOKU_SIZE - 1)
+    bot_color = "white" if bot_name == room.gomoku_white_player else "black"
+    opp_color = "black" if bot_color == "white" else "white"
+    # Bot's perceived board: own stones + visible opp stone + remembered opp stones
+    perceived = {k: v for k, v in room.gomoku_board.items() if v == bot_color}
+    opp_last = room.gomoku_last_white if opp_color == "white" else room.gomoku_last_black
+    if opp_last >= 0:
+        perceived[opp_last] = opp_color
+    for k, v in room.bot_memory.items():
+        if v == opp_color:
+            perceived[k] = v
+    all_cells = GOMOKU_SIZE * GOMOKU_SIZE
+    occupied = set(room.gomoku_board.keys())
+    empty = [i for i in range(all_cells) if i not in occupied]
+    if not empty:
+        return -1
+    # 1. Win in 1
+    for idx in empty:
+        perceived[idx] = bot_color
+        if gomoku_check_win(perceived, idx):
+            del perceived[idx]
+            return idx
+        del perceived[idx]
+    # 2. Block opponent winning move (known positions only)
+    for idx in empty:
+        perceived[idx] = opp_color
+        if gomoku_check_win(perceived, idx):
+            del perceived[idx]
+            return idx
+        del perceived[idx]
+    # 3. Best scoring move near existing stones
+    best_score, best_idx = -1, -1
+    near = [i for i in empty if _gomoku_near_stone(i, occupied)]
+    candidates = near if near else empty
+    for idx in candidates:
+        perceived[idx] = bot_color
+        my_score = _gomoku_count_line(perceived, idx, bot_color)
+        del perceived[idx]
+        perceived[idx] = opp_color
+        opp_score = _gomoku_count_line(perceived, idx, opp_color)
+        del perceived[idx]
+        score = my_score * 2 + opp_score
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+    if best_idx >= 0:
+        return best_idx
+    center = (GOMOKU_SIZE // 2) * GOMOKU_SIZE + GOMOKU_SIZE // 2
+    return center if center not in occupied else random.choice(empty)
+
+
+def init_gomoku_round(room):
+    """Start a new gomoku round, swapping colors if not first round."""
+    if room.gomoku_white_player and room.gomoku_white_player in room.player_order:
+        # Swap colors each round
+        room.gomoku_white_player, room.gomoku_black_player = room.gomoku_black_player, room.gomoku_white_player
+    else:
+        room.gomoku_white_player = room.player_order[0] if room.player_order else ""
+        room.gomoku_black_player = room.player_order[1] if len(room.player_order) > 1 else ""
+    room.gomoku_board = {}
+    room.gomoku_last_white = -1
+    room.gomoku_last_black = -1
+    room.bot_memory = {}
+    room.player_points = {p: 0 for p in room.player_order}
+    room.status = "playing"
+    try:
+        room.turn = room.player_order.index(room.gomoku_white_player)
+    except ValueError:
+        room.turn = 0
+    emit_to_room("init_gomoku", {
+        "size": GOMOKU_SIZE,
+        "white_player": room.gomoku_white_player,
+        "black_player": room.gomoku_black_player,
+        "turn": room.gomoku_white_player,
+        "last_white": room.gomoku_last_white,
+        "last_black": room.gomoku_last_black,
+    }, room_id=room.room_id)
+    schedule_gomoku_bot_turn_if_needed(room)
+
+
+def schedule_gomoku_bot_turn_if_needed(room):
+    if room.bot_turn_scheduled:
+        return
+    if room.status != "playing" or room.card_mode != "gomoku":
+        return
+    if not room.player_order or room.turn >= len(room.player_order):
+        return
+    if not is_bot_player(room.player_order[room.turn], room):
+        return
+    _, bot_info = get_active_bot_identity(room)
+    if not bot_info:
+        return
+    room.bot_turn_scheduled = True
+
+    def bot_gomoku_turn():
+        try:
+            socketio.sleep(BOT_FIRST_FLIP_DELAY_SECONDS)
+            if room.status != "playing" or room.card_mode != "gomoku":
+                return
+            if not room.player_order or room.turn >= len(room.player_order):
+                return
+            if not is_bot_player(room.player_order[room.turn], room):
+                return
+            idx = choose_gomoku_bot_move(room)
+            if idx >= 0:
+                _, b_info = get_active_bot_identity(room)
+                if b_info:
+                    process_gomoku_place(idx, b_info, room)
+        finally:
+            room.bot_turn_scheduled = False
+            schedule_gomoku_bot_turn_if_needed(room)
+
+    socketio.start_background_task(bot_gomoku_turn)
+
+
+def process_gomoku_place(idx, player_info, room):
+    """Core gomoku placement logic called from both handler and bot."""
+    player_name = player_info.get("username") or player_info.get("name", "")
+    if not room.player_order or room.turn >= len(room.player_order):
+        return
+    if room.player_order[room.turn] != player_name:
+        return
+    if not (0 <= idx < GOMOKU_SIZE * GOMOKU_SIZE):
+        return
+    my_color = "white" if player_name == room.gomoku_white_player else "black"
+    opp_color = "black" if my_color == "white" else "white"
+    existing = room.gomoku_board.get(idx)
+    if existing == opp_color:
+        # Penalty: turn passes
+        room.turn = (room.turn + 1) % len(room.player_order)
+        emit_to_room("gomoku_occupied", {
+            "penalty_player": player_name,
+            "next_turn": room.player_order[room.turn],
+        }, room_id=room.room_id)
+        return
+    if existing == my_color:
+        # Own stone: wasted move, turn advances, no board change
+        room.turn = (room.turn + 1) % len(room.player_order)
+        emit_to_room("gomoku_update", {
+            "placed_idx": idx, "color": my_color, "player": player_name,
+            "hide_idx": -1,
+            "last_white": room.gomoku_last_white, "last_black": room.gomoku_last_black,
+            "next_turn": room.player_order[room.turn],
+            "own_stone": True,
+            "win_line": [],
+        }, room_id=room.room_id)
+        return
+    # Place stone
+    old_last = room.gomoku_last_white if my_color == "white" else room.gomoku_last_black
+    room.gomoku_board[idx] = my_color
+    if my_color == "white":
+        room.gomoku_last_white = idx
+    else:
+        room.gomoku_last_black = idx
+    # Bot memory: when human's previous stone becomes hidden, bot may remember it
+    if room.play_mode == "bot" and old_last >= 0:
+        prob = get_bot_memory_probability(room)
+        if random.random() < prob:
+            room.bot_memory[old_last] = my_color
+    win_line = gomoku_check_win(room.gomoku_board, idx)
+    room.turn = (room.turn + 1) % len(room.player_order)
+    emit_to_room("gomoku_update", {
+        "placed_idx": idx, "color": my_color, "player": player_name,
+        "hide_idx": old_last,
+        "last_white": room.gomoku_last_white, "last_black": room.gomoku_last_black,
+        "next_turn": room.player_order[room.turn],
+        "own_stone": False,
+        "win_line": win_line or [],
+    }, room_id=room.room_id)
+    if win_line:
+        room.status = "results"
+        room.round_win[player_name] = room.round_win.get(player_name, 0) + 1
+
+        def end_gomoku():
+            socketio.sleep(2.0)
+            conclude_round(player_name, room)
+
+        socketio.start_background_task(end_gomoku)
+
+
+# ---------------------------------------------------------------------------
 # Flask routes
 # ---------------------------------------------------------------------------
 
@@ -3032,6 +3270,17 @@ def handle_grid_request(data=None):
     room_id = room.room_id if room else "NONE"
     print(f"[INFO] request_grid: token={token_short}, room={room_id}, grid_size={grid_size}, solo={is_solo(room) if room else 'N/A'}, player={player_found}")
 
+    if room.card_mode == "gomoku" and room.status in ("playing", "setup"):
+        emit("init_gomoku", {
+            "size": GOMOKU_SIZE,
+            "white_player": room.gomoku_white_player,
+            "black_player": room.gomoku_black_player,
+            "turn": room.player_order[room.turn] if room.player_order else "",
+            "last_white": room.gomoku_last_white,
+            "last_black": room.gomoku_last_black,
+        })
+        return
+
     if room.queue_round_prepared and queue_can_prepare_round_while_waiting(room):
         emit("queue_round_prepared", build_lobby_payload(room))
         emit("no_grid", {"reason": "queue_round_prepared"})
@@ -3098,6 +3347,16 @@ def handle_grid_request(data=None):
 @socketio.on("ready_for_game")
 def handle_ready_for_game():
     room = get_room_for_sid(request.sid)
+    if room.card_mode == "gomoku" and room.status in ("playing", "setup"):
+        emit("init_gomoku", {
+            "size": GOMOKU_SIZE,
+            "white_player": room.gomoku_white_player,
+            "black_player": room.gomoku_black_player,
+            "turn": room.player_order[room.turn] if room.player_order else "",
+            "last_white": room.gomoku_last_white,
+            "last_black": room.gomoku_last_black,
+        })
+        return
     if room.grid_data and len(room.grid_data) == 16:
         current_player_name = (
             room.player_order[room.turn] if room.player_order and 0 <= room.turn < len(room.player_order) else None
@@ -3174,6 +3433,18 @@ def handle_start_custom_game(data=None):
         if not card_mode:
             card_mode = "image_word"
         data.setdefault("target_language", "es")
+    if mode == "gomoku":
+        room.card_mode = "gomoku"
+        room.game_mode = "gomoku"
+        room.status = "setup"
+        all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
+        room.ui_language = ui_language if ui_language in all_ui_langs else "en"
+        if room.play_mode == "bot":
+            room.bot_difficulty = bot_difficulty if bot_difficulty in BOT_MEMORY_USE_PROBABILITY else "easy"
+        room.player_order = [v["username"] for v in get_effective_players_ordered(room)]
+        room.round_starter = get_round_starter_name(room)
+        init_gomoku_round(room)
+        return
     if mode not in {"manual", "theme", "random", "chords", "same_chords"}:
         mode = "manual"
     if card_mode not in {"images", "image_word", "words", "chords", "same_chords"}:
@@ -3577,7 +3848,8 @@ def handle_surrender_round(data=None):
         return
 
     room = resolve_room_for_event(data, player_info)
-    if not room.grid_data or not solo_or_enough_players(room):
+    is_gomoku_active = room.card_mode == "gomoku" and room.status == "playing"
+    if not is_gomoku_active and (not room.grid_data or not solo_or_enough_players(room)):
         emit("round_surrender_failed", {"reason": "round_not_active"})
         return
 
@@ -3598,6 +3870,17 @@ def handle_surrender_round(data=None):
     print(f"[INFO] {surrendering_player} luovutti. Voittaja: {winner}")
     room.current_click_sid = None
     conclude_round(winner, room, surrendered_by=surrendering_player)
+
+
+@socketio.on("gomoku_place")
+def handle_gomoku_place(data):
+    sid = request.sid
+    room = get_room_for_sid(sid)
+    if not room or room.card_mode != "gomoku" or room.status != "playing":
+        return
+    player_info = room.players.get(sid, {})
+    idx = int(data.get("index", -1))
+    process_gomoku_place(idx, player_info, room)
 
 
 # ---------------------------------------------------------------------------
@@ -3903,10 +4186,10 @@ def handle_preference_changed(data=None):
     if not room or sid not in room.players:
         return
     card_mode = str(data.get("card_mode") or "").strip().lower()
-    if card_mode in {"images", "image_word", "words", "chords", "same_chords"}:
+    if card_mode in {"images", "image_word", "words", "chords", "same_chords", "gomoku"}:
         room.players[sid]["pref_card_mode"] = card_mode
     target_language = str(data.get("target_language") or "").strip().lower()
-    if room.players[sid].get("pref_card_mode") in {"images", "chords", "same_chords"}:
+    if room.players[sid].get("pref_card_mode") in {"images", "chords", "same_chords", "gomoku"}:
         target_language = ""
     room.players[sid]["pref_target_language"] = target_language
     pref_chord_audio = str(data.get("chord_audio_type") or "").strip().lower()

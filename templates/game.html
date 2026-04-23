@@ -714,6 +714,10 @@
             transition: none !important;
             scroll-behavior: auto !important;
         }
+        #gomoku-wrap { user-select: none; }
+        #gomoku-board { display: block; margin: 0 auto; cursor: pointer; }
+        .gomoku-stone { transition: opacity 0.2s; }
+        .gomoku-win-stone { filter: drop-shadow(0 0 6px gold); }
     </style>
 </head>
 <body>
@@ -796,6 +800,9 @@
     <div id="image-pair-tracker">
         <div id="image-pair-tracker-label">Find these pairs</div>
         <div id="image-pair-tracker-list"></div>
+    </div>
+    <div id="gomoku-wrap" style="display:none; text-align:center; padding:10px; overflow:auto;">
+        <svg id="gomoku-board"></svg>
     </div>
     <div id="chord-tempo-picker" style="display:none; max-width:860px; margin:0 auto 12px; padding:0 14px; box-sizing:border-box;">
         <div style="color:#fff2a8; font-size:13px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:4px;">
@@ -886,7 +893,11 @@
                 study_lang: "Study a language",
                 theme_missing: "Theme is missing.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
-                pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env."
+                pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env.",
+                gomoku_occupied: "That spot was taken — your turn is forfeited.",
+                gomoku_own_stone: "You placed on your own stone.",
+                gomoku_you_white: "You play white (○)",
+                gomoku_you_black: "You play black (●)",
             },
             fi: {
                 page_title: "Muistipeli",
@@ -961,7 +972,11 @@
                 study_lang: "Opiskele kieltä",
                 theme_missing: "Teema puuttuu.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
-                pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta."
+                pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta.",
+                gomoku_occupied: "Paikka oli jo varattu — menetit vuorosi.",
+                gomoku_own_stone: "Asetit oman nappulasi päälle.",
+                gomoku_you_white: "Pelaat valkoisella (○)",
+                gomoku_you_black: "Pelaat mustalla (●)",
             },
             sv: {
                 settings_tracker_visibility: "Ordlista",
@@ -1257,6 +1272,7 @@
 
         let cards = [];
         let matched = new Set();
+        let gomokuState = null;  // {size, whitePlayer, blackPlayer, myColor, currentTurn, lastWhite, lastBlack, winLine}
         let imagePairTrackerEntries = [];
         let removedPairKeys = new Set();
         let scheduledPairRemovalKeys = new Set();
@@ -1413,7 +1429,8 @@
 
         function updateRoundActionsVisibility() {
             if (!surrenderRoundBtn || !exitGameBtn) return;
-            const roundActive = Array.isArray(cards) && cards.length > 0 && !gameOverShown;
+            const gomokuActive = gomokuState !== null && !gameOverShown;
+            const roundActive = (gomokuActive || (Array.isArray(cards) && cards.length > 0)) && !gameOverShown;
             surrenderRoundBtn.style.display = roundActive ? "inline-flex" : "none";
             // In solo mode: hide exit during active round (use cancel instead)
             // In multiplayer: exit only when no active round (results screen or before game starts)
@@ -1979,9 +1996,153 @@
             showOpponentStatusToast(t("opponent_returned", { name }), 3000);
         });
 
+        // ---------------------------------------------------------------------------
+        // Gomoku
+        // ---------------------------------------------------------------------------
+
+        const GOMOKU_CELL = 32;
+        const GOMOKU_MARGIN = 20;
+
+        function gomokuBoardSize(size) {
+            return GOMOKU_MARGIN * 2 + (size - 1) * GOMOKU_CELL;
+        }
+
+        function gomokuXY(idx, size) {
+            const row = Math.floor(idx / size);
+            const col = idx % size;
+            return [GOMOKU_MARGIN + col * GOMOKU_CELL, GOMOKU_MARGIN + row * GOMOKU_CELL];
+        }
+
+        function drawGomokuBoard() {
+            const g = gomokuState;
+            if (!g) return;
+            const size = g.size;
+            const dim = gomokuBoardSize(size);
+            const svg = document.getElementById("gomoku-board");
+            svg.setAttribute("width", dim);
+            svg.setAttribute("height", dim);
+            svg.setAttribute("viewBox", `0 0 ${dim} ${dim}`);
+
+            let html = '';
+            // Board background
+            html += `<rect width="${dim}" height="${dim}" fill="#dcb167" rx="4"/>`;
+            // Grid lines
+            for (let i = 0; i < size; i++) {
+                const x = GOMOKU_MARGIN + i * GOMOKU_CELL;
+                const y = GOMOKU_MARGIN + i * GOMOKU_CELL;
+                html += `<line x1="${x}" y1="${GOMOKU_MARGIN}" x2="${x}" y2="${GOMOKU_MARGIN + (size - 1) * GOMOKU_CELL}" stroke="#555" stroke-width="0.8"/>`;
+                html += `<line x1="${GOMOKU_MARGIN}" y1="${y}" x2="${GOMOKU_MARGIN + (size - 1) * GOMOKU_CELL}" y2="${y}" stroke="#555" stroke-width="0.8"/>`;
+            }
+            // Star points (for 19x19: rows/cols 3, 9, 15 zero-indexed)
+            const stars = [3, 9, 15];
+            for (const sr of stars) {
+                for (const sc of stars) {
+                    const sx = GOMOKU_MARGIN + sc * GOMOKU_CELL;
+                    const sy = GOMOKU_MARGIN + sr * GOMOKU_CELL;
+                    html += `<circle cx="${sx}" cy="${sy}" r="3" fill="#444"/>`;
+                }
+            }
+            // Clickable cells (invisible overlay)
+            for (let i = 0; i < size * size; i++) {
+                const [x, y] = gomokuXY(i, size);
+                html += `<rect x="${x - GOMOKU_CELL / 2}" y="${y - GOMOKU_CELL / 2}" width="${GOMOKU_CELL}" height="${GOMOKU_CELL}" fill="transparent" data-idx="${i}" class="gomoku-click"/>`;
+            }
+            // Stones — only the last stone of each color is visible
+            if (g.lastWhite >= 0) {
+                const [x, y] = gomokuXY(g.lastWhite, size);
+                const isWin = g.winLine && g.winLine.includes(g.lastWhite);
+                html += `<circle cx="${x}" cy="${y}" r="13" fill="white" stroke="#888" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa"/>`;
+            }
+            if (g.lastBlack >= 0) {
+                const [x, y] = gomokuXY(g.lastBlack, size);
+                const isWin = g.winLine && g.winLine.includes(g.lastBlack);
+                html += `<circle cx="${x}" cy="${y}" r="13" fill="#1a1a1a" stroke="#444" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="3" fill="#555"/>`;
+            }
+            svg.innerHTML = html;
+            // Click handler
+            svg.querySelectorAll(".gomoku-click").forEach(el => {
+                el.addEventListener("click", () => {
+                    if (!gomokuState || gomokuState.currentTurn !== myName) return;
+                    const idx = parseInt(el.dataset.idx);
+                    socket.emit("gomoku_place", { index: idx });
+                });
+            });
+        }
+
+        function showToast(msg, autoHideMs = 3000) {
+            const toast = document.getElementById("toast");
+            if (!toast) return;
+            toast.textContent = msg;
+            toast.style.display = "block";
+            clearTimeout(window._toastTimer);
+            if (autoHideMs) {
+                window._toastTimer = setTimeout(() => { toast.style.display = "none"; }, autoHideMs);
+            }
+        }
+
+        socket.on("init_gomoku", (data) => {
+            document.getElementById("grid").style.display = "none";
+            document.getElementById("image-pair-tracker").style.display = "none";
+            document.getElementById("gomoku-wrap").style.display = "block";
+            document.getElementById("players").style.display = "";
+            window.currentCardMode = "gomoku";
+            gameOverShown = false;
+            gomokuState = {
+                size: data.size,
+                whitePlayer: data.white_player,
+                blackPlayer: data.black_player,
+                myColor: data.white_player === myName ? "white" : (data.black_player === myName ? "black" : null),
+                currentTurn: data.turn,
+                lastWhite: data.last_white !== undefined ? data.last_white : -1,
+                lastBlack: data.last_black !== undefined ? data.last_black : -1,
+                winLine: null,
+            };
+            // Store player order for updatePlayers
+            const gomokuPlayers = [data.white_player, data.black_player].filter(Boolean);
+            try { sessionStorage.setItem("players", JSON.stringify(gomokuPlayers)); } catch (_) {}
+            currentTurn = data.turn;
+            drawGomokuBoard();
+            updateRoundActionsVisibility();
+            updatePlayers();
+            hideSetupStatus();
+            hideRestartChoices();
+        });
+
+        socket.on("gomoku_update", (data) => {
+            if (!gomokuState) return;
+            gomokuState.lastWhite = data.last_white;
+            gomokuState.lastBlack = data.last_black;
+            gomokuState.currentTurn = data.next_turn;
+            if (data.win_line && data.win_line.length > 0) {
+                gomokuState.winLine = data.win_line;
+            }
+            currentTurn = data.next_turn;
+            drawGomokuBoard();
+            updatePlayers();
+            if (data.own_stone) {
+                showToast(t("gomoku_own_stone"));
+            }
+        });
+
+        socket.on("gomoku_occupied", (data) => {
+            if (!gomokuState) return;
+            gomokuState.currentTurn = data.next_turn;
+            currentTurn = data.next_turn;
+            updatePlayers();
+            if (data.penalty_player === myName) {
+                showToast(t("gomoku_occupied"));
+            }
+        });
+
+        // ---------------------------------------------------------------------------
         // Kun peli käynnistyy, aseta front-flag
         socket.on("init_grid", (data) => {
             stopChordPreview();
+            // Hide gomoku board if switching back to card mode
+            gomokuState = null;
+            document.getElementById("gomoku-wrap").style.display = "none";
             if (data.room_id) currentRoomId = data.room_id;
             gameOverShown = false;
             if (gridRetryTimer) {
@@ -2262,6 +2423,8 @@
                 return;
             }
             gameOverShown = true;
+            gomokuState = null;
+            document.getElementById("gomoku-wrap").style.display = "none";
             console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
             stopSoloTimer();
             soloStatsEl.classList.remove("active");

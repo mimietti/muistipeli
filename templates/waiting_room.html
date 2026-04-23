@@ -1086,6 +1086,10 @@
                             <span class="opt-btn-title" id="cardModeSameChordsTitle">🎵 🎵 Note + note</span>
                             <span class="opt-btn-desc" id="cardModeSameChordsDesc">Match two sounds of the same chord.</span>
                         </button>
+                        <button class="opt-btn" data-mode="gomoku" id="cardModeGomoku">
+                            <span class="opt-btn-title" id="cardModeGomokuTitle">⚫⚪ Muistinolla</span>
+                            <span class="opt-btn-desc" id="cardModeGomokuDesc">Gomoku-peli muistin voimalla.</span>
+                        </button>
                     </div>
                 </div>
                 <div class="option-group" id="chordAudioTypePicker" style="display:none;">
@@ -1327,6 +1331,8 @@
                 card_mode_images: "Images",
                 card_mode_chords: "Chords",
                 card_mode_same_chords: "Note + note",
+                card_mode_gomoku: "Memory Gomoku",
+                card_mode_gomoku_desc: "5 in a row — but remember where the stones are.",
                 enter_words_images: "Own ideas",
                 enter_theme_images: "Theme",
                 enter_random: "Random",
@@ -1479,6 +1485,8 @@
                 card_mode_images: "Kuvat",
                 card_mode_chords: "Soinnut",
                 card_mode_same_chords: "Nuotti + nuotti",
+                card_mode_gomoku: "Muistinolla",
+                card_mode_gomoku_desc: "Viiden suora — mutta nappuloiden paikat täytyy muistaa.",
                 enter_words_images: "Omat ideat",
                 enter_theme_images: "Teema",
                 enter_random: "Satunnaiset",
@@ -1678,6 +1686,7 @@
             if (mode === "chords") return t("card_mode_chords");
             if (mode === "same_chords") return t("card_mode_same_chords");
             if (mode === "words") return t("card_mode_words");
+            if (mode === "gomoku") return t("card_mode_gomoku");
             return t("card_mode_image_word");
         }
 
@@ -1688,7 +1697,7 @@
 
         function getQueueWordFilterLabel(mode, cardMode = null) {
             const effectiveMode = cardMode || window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word";
-            if (effectiveMode === "chords" || effectiveMode === "same_chords") return "";
+            if (effectiveMode === "chords" || effectiveMode === "same_chords" || effectiveMode === "gomoku") return "";
             const imagesOnly = effectiveMode === "images";
             if (imagesOnly) {
                 return mode === "broad" ? t("word_filter_broad_images") : t("word_filter_clear_images");
@@ -1840,6 +1849,8 @@
             el("cardModeChordsDesc").textContent = t("card_mode_chords_desc");
             el("cardModeSameChordsTitle").textContent = "🎵 🎵 " + t("card_mode_same_chords");
             el("cardModeSameChordsDesc").textContent = t("card_mode_same_chords_desc");
+            el("cardModeGomokuTitle").textContent = "⚫⚪ " + t("card_mode_gomoku");
+            el("cardModeGomokuDesc").textContent = t("card_mode_gomoku_desc");
             el("labelChordAudioType").textContent = t("label_chord_audio_type");
             el("chordAudioSingleTitle").textContent = "🎵 " + t("chord_audio_single");
             el("chordAudioProgressionTitle").textContent = "🎼 " + t("chord_audio_progression");
@@ -2480,7 +2491,7 @@
                             username: myName,
                             reconnect_token: reconnectToken,
                             card_mode: selectedCardMode,
-                            target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : ""
+                            target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : ""
                         });
                     }
                 }
@@ -2710,7 +2721,7 @@
                     bot_mode: localStorage.getItem("bot_mode") === "1",
                     solo_mode: isSolo,
                     card_mode: selectedCardMode,
-                    target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : ""
+                    target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : ""
                 };
                 console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
                 socket.emit("join", joinPayload);
@@ -2961,7 +2972,7 @@
                 maybeStartPendingSameSettingsRematch();
             });
 
-            const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝", chords: "🎵\u200d🎼", same_chords: "🎵\u200d🎵" };
+            const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝", chords: "🎵\u200d🎼", same_chords: "🎵\u200d🎵", gomoku: "⚫⚪" };
             const langFlagEmoji = { es: "🇪🇸", sv: "🇸🇪", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", pt: "🇵🇹", en: "🇬🇧", fi: "🇫🇮" };
             const escapeHtml = (value) => String(value || "")
                 .replace(/&/g, "&amp;")
@@ -3030,9 +3041,9 @@
 
             // --- Round options state ---
             let selectedWordSource = "random"; // "manual" | "theme" | "random"
-            let selectedCardMode = ["images", "image_word", "words", "chords", "same_chords"].includes(localStorage.getItem("preferred_card_mode"))
+            let selectedCardMode = ["images", "image_word", "words", "chords", "same_chords", "gomoku"].includes(localStorage.getItem("preferred_card_mode"))
                 ? localStorage.getItem("preferred_card_mode")
-                : "image_word"; // "images" | "image_word" | "words" | "chords" | "same_chords"
+                : "image_word"; // "images" | "image_word" | "words" | "chords" | "same_chords" | "gomoku"
             let selectedLang = "es";
             let selectedWordFilterMode = ["clear", "broad"].includes(localStorage.getItem("preferred_word_filter_mode"))
                 ? localStorage.getItem("preferred_word_filter_mode")
@@ -3045,7 +3056,7 @@
                 : "easy";
 
             function updateLangPickerVisibility() {
-                const needsLang = !["images", "chords", "same_chords"].includes(selectedCardMode);
+                const needsLang = !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode);
                 document.getElementById("langPicker").style.display = needsLang ? "block" : "none";
             }
 
@@ -3061,7 +3072,7 @@
             }
 
             function updateWordFilterVisibility() {
-                const showWordFilter = !["chords", "same_chords"].includes(selectedCardMode) && (selectedWordSource === "theme" || selectedWordSource === "random");
+                const showWordFilter = !["chords", "same_chords", "gomoku"].includes(selectedCardMode) && (selectedWordSource === "theme" || selectedWordSource === "random");
                 document.getElementById("wordFilterPicker").style.display = showWordFilter ? "block" : "none";
             }
 
@@ -3073,7 +3084,7 @@
                 const langPickerEl = document.getElementById("langPicker");
                 const botDifficultyPickerEl = document.getElementById("botDifficultyPicker");
                 const startRoundBtnEl = document.getElementById("startRoundBtn");
-                const isChordMode = ["chords", "same_chords"].includes(selectedCardMode);
+                const isChordMode = ["chords", "same_chords", "gomoku"].includes(selectedCardMode);
                 if (!active) {
                     wordSourcePickerEl.style.display = isChordMode ? "none" : "";
                     wordFilterPickerEl.style.display = isChordMode ? "none" : "";
@@ -3085,7 +3096,7 @@
                 wordSourcePickerEl.style.display = (prepared || isChordMode) ? "none" : "";
                 wordFilterPickerEl.style.display = (prepared || isChordMode) ? "none" : "";
                 cardModePickerEl.style.display = "none";
-                langPickerEl.style.display = prepared ? "none" : (!["images", "chords", "same_chords"].includes(selectedCardMode) ? "block" : "none");
+                langPickerEl.style.display = prepared ? "none" : (!["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? "block" : "none");
                 botDifficultyPickerEl.style.display = "none";
                 startRoundBtnEl.style.display = prepared ? "none" : "";
             }
@@ -3098,22 +3109,22 @@
                 });
             });
 
-            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords").forEach(btn => {
+            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach(btn => {
                 btn.addEventListener("click", () => {
                     selectedCardMode = btn.dataset.mode;
                     window.currentWaitingCardMode = selectedCardMode;
                     try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (e) {}
-                    if (selectedCardMode === "chords" || selectedCardMode === "same_chords") {
+                    if (selectedCardMode === "chords" || selectedCardMode === "same_chords" || selectedCardMode === "gomoku") {
                         selectedWordSource = "random";
                         document.querySelectorAll("#srcManualBtn, #srcThemeBtn, #srcRandomBtn").forEach(b => b.classList.toggle("active", b.id === "srcRandomBtn"));
                     }
-                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords").forEach(b => b.classList.toggle("active", b === btn));
+                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach(b => b.classList.toggle("active", b === btn));
                     updateLangPickerVisibility();
                     updateWordFilterVisibility();
                     updateChordAudioTypeVisibility();
                     renderQueuePreferencePicker(isQueueSearchLobby(window.latestLobbyPayload, window.latestPlayersInfo), Boolean(window.latestLobbyPayload && window.latestLobbyPayload.queue_round_prepared));
                     applyTranslations();
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5") });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5") });
                 });
             });
 
@@ -3123,7 +3134,7 @@
                     try { localStorage.setItem("preferred_chord_audio_type", selectedChordAudioType); } catch (e) {}
                     document.querySelectorAll("#chordAudioSingle, #chordAudioProgression").forEach(b => b.classList.toggle("active", b === btn));
                     updateChordAudioTypeVisibility();
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5") });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5") });
                 });
             });
 
@@ -3137,11 +3148,11 @@
                     const v = document.getElementById("chordTempoValue");
                     if (v) v.textContent = slider.value + "s";
                     try { localStorage.setItem("chord_progression_tempo", slider.value); } catch (e) {}
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(slider.value) });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(slider.value) });
                 });
             })();
 
-            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords").forEach((btn) => {
+            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
             });
             document.querySelectorAll("#chordAudioSingle, #chordAudioProgression").forEach((btn) => {
@@ -3182,7 +3193,7 @@
                 btn.addEventListener("click", () => {
                     selectedLang = btn.dataset.lang;
                     document.querySelectorAll(".lang-flag-btn").forEach(b => b.classList.toggle("active", b === btn));
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "" });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "" });
                 });
             });
 
@@ -3204,6 +3215,14 @@
                         payload.bot_difficulty = selectedBotDifficulty;
                     }
                     beginRoundPreparation({ mode: "same_chords", phase: "drawing_cards" }, payload);
+                    return;
+                }
+                if (selectedCardMode === "gomoku") {
+                    const payload = { mode: "gomoku", card_mode: "gomoku", ui_language: getLanguage() };
+                    if ((localStorage.getItem("play_mode") || "") === "bot") {
+                        payload.bot_difficulty = selectedBotDifficulty;
+                    }
+                    beginRoundPreparation({ mode: "gomoku", phase: "drawing_cards" }, payload);
                     return;
                 }
                 if (selectedWordSource === "random") {
@@ -3344,6 +3363,11 @@
             });
             socket.on("init_grid", () => {
                 console.log("[DEBUG] Vastaanotettiin 'init_grid' odotushuoneessa – siirrytään peliin");
+                renderSetupStatus({ active: false });
+                navigateTo("/game");
+            });
+            socket.on("init_gomoku", () => {
+                console.log("[DEBUG] Vastaanotettiin 'init_gomoku' odotushuoneessa – siirrytään peliin");
                 renderSetupStatus({ active: false });
                 navigateTo("/game");
             });
