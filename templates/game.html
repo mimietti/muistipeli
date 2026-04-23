@@ -716,6 +716,7 @@
         }
         #gomoku-wrap { user-select: none; }
         #gomoku-board { display: block; margin: 0 auto; cursor: pointer; }
+        .gomoku-click { fill: rgba(0, 0, 0, 0.001); pointer-events: all; }
         .gomoku-stone { transition: opacity 0.2s; }
         .gomoku-win-stone { filter: drop-shadow(0 0 6px gold); }
     </style>
@@ -2054,7 +2055,7 @@
             // Clickable cells (invisible overlay)
             for (let i = 0; i < size * size; i++) {
                 const [x, y] = gomokuXY(i, size);
-                html += `<rect x="${x - GOMOKU_CELL / 2}" y="${y - GOMOKU_CELL / 2}" width="${GOMOKU_CELL}" height="${GOMOKU_CELL}" fill="transparent" data-idx="${i}" class="gomoku-click"/>`;
+                html += `<rect x="${x - GOMOKU_CELL / 2}" y="${y - GOMOKU_CELL / 2}" width="${GOMOKU_CELL}" height="${GOMOKU_CELL}" data-idx="${i}" class="gomoku-click"/>`;
             }
             // Stones — only the last stone of each color is visible
             if (g.lastWhite >= 0) {
@@ -2070,37 +2071,47 @@
                 html += `<circle cx="${x}" cy="${y}" r="3" fill="#555"/>`;
             }
             svg.innerHTML = html;
-            // Click handler
-            svg.querySelectorAll(".gomoku-click").forEach(el => {
-                el.addEventListener("click", () => {
-                    const idx = parseInt(el.dataset.idx);
-                    const row = Math.floor(idx / (gomokuState ? gomokuState.size : 19));
-                    const col = idx % (gomokuState ? gomokuState.size : 19);
-                    console.log("[DEBUG] Gomoku click", {
-                        index: idx,
-                        row,
-                        col,
-                        myName,
-                        currentTurn: gomokuState ? gomokuState.currentTurn : null,
-                        roomId,
-                        lastWhite: gomokuState ? gomokuState.lastWhite : null,
-                        lastBlack: gomokuState ? gomokuState.lastBlack : null
-                    });
-                    if (!gomokuState) {
-                        console.warn("[DEBUG] Gomoku move blocked: state missing");
-                        showToast(t("gomoku_not_ready"));
-                        return;
-                    }
-                    if (gomokuState.currentTurn !== myName) {
-                        console.warn("[DEBUG] Gomoku local turn mismatch, forwarding move to server anyway", {
-                            myName,
-                            currentTurn: gomokuState.currentTurn
-                        });
-                    }
-                    console.log("[DEBUG] Emitting gomoku_place", { index: idx });
-                    socket.emit("gomoku_place", { index: idx });
+            svg.onclick = (evt) => {
+                if (!gomokuState) {
+                    console.warn("[DEBUG] Gomoku move blocked: state missing");
+                    showToast(t("gomoku_not_ready"));
+                    return;
+                }
+                const rect = svg.getBoundingClientRect();
+                if (!rect.width || !rect.height) return;
+                const scaleX = dim / rect.width;
+                const scaleY = dim / rect.height;
+                const localX = (evt.clientX - rect.left) * scaleX;
+                const localY = (evt.clientY - rect.top) * scaleY;
+                const col = Math.floor((localX - GOMOKU_MARGIN) / GOMOKU_CELL);
+                const row = Math.floor((localY - GOMOKU_MARGIN) / GOMOKU_CELL);
+                if (row < 0 || row >= size || col < 0 || col >= size) {
+                    console.log("[DEBUG] Gomoku click outside playable board", { localX, localY, row, col });
+                    return;
+                }
+                const idx = row * size + col;
+                const debugRoomId = window.roomId || localStorage.getItem("room_id") || null;
+                console.log("[DEBUG] Gomoku click", {
+                    index: idx,
+                    row,
+                    col,
+                    localX,
+                    localY,
+                    myName,
+                    currentTurn: gomokuState.currentTurn,
+                    roomId: debugRoomId,
+                    lastWhite: gomokuState.lastWhite,
+                    lastBlack: gomokuState.lastBlack
                 });
-            });
+                if (gomokuState.currentTurn !== myName) {
+                    console.warn("[DEBUG] Gomoku local turn mismatch, forwarding move to server anyway", {
+                        myName,
+                        currentTurn: gomokuState.currentTurn
+                    });
+                }
+                console.log("[DEBUG] Emitting gomoku_place", { index: idx, row, col });
+                socket.emit("gomoku_place", { index: idx });
+            };
         }
 
         function showToast(msg, autoHideMs = 3000) {
