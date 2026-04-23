@@ -801,7 +801,7 @@
         <div style="color:#fff2a8; font-size:13px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:4px;">
             <span id="chordTempoLabelGame">Chord duration</span>: <span id="chordTempoValueGame">2.5s</span>
         </div>
-        <input type="range" id="chordTempoSliderGame" min="1.0" max="5.0" step="0.5" value="2.5" style="width:100%;accent-color:#c0a060;">
+        <input type="range" id="chordTempoSliderGame" min="0.1" max="5.0" step="0.1" value="2.5" style="width:100%;accent-color:#c0a060;">
     </div>
     <div id="translation-hint" style="display:none;">
         <div id="translation-hint-label"></div>
@@ -1722,7 +1722,7 @@
         (function() {
             const slider = document.getElementById("chordTempoSliderGame");
             const stored = parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5");
-            slider.value = Math.min(5.0, Math.max(1.0, stored));
+            slider.value = Math.min(5.0, Math.max(0.1, stored));
             document.getElementById("chordTempoValueGame").textContent = slider.value + "s";
             slider.addEventListener("input", () => {
                 document.getElementById("chordTempoValueGame").textContent = slider.value + "s";
