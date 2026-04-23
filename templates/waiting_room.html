@@ -3086,6 +3086,7 @@
                 const startRoundBtnEl = document.getElementById("startRoundBtn");
                 const isChordMode = ["chords", "same_chords", "gomoku"].includes(selectedCardMode);
                 if (!active) {
+                    cardModePickerEl.style.display = "";
                     wordSourcePickerEl.style.display = isChordMode ? "none" : "";
                     wordFilterPickerEl.style.display = isChordMode ? "none" : "";
                     botDifficultyPickerEl.style.display = (localStorage.getItem("play_mode") || "") === "bot" ? "block" : "none";
@@ -3159,7 +3160,6 @@
                 btn.classList.toggle("active", btn.dataset.chordAudio === selectedChordAudioType);
             });
             window.currentWaitingCardMode = selectedCardMode;
-            document.getElementById("cardModePicker").style.display = "none";
             updateWordFilterVisibility();
             updateLangPickerVisibility();
             updateChordAudioTypeVisibility();
