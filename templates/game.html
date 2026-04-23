@@ -1492,18 +1492,24 @@
 
             // Chord progression: play sequence of chords one after another
             if (cardData.audio_sequence && cardData.audio_sequence.length) {
+                const chordMs = Math.round((parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5")) * 1000);
                 const playNext = (pos) => {
                     if (activeChordPreview.token !== previewToken) return;
                     if (pos >= cardData.audio_sequence.length) { markPreviewFinished(); return; }
                     const audio = new Audio(cardData.audio_sequence[pos]);
                     activeChordPreview.target = audio;
-                    audio.onended = () => {
-                        if (activeChordPreview.token === previewToken) {
-                            activeChordPreview.target = null;
-                            playNext(pos + 1);
-                        }
+                    let advanced = false;
+                    const advance = () => {
+                        if (advanced || activeChordPreview.token !== previewToken) return;
+                        advanced = true;
+                        clearTimeout(fallbackTimer);
+                        activeChordPreview.target = null;
+                        playNext(pos + 1);
                     };
-                    audio.play().catch(() => { if (activeChordPreview.token === previewToken) playNext(pos + 1); });
+                    const fallbackTimer = setTimeout(advance, chordMs + 500);
+                    audio.onended = advance;
+                    audio.onerror = advance;
+                    audio.play().catch(advance);
                 };
                 playNext(0);
                 return;
@@ -2455,8 +2461,25 @@
                     const cardData = cards[index];
                     // Re-play already-revealed audio card without affecting game state
                     if (revealedOrder.includes(index) && cardData && cardData.card_type === "audio" && !matched.has(index) && !audioRevealLock && (isSoloMode || currentTurn === myName)) {
-                        const replay = new Audio(cardData.audio);
-                        replay.play().catch(() => {});
+                        if (cardData.audio_sequence && cardData.audio_sequence.length) {
+                            const chordMs = Math.round((parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5")) * 1000);
+                            const replayToken = ++activeChordPreview.token;
+                            const replayNext = (pos) => {
+                                if (activeChordPreview.token !== replayToken) return;
+                                if (pos >= cardData.audio_sequence.length) return;
+                                const ra = new Audio(cardData.audio_sequence[pos]);
+                                activeChordPreview.target = ra;
+                                let adv = false;
+                                const advance = () => { if (!adv && activeChordPreview.token === replayToken) { adv = true; clearTimeout(ft); replayNext(pos + 1); } };
+                                const ft = setTimeout(advance, chordMs + 500);
+                                ra.onended = advance; ra.onerror = advance;
+                                ra.play().catch(advance);
+                            };
+                            replayNext(0);
+                        } else {
+                            const replay = new Audio(cardData.audio);
+                            replay.play().catch(() => {});
+                        }
                         return;
                     }
                     if ((isSoloMode || myName === currentTurn) && !matched.has(index) && !audioRevealLock) {
