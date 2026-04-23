@@ -3134,7 +3134,8 @@
                 slider.value = Math.min(5.0, Math.max(1.0, stored));
                 valueEl.textContent = slider.value + "s";
                 slider.addEventListener("input", () => {
-                    valueEl.textContent = slider.value + "s";
+                    const v = document.getElementById("chordTempoValue");
+                    if (v) v.textContent = slider.value + "s";
                     try { localStorage.setItem("chord_progression_tempo", slider.value); } catch (e) {}
                 });
             })();

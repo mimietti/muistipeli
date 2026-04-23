@@ -2016,6 +2016,7 @@ def launch_grid_round(room):
         "play_mode": room.play_mode,
         "game_mode": room.game_mode,
         "card_mode": room.card_mode,
+        "chord_audio_type": room.chord_audio_type,
         "image_pair_tracker": build_image_pair_tracker_entries(room),
         "target_language": room.target_language,
         "native_language": room.native_language,

@@ -797,6 +797,12 @@
         <div id="image-pair-tracker-label">Find these pairs</div>
         <div id="image-pair-tracker-list"></div>
     </div>
+    <div id="chord-tempo-picker" style="display:none; max-width:860px; margin:0 auto 12px; padding:0 14px; box-sizing:border-box;">
+        <div style="color:#fff2a8; font-size:13px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:4px;">
+            <span id="chordTempoLabelGame">Chord duration</span>: <span id="chordTempoValueGame">2.5s</span>
+        </div>
+        <input type="range" id="chordTempoSliderGame" min="1.0" max="5.0" step="0.5" value="2.5" style="width:100%;accent-color:#c0a060;">
+    </div>
     <div id="translation-hint" style="display:none;">
         <div id="translation-hint-label"></div>
         <div id="translation-hint-grid"></div>
@@ -833,6 +839,7 @@
                 ready_label: "Ready:",
                 remaining_label: "Remaining:",
                 image_pair_tracker_label: "Find these pairs",
+                label_chord_tempo: "Chord duration",
                 translation_native: "Finnish",
                 translation_english: "English",
                 translation_missing: "No translation",
@@ -907,6 +914,7 @@
                 ready_label: "Valmiina:",
                 remaining_label: "Löytämättä:",
                 image_pair_tracker_label: "Etsi nämä parit",
+                label_chord_tempo: "Soinnun kesto",
                 translation_native: "Suomi",
                 translation_english: "Englanti",
                 translation_missing: "Ei käännöstä",
@@ -1702,6 +1710,26 @@
             imagePairTracker.style.display = "block";
         }
 
+        function updateChordTempoPicker() {
+            const isProgression = window.currentChordAudioType === "progression" &&
+                (window.currentCardMode === "chords" || window.currentCardMode === "same_chords");
+            const picker = document.getElementById("chord-tempo-picker");
+            if (picker) picker.style.display = isProgression ? "block" : "none";
+            const label = document.getElementById("chordTempoLabelGame");
+            if (label) label.textContent = t("label_chord_tempo");
+        }
+
+        (function() {
+            const slider = document.getElementById("chordTempoSliderGame");
+            const stored = parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5");
+            slider.value = Math.min(5.0, Math.max(1.0, stored));
+            document.getElementById("chordTempoValueGame").textContent = slider.value + "s";
+            slider.addEventListener("input", () => {
+                document.getElementById("chordTempoValueGame").textContent = slider.value + "s";
+                try { localStorage.setItem("chord_progression_tempo", slider.value); } catch (e) {}
+            });
+        })();
+
         function addAcceptedThemeWord(word) {
             if (!word) return;
             const acceptedWords = getAcceptedThemeWords();
@@ -1997,6 +2025,8 @@
             document.getElementById("surrenderRoundBtn").textContent = isSoloMode ? t("cancel_game") : t("surrender_round");
             if (data.card_mode) window.currentCardMode = data.card_mode;
             if (data.game_mode) window.currentGameMode = data.game_mode;
+            if (data.chord_audio_type) window.currentChordAudioType = data.chord_audio_type;
+            updateChordTempoPicker();
             if (data.target_language) currentTargetLanguage = data.target_language;
             if (data.native_language) currentNativeLanguage = data.native_language;
             if (data.word_filter_mode) {
