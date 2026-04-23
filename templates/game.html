@@ -1473,7 +1473,8 @@
         }
 
         function playChordPreview(cardData, index) {
-            if (!cardData || cardData.card_type !== "audio" || !cardData.audio) return;
+            if (!cardData || cardData.card_type !== "audio") return;
+            if (!cardData.audio && !(cardData.audio_sequence && cardData.audio_sequence.length)) return;
             stopChordPreview();
             audioRevealLock = true;
             const previewToken = activeChordPreview.token;
@@ -1488,6 +1489,25 @@
                     reconnect_token: getReconnectToken()
                 });
             };
+
+            // Chord progression: play sequence of chords one after another
+            if (cardData.audio_sequence && cardData.audio_sequence.length) {
+                const playNext = (pos) => {
+                    if (activeChordPreview.token !== previewToken) return;
+                    if (pos >= cardData.audio_sequence.length) { markPreviewFinished(); return; }
+                    const audio = new Audio(cardData.audio_sequence[pos]);
+                    activeChordPreview.target = audio;
+                    audio.onended = () => {
+                        if (activeChordPreview.token === previewToken) {
+                            activeChordPreview.target = null;
+                            playNext(pos + 1);
+                        }
+                    };
+                    audio.play().catch(() => { if (activeChordPreview.token === previewToken) playNext(pos + 1); });
+                };
+                playNext(0);
+                return;
+            }
 
             // Preload target immediately so it's ready when reference ends
             const targetAudio = new Audio(cardData.audio);

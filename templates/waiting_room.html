@@ -1088,6 +1088,17 @@
                         </button>
                     </div>
                 </div>
+                <div class="option-group" id="chordAudioTypePicker" style="display:none;">
+                    <div class="option-group-label" id="labelChordAudioType">Audio</div>
+                    <div class="option-group-btns">
+                        <button class="opt-btn active" data-chord-audio="single" id="chordAudioSingle">
+                            <span class="opt-btn-title" id="chordAudioSingleTitle">🎵 Single chord</span>
+                        </button>
+                        <button class="opt-btn" data-chord-audio="progression" id="chordAudioProgression">
+                            <span class="opt-btn-title" id="chordAudioProgressionTitle">🎼 Chord progression</span>
+                        </button>
+                    </div>
+                </div>
             <div class="option-group" id="langPicker">
                 <div class="option-group-label" id="labelLang">Language</div>
                 <div class="option-group-btns" id="targetLangBtns">
@@ -1213,6 +1224,9 @@
                 card_mode_words_desc: "Match words that mean the same.",
                 card_mode_chords_desc: "Match a chord name with its sound.",
                 card_mode_same_chords_desc: "Match two sounds of the same chord.",
+                chord_audio_single: "Single chord",
+                chord_audio_progression: "Chord progression",
+                label_chord_audio_type: "Audio",
                 setup_failed: "Game setup failed.",
                 disconnect_alert: "Connection to the server was lost. Trying again...",
                 opponent_reconnecting: "Waiting for {name} to reconnect…",
@@ -1360,6 +1374,9 @@
                 card_mode_words_desc: "Yhdistä eri kielillä samaa tarkoittavat sanat.",
                 card_mode_chords_desc: "Yhdistä soinnun nimi ja sointu äänenä.",
                 card_mode_same_chords_desc: "Etsi kaksi samaa soivaa sointua.",
+                chord_audio_single: "Yksittäinen sointi",
+                chord_audio_progression: "Sointukierto",
+                label_chord_audio_type: "Ääni",
                 enter_spanish_theme_prompt: "Anna teema:",
                 setup_failed: "Pelin alustus epäonnistui.",
                 disconnect_alert: "Yhteys katkesi palvelimeen. Yritetään uudelleen...",
@@ -1815,6 +1832,9 @@
             el("cardModeChordsDesc").textContent = t("card_mode_chords_desc");
             el("cardModeSameChordsTitle").textContent = "🎵 🎵 " + t("card_mode_same_chords");
             el("cardModeSameChordsDesc").textContent = t("card_mode_same_chords_desc");
+            el("labelChordAudioType").textContent = t("label_chord_audio_type");
+            el("chordAudioSingleTitle").textContent = "🎵 " + t("chord_audio_single");
+            el("chordAudioProgressionTitle").textContent = "🎼 " + t("chord_audio_progression");
             el("wordFilterClear").textContent = t(imagesOnly ? "word_filter_clear_images" : "word_filter_clear");
             el("wordFilterBroad").textContent = t(imagesOnly ? "word_filter_broad_images" : "word_filter_broad");
             el("botDifficultyEasy").textContent = getDifficultyLabel("easy");
@@ -2430,6 +2450,7 @@
                 });
                 updateWordFilterVisibility();
                 updateLangPickerVisibility();
+                updateChordAudioTypeVisibility();
                 updateBotDifficultyVisibility();
                 renderPlayerRole(playersInfo);
                 renderPreparedQueueSummary(payload);
@@ -3007,6 +3028,9 @@
             let selectedWordFilterMode = ["clear", "broad"].includes(localStorage.getItem("preferred_word_filter_mode"))
                 ? localStorage.getItem("preferred_word_filter_mode")
                 : "clear";
+            let selectedChordAudioType = ["single", "progression"].includes(localStorage.getItem("preferred_chord_audio_type"))
+                ? localStorage.getItem("preferred_chord_audio_type")
+                : "single";
             let selectedBotDifficulty = ["easy", "medium", "hard"].includes(localStorage.getItem("bot_difficulty"))
                 ? localStorage.getItem("bot_difficulty")
                 : "easy";
@@ -3014,6 +3038,11 @@
             function updateLangPickerVisibility() {
                 const needsLang = !["images", "chords", "same_chords"].includes(selectedCardMode);
                 document.getElementById("langPicker").style.display = needsLang ? "block" : "none";
+            }
+
+            function updateChordAudioTypeVisibility() {
+                const show = ["chords", "same_chords"].includes(selectedCardMode);
+                document.getElementById("chordAudioTypePicker").style.display = show ? "block" : "none";
             }
 
             function updateBotDifficultyVisibility() {
@@ -3071,19 +3100,33 @@
                     document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords").forEach(b => b.classList.toggle("active", b === btn));
                     updateLangPickerVisibility();
                     updateWordFilterVisibility();
+                    updateChordAudioTypeVisibility();
                     renderQueuePreferencePicker(isQueueSearchLobby(window.latestLobbyPayload, window.latestPlayersInfo), Boolean(window.latestLobbyPayload && window.latestLobbyPayload.queue_round_prepared));
                     applyTranslations();
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "" });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType });
+                });
+            });
+
+            document.querySelectorAll("#chordAudioSingle, #chordAudioProgression").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    selectedChordAudioType = btn.dataset.chordAudio;
+                    try { localStorage.setItem("preferred_chord_audio_type", selectedChordAudioType); } catch (e) {}
+                    document.querySelectorAll("#chordAudioSingle, #chordAudioProgression").forEach(b => b.classList.toggle("active", b === btn));
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType });
                 });
             });
 
             document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
             });
+            document.querySelectorAll("#chordAudioSingle, #chordAudioProgression").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.chordAudio === selectedChordAudioType);
+            });
             window.currentWaitingCardMode = selectedCardMode;
             document.getElementById("cardModePicker").style.display = "none";
             updateWordFilterVisibility();
             updateLangPickerVisibility();
+            updateChordAudioTypeVisibility();
             updateBotDifficultyVisibility();
 
             document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach(btn => {
@@ -3123,7 +3166,7 @@
                     return;
                 }
                 if (selectedCardMode === "chords") {
-                    const payload = { mode: "chords", card_mode: "chords", ui_language: getLanguage() };
+                    const payload = { mode: "chords", card_mode: "chords", ui_language: getLanguage(), chord_audio_type: selectedChordAudioType };
                     if ((localStorage.getItem("play_mode") || "") === "bot") {
                         payload.bot_difficulty = selectedBotDifficulty;
                     }
@@ -3131,7 +3174,7 @@
                     return;
                 }
                 if (selectedCardMode === "same_chords") {
-                    const payload = { mode: "same_chords", card_mode: "same_chords", ui_language: getLanguage() };
+                    const payload = { mode: "same_chords", card_mode: "same_chords", ui_language: getLanguage(), chord_audio_type: selectedChordAudioType };
                     if ((localStorage.getItem("play_mode") || "") === "bot") {
                         payload.bot_difficulty = selectedBotDifficulty;
                     }

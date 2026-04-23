@@ -124,6 +124,7 @@ BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
 FINAL_PAIR_REVEAL_SECONDS = 3.2
 CHORD_PREVIEW_LOCK_SECONDS = 8.0
+CHORD_PROGRESSION_LOCK_SECONDS = 20.0
 BOT_MEMORY_USE_PROBABILITY = {
     "easy": 0.0,
     "medium": 0.55,
@@ -194,6 +195,7 @@ class RoomState:
     rematch_votes: set = field(default_factory=set)
     summary_sids: dict = field(default_factory=dict)  # username -> sid
     queue_round_prepared: bool = False
+    chord_audio_type: str = "single"  # single | progression
 
 
 # --- Global indexes (not game state) ---
@@ -316,6 +318,31 @@ def load_chord_library():
 
 CHORD_LIBRARY = load_chord_library()
 CHORD_REFERENCE_ENTRY = next((entry for entry in CHORD_LIBRARY if entry["label"] == CHORD_REFERENCE_LABEL), None)
+
+CHORD_PROGRESSIONS_DEF = [
+    {"label": "I – V – vi – IV",       "chords": ["C major", "G major", "A minor", "F major"]},
+    {"label": "I – IV – V",            "chords": ["C major", "F major", "G major"]},
+    {"label": "I – vi – IV – V",       "chords": ["C major", "A minor", "F major", "G major"]},
+    {"label": "ii – V7 – I",           "chords": ["D minor", "G7", "C major"]},
+    {"label": "I – V – vi – iii – IV", "chords": ["C major", "G major", "A minor", "E minor", "F major"]},
+    {"label": "i – VII – VI – VII",    "chords": ["A minor", "G major", "F major", "G major"]},
+    {"label": "i – VI – III – VII",    "chords": ["A minor", "F major", "C major", "G major"]},
+    {"label": "I – iii – vi – IV",     "chords": ["C major", "E minor", "A minor", "F major"]},
+]
+
+def _build_chord_progressions_with_urls():
+    url_map = {e["label"]: e["url"] for e in CHORD_LIBRARY}
+    result = []
+    for prog in CHORD_PROGRESSIONS_DEF:
+        urls = [url_map.get(c) for c in prog["chords"]]
+        if all(urls):
+            result.append({"label": prog["label"], "audio_sequence": urls})
+        else:
+            missing = [c for c in prog["chords"] if not url_map.get(c)]
+            print(f"[WARNING] Progression '{prog['label']}' missing chords: {missing}")
+    return result
+
+CHORD_PROGRESSIONS = _build_chord_progressions_with_urls()
 
 
 # ---------------------------------------------------------------------------
@@ -801,7 +828,8 @@ def schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS):
             first_i, second_i = choose_bot_turn_indices(room, available)
             first_card = room.grid_data[first_i] if 0 <= first_i < len(room.grid_data) else {}
             is_audio_turn = first_card.get("card_type") == "audio"
-            second_delay = CHORD_PREVIEW_LOCK_SECONDS if is_audio_turn else BOT_SECOND_FLIP_DELAY_SECONDS
+            is_progression = bool(first_card.get("audio_sequence"))
+            second_delay = (CHORD_PROGRESSION_LOCK_SECONDS if is_progression else CHORD_PREVIEW_LOCK_SECONDS) if is_audio_turn else BOT_SECOND_FLIP_DELAY_SECONDS
             print(f"[BOT] Flipping card {first_i} (type={first_card.get('card_type')}, label={first_card.get('chord_label') or first_card.get('word')}), waiting {second_delay}s before second flip")
             process_card_click(first_i, bot_sid, bot_info, room)
             socketio.sleep(second_delay)
@@ -1815,6 +1843,36 @@ def append_chord_pair_to_grid(chord_entry, room, pair_index=None):
     return True
 
 
+def append_chord_progression_pair_to_grid(prog, room, pair_index=None):
+    """Word card (label) + audio card (sequence) for chords mode with progressions."""
+    if not prog:
+        return False
+    pair_id = (pair_index if pair_index is not None else room.pending_pair) + 1
+    label = prog.get("label") or ""
+    audio_sequence = prog.get("audio_sequence") or []
+    if not label or not audio_sequence:
+        return False
+    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence}
+    room.grid_data.append({"pair_id": pair_id, "card_type": "word", "text": label, **common})
+    room.grid_data.append({"pair_id": pair_id, "card_type": "audio", **common})
+    return True
+
+
+def append_same_chord_progression_pair_to_grid(prog, room, pair_index=None):
+    """Two identical audio cards (sequence) for same_chords mode with progressions."""
+    if not prog:
+        return False
+    pair_id = (pair_index if pair_index is not None else room.pending_pair) + 1
+    label = prog.get("label") or ""
+    audio_sequence = prog.get("audio_sequence") or []
+    if not label or not audio_sequence:
+        return False
+    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence, "pair_id": pair_id, "card_type": "audio"}
+    room.grid_data.append(dict(common))
+    room.grid_data.append(dict(common))
+    return True
+
+
 def append_same_chord_pair_to_grid(chord_entry, room, pair_index=None):
     """Two identical audio cards for the same chord (same_chords mode)."""
     if not chord_entry:
@@ -1840,26 +1898,39 @@ def append_same_chord_pair_to_grid(chord_entry, room, pair_index=None):
     return True
 
 
-def build_same_chord_round(room):
-    available = list(CHORD_LIBRARY)
+def _build_chord_round_generic(room, append_fn, available, mode_label):
     if len(available) < 8:
         return False
-    random.shuffle(available)
     room.grid_data.clear()
-    for pair_index, chord_entry in enumerate(available[:8]):
-        if not append_same_chord_pair_to_grid(chord_entry, room, pair_index=pair_index):
+    for pair_index, entry in enumerate(available[:8]):
+        if not append_fn(entry, room, pair_index=pair_index):
             return False
         emit_to_room("random_drawing_started", {
-            "mode": "same_chords",
-            "card_mode": "same_chords",
-            "phase": "drawing_cards",
-            "progress_count": pair_index + 1,
-            "total_pairs": 8,
+            "mode": mode_label, "card_mode": mode_label,
+            "phase": "drawing_cards", "progress_count": pair_index + 1, "total_pairs": 8,
         }, room_id=room.room_id)
         socketio.sleep(0)
     room.pending_pair = 8
     room.pending_player = None
     return True
+
+
+def build_same_chord_round(room):
+    available = list(CHORD_LIBRARY)
+    random.shuffle(available)
+    return _build_chord_round_generic(room, append_same_chord_pair_to_grid, available, "same_chords")
+
+
+def build_chord_progressions_round(room):
+    available = list(CHORD_PROGRESSIONS)
+    random.shuffle(available)
+    return _build_chord_round_generic(room, append_same_chord_progression_pair_to_grid, available, "same_chords")
+
+
+def build_chords_progression_round(room):
+    available = list(CHORD_PROGRESSIONS)
+    random.shuffle(available)
+    return _build_chord_round_generic(room, append_chord_progression_pair_to_grid, available, "chords")
 
 
 def build_theme_pair_entry(word, room):
@@ -2336,21 +2407,22 @@ def process_card_click(index, resolved_sid, clicker, room):
     emit_to_room("reveal_card", {"index": index, "card": room.grid_data[index]}, room_id=room.room_id)
     remember_card_for_bot(room, index)
     if room.grid_data[index].get("card_type") == "audio":
+        lock_duration = CHORD_PROGRESSION_LOCK_SECONDS if room.grid_data[index].get("audio_sequence") else CHORD_PREVIEW_LOCK_SECONDS
         if not is_bot_player(clicker):
             # Human: wait for audio_preview_finished event from client
             room.audio_preview_pending = True
             room.audio_preview_index = index
-            room.audio_preview_lock_until = time.time() + CHORD_PREVIEW_LOCK_SECONDS
+            room.audio_preview_lock_until = time.time() + lock_duration
             return
         if len(room.revealed_cards) == 2:
-            # Bot second flip: delay finalize so client can hear both chords play
+            # Bot second flip: delay finalize so client can hear full audio play
             room.audio_preview_pending = True
             room.audio_preview_index = index
-            room.audio_preview_lock_until = time.time() + CHORD_PREVIEW_LOCK_SECONDS
+            room.audio_preview_lock_until = time.time() + lock_duration
             snap_clicker = clicker
-            def bot_audio_auto_finalize(r=room, c=snap_clicker):
-                socketio.sleep(CHORD_PREVIEW_LOCK_SECONDS)
-                print(f"[BOT] Auto-finalize after audio delay")
+            def bot_audio_auto_finalize(r=room, c=snap_clicker, d=lock_duration):
+                socketio.sleep(d)
+                print(f"[BOT] Auto-finalize after {d}s audio delay")
                 if r.audio_preview_pending:
                     clear_audio_preview_lock(r)
                     finalize_revealed_cards(r, clicker=c)
@@ -3073,6 +3145,9 @@ def handle_start_custom_game(data=None):
     card_mode = str(data.get("card_mode", "")).strip().lower()
     bot_difficulty = str(data.get("bot_difficulty", room.bot_difficulty or "easy")).strip().lower()
     word_filter_mode = str(data.get("word_filter_mode", room.word_filter_mode or "clear")).strip().lower()
+    chord_audio_type = str(data.get("chord_audio_type", "single")).strip().lower()
+    if chord_audio_type not in {"single", "progression"}:
+        chord_audio_type = "single"
     # "spanish" / "language" legacy: word_source=theme + card_mode=image_word
     if mode in {"spanish", "language"}:
         mode = "theme"
@@ -3087,6 +3162,7 @@ def handle_start_custom_game(data=None):
     room.ui_language = ui_language if ui_language in all_ui_langs else "en"
     room.native_language = room.ui_language
     room.card_mode = card_mode
+    room.chord_audio_type = chord_audio_type
     if room.play_mode == "bot":
         room.bot_difficulty = bot_difficulty if bot_difficulty in BOT_MEMORY_USE_PROBABILITY else "easy"
     else:
@@ -3136,7 +3212,8 @@ def handle_start_custom_game(data=None):
                 "total_pairs": 8,
             }, room_id=room.room_id)
             socketio.sleep(0)
-            if not build_chord_round(room):
+            builder = build_chords_progression_round if room.chord_audio_type == "progression" else build_chord_round
+            if not builder(room):
                 emit_to_room("game_setup_error", {"reason": "Sointuja ei löytynyt tarpeeksi. Lisää 8 mp3-tiedostoa kansioon static/audio/chords."}, room_id=room.room_id)
                 room.grid_data.clear()
                 reset_pending_state(room)
@@ -3160,7 +3237,8 @@ def handle_start_custom_game(data=None):
                 "total_pairs": 8,
             }, room_id=room.room_id)
             socketio.sleep(0)
-            if not build_same_chord_round(room):
+            builder = build_chord_progressions_round if room.chord_audio_type == "progression" else build_same_chord_round
+            if not builder(room):
                 emit_to_room("game_setup_error", {"reason": "Sointuja ei löytynyt tarpeeksi. Lisää 8 mp3-tiedostoa kansioon static/audio/chords."}, room_id=room.room_id)
                 room.grid_data.clear()
                 reset_pending_state(room)
@@ -3810,6 +3888,9 @@ def handle_preference_changed(data=None):
     if room.players[sid].get("pref_card_mode") in {"images", "chords", "same_chords"}:
         target_language = ""
     room.players[sid]["pref_target_language"] = target_language
+    pref_chord_audio = str(data.get("chord_audio_type") or "").strip().lower()
+    if pref_chord_audio in {"single", "progression"}:
+        room.players[sid]["pref_chord_audio_type"] = pref_chord_audio
     room.players[sid]["pref_ready"] = True
     connected_humans = [
         (player_sid, info) for player_sid, info in room.players.items()
@@ -3825,6 +3906,9 @@ def handle_preference_changed(data=None):
             reset_pending_state(room)
         room.card_mode = room.players[sid].get("pref_card_mode") or room.card_mode
         room.target_language = room.players[sid].get("pref_target_language") or ""
+        chord_at = room.players[sid].get("pref_chord_audio_type")
+        if chord_at:
+            room.chord_audio_type = chord_at
     payload = build_lobby_payload(room)
     emit_to_room("player_joined", payload, room_id=room.room_id)
     broadcast_lobby_browser()
