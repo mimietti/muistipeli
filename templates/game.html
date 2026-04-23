@@ -2088,12 +2088,10 @@
                         return;
                     }
                     if (gomokuState.currentTurn !== myName) {
-                        console.warn("[DEBUG] Gomoku move blocked: not your turn", {
+                        console.warn("[DEBUG] Gomoku local turn mismatch, forwarding move to server anyway", {
                             myName,
                             currentTurn: gomokuState.currentTurn
                         });
-                        showToast(t("gomoku_not_your_turn"));
-                        return;
                     }
                     console.log("[DEBUG] Emitting gomoku_place", { index: idx });
                     socket.emit("gomoku_place", { index: idx });
