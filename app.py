@@ -862,7 +862,8 @@ def schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS):
                 print(f"[BOT] Turn changed or game ended after first flip, skipping second flip")
         finally:
             room.bot_turn_scheduled = False
-            if (room.grid_data and room.player_order
+            if (not room.audio_preview_pending
+                    and room.grid_data and room.player_order
                     and room.turn < len(room.player_order)
                     and is_bot_player(room.player_order[room.turn], room)):
                 schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS)
