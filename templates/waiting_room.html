@@ -2461,7 +2461,7 @@
                 document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.wordFilterMode === selectedWordFilterMode);
                 });
-                document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords").forEach((btn) => {
+                document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
                 });
                 applyTranslations();
@@ -2472,6 +2472,7 @@
                 updateLangPickerVisibility();
                 updateChordAudioTypeVisibility();
                 updateBotDifficultyVisibility();
+                updateGomokuButtonVisibility();
                 renderPlayerRole(playersInfo);
                 renderPreparedQueueSummary(payload);
                 renderQueuePreferencePicker(queueSearchActive, queueRoundPrepared);
@@ -3071,6 +3072,12 @@
                 document.getElementById("botDifficultyPicker").style.display = isBotMode ? "block" : "none";
             }
 
+            function updateGomokuButtonVisibility() {
+                const isSolo = (localStorage.getItem("play_mode") || "") === "solo";
+                const btn = document.getElementById("cardModeGomoku");
+                if (btn) btn.style.display = isSolo ? "none" : "";
+            }
+
             function updateWordFilterVisibility() {
                 const showWordFilter = !["chords", "same_chords", "gomoku"].includes(selectedCardMode) && (selectedWordSource === "theme" || selectedWordSource === "random");
                 document.getElementById("wordFilterPicker").style.display = showWordFilter ? "block" : "none";
@@ -3164,6 +3171,7 @@
             updateLangPickerVisibility();
             updateChordAudioTypeVisibility();
             updateBotDifficultyVisibility();
+            updateGomokuButtonVisibility();
 
             document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach(btn => {
                 btn.addEventListener("click", () => {
