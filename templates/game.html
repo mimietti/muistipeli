@@ -896,6 +896,9 @@
                 pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env.",
                 gomoku_occupied: "That spot was taken — your turn is forfeited.",
                 gomoku_own_stone: "You placed on your own stone.",
+                gomoku_not_your_turn: "It's not your turn yet.",
+                gomoku_not_ready: "The board is not ready for a move yet.",
+                gomoku_move_rejected: "The move could not be played.",
                 gomoku_you_white: "You play white (○)",
                 gomoku_you_black: "You play black (●)",
             },
@@ -975,6 +978,9 @@
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta.",
                 gomoku_occupied: "Paikka oli jo varattu — menetit vuorosi.",
                 gomoku_own_stone: "Asetit oman nappulasi päälle.",
+                gomoku_not_your_turn: "Ei ole vielä sinun vuorosi.",
+                gomoku_not_ready: "Lauta ei ole vielä valmis siirrolle.",
+                gomoku_move_rejected: "Siirtoa ei voitu tehdä.",
                 gomoku_you_white: "Pelaat valkoisella (○)",
                 gomoku_you_black: "Pelaat mustalla (●)",
             },
@@ -2067,8 +2073,29 @@
             // Click handler
             svg.querySelectorAll(".gomoku-click").forEach(el => {
                 el.addEventListener("click", () => {
-                    if (!gomokuState || gomokuState.currentTurn !== myName) return;
                     const idx = parseInt(el.dataset.idx);
+                    console.log("[DEBUG] Gomoku click", {
+                        index: idx,
+                        myName,
+                        currentTurn: gomokuState ? gomokuState.currentTurn : null,
+                        roomId,
+                        lastWhite: gomokuState ? gomokuState.lastWhite : null,
+                        lastBlack: gomokuState ? gomokuState.lastBlack : null
+                    });
+                    if (!gomokuState) {
+                        console.warn("[DEBUG] Gomoku move blocked: state missing");
+                        showToast(t("gomoku_not_ready"));
+                        return;
+                    }
+                    if (gomokuState.currentTurn !== myName) {
+                        console.warn("[DEBUG] Gomoku move blocked: not your turn", {
+                            myName,
+                            currentTurn: gomokuState.currentTurn
+                        });
+                        showToast(t("gomoku_not_your_turn"));
+                        return;
+                    }
+                    console.log("[DEBUG] Emitting gomoku_place", { index: idx });
                     socket.emit("gomoku_place", { index: idx });
                 });
             });
@@ -2086,6 +2113,7 @@
         }
 
         socket.on("init_gomoku", (data) => {
+            console.log("[DEBUG] init_gomoku", data);
             document.getElementById("grid").style.display = "none";
             document.getElementById("image-pair-tracker").style.display = "none";
             document.getElementById("gomoku-wrap").style.display = "block";
@@ -2115,6 +2143,7 @@
 
         socket.on("gomoku_update", (data) => {
             if (!gomokuState) return;
+            console.log("[DEBUG] gomoku_update", data);
             gomokuState.lastWhite = data.last_white;
             gomokuState.lastBlack = data.last_black;
             gomokuState.currentTurn = data.next_turn;
@@ -2131,12 +2160,27 @@
 
         socket.on("gomoku_occupied", (data) => {
             if (!gomokuState) return;
+            console.log("[DEBUG] gomoku_occupied", data);
             gomokuState.currentTurn = data.next_turn;
             currentTurn = data.next_turn;
             updatePlayers();
             if (data.penalty_player === myName) {
                 showToast(t("gomoku_occupied"));
             }
+        });
+
+        socket.on("gomoku_rejected", (data) => {
+            console.warn("[DEBUG] gomoku_rejected", data);
+            const reason = (data && data.reason) || "";
+            if (reason === "not_your_turn") {
+                showToast(t("gomoku_not_your_turn"));
+                return;
+            }
+            if (reason === "inactive_room" || reason === "invalid_turn_state") {
+                showToast(t("gomoku_not_ready"));
+                return;
+            }
+            showToast(t("gomoku_move_rejected"));
         });
 
         // ---------------------------------------------------------------------------
