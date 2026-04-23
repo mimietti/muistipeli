@@ -431,6 +431,11 @@
                     <span class="card-mode-label" id="indexCardModeSameChordsText">Note + note</span>
                     <span class="card-mode-desc" id="indexCardModeSameChordsDesc">Match two sounds of the same chord.</span>
                 </button>
+                <button type="button" class="card-mode-btn" id="indexCardModeGomoku" data-mode="gomoku">
+                    <span class="card-mode-icon" aria-hidden="true">⚫⚪</span>
+                    <span class="card-mode-label" id="indexCardModeGomokuText">Memory Gomoku</span>
+                    <span class="card-mode-desc" id="indexCardModeGomokuDesc">5 in a row — but remember where the stones are.</span>
+                </button>
             </div>
         </div>
         <br>
@@ -484,6 +489,7 @@
                 language: "Language",
                 enter_name_first: "Enter your name first.",
                 reconnect_missing: "Reconnect token missing! Reload the page.",
+                gomoku_no_solo: "Memory Gomoku can only be played against another player or the bot.",
                 connect_error: "Could not connect to the server.",
                 waiting_for_you: "{name} is waiting for you to play.",
                 waiting_other_player: "Waiting for another player...",
@@ -510,6 +516,7 @@
                 language: "Kieli",
                 enter_name_first: "Syötä nimi ensin.",
                 reconnect_missing: "Reconnect-token puuttuu! Lataa sivu uudelleen.",
+                gomoku_no_solo: "Muistinollaa voi pelata vain toista pelaajaa tai bottia vastaan.",
                 connect_error: "Yhteyttä ei saatu palvelimeen.",
                 waiting_for_you: "{name} odottaa sinua pelaamaan.",
                 waiting_other_player: "Odotetaan toista pelaajaa...",
@@ -536,6 +543,7 @@
                 language: "Språk",
                 enter_name_first: "Skriv in ditt namn först.",
                 reconnect_missing: "Reconnect-token saknas! Ladda om sidan.",
+                gomoku_no_solo: "Minnesgomoku kan bara spelas mot en annan spelare eller en bot.",
                 connect_error: "Kunde inte ansluta till servern.",
                 waiting_for_you: "{name} väntar på att du ska spela.",
                 waiting_other_player: "Väntar på en annan spelare...",
@@ -555,6 +563,7 @@
                 language: "Sprache",
                 enter_name_first: "Gib zuerst deinen Namen ein.",
                 reconnect_missing: "Reconnect-Token fehlt! Lade die Seite neu.",
+                gomoku_no_solo: "Gedächtnis-Gomoku kann nur gegen einen anderen Spieler oder den Bot gespielt werden.",
                 connect_error: "Verbindung zum Server fehlgeschlagen.",
                 waiting_for_you: "{name} wartet auf dich.",
                 waiting_other_player: "Warten auf eine andere Person...",
@@ -574,6 +583,7 @@
                 language: "Langue",
                 enter_name_first: "Entrez d’abord votre nom.",
                 reconnect_missing: "Jeton de reconnexion manquant ! Rechargez la page.",
+                gomoku_no_solo: "Le gomoku mémoire ne peut être joué que contre une autre personne ou contre le bot.",
                 connect_error: "Connexion au serveur impossible.",
                 waiting_for_you: "{name} vous attend pour jouer.",
                 waiting_other_player: "En attente d’une autre personne...",
@@ -593,6 +603,7 @@
                 language: "Idioma",
                 enter_name_first: "Escribe tu nombre primero.",
                 reconnect_missing: "¡Falta el token de reconexión! Recarga la página.",
+                gomoku_no_solo: "El gomoku de memoria solo se puede jugar contra otra persona o contra el bot.",
                 connect_error: "No se pudo conectar con el servidor.",
                 waiting_for_you: "{name} te está esperando para jugar.",
                 waiting_other_player: "Esperando a otra persona...",
@@ -612,6 +623,7 @@
                 language: "Lingua",
                 enter_name_first: "Inserisci prima il tuo nome.",
                 reconnect_missing: "Token di riconnessione mancante! Ricarica la pagina.",
+                gomoku_no_solo: "Il gomoku memoria si può giocare solo contro un'altra persona o contro il bot.",
                 connect_error: "Impossibile connettersi al server.",
                 waiting_for_you: "{name} ti sta aspettando per giocare.",
                 waiting_other_player: "In attesa di un’altra persona...",
@@ -631,6 +643,7 @@
                 language: "Idioma",
                 enter_name_first: "Escreve primeiro o teu nome.",
                 reconnect_missing: "Falta o token de reconexão! Atualiza a página.",
+                gomoku_no_solo: "O Gomoku da memória só pode ser jogado contra outra pessoa ou contra o bot.",
                 connect_error: "Não foi possível ligar ao servidor.",
                 waiting_for_you: "{name} está à tua espera para jogar.",
                 waiting_other_player: "À espera de outra pessoa...",
@@ -648,11 +661,13 @@
                 words: "Word + word",
                 chords: "Chords",
                 same_chords: "Note + note",
+                gomoku: "Memory Gomoku",
                 images_desc: "Match two related images.",
                 image_word_desc: "Match a picture with a word.",
                 words_desc: "Match words that mean the same.",
                 chords_desc: "Match a chord name with its sound.",
-                same_chords_desc: "Match two sounds of the same chord."
+                same_chords_desc: "Match two sounds of the same chord.",
+                gomoku_desc: "5 in a row — but remember where the stones are."
             },
             fi: {
                 title: "Korttityyppi",
@@ -661,18 +676,20 @@
                 words: "Sana + sana",
                 chords: "Soinnut",
                 same_chords: "Nuotti + nuotti",
+                gomoku: "Muistinolla",
                 images_desc: "Etsi kaksi toisiinsa sopivaa kuvaa.",
                 image_word_desc: "Yhdistä kuva ja sana.",
                 words_desc: "Yhdistä eri kielillä samaa tarkoittavat sanat.",
                 chords_desc: "Yhdistä soinnun nimi ja sointu äänenä.",
-                same_chords_desc: "Etsi kaksi samaa soivaa sointua."
+                same_chords_desc: "Etsi kaksi samaa soivaa sointua.",
+                gomoku_desc: "Viiden suora — mutta nappuloiden paikat täytyy muistaa."
             },
-            sv: { title: "Korttyp", images: "Bildpar", image_word: "Bild + ord", words: "Ord + ord", chords: "Ackord", same_chords: "Not + not", images_desc: "Matcha två bilder som hör ihop.", image_word_desc: "Matcha en bild med ett ord.", words_desc: "Matcha ord som betyder samma sak.", chords_desc: "Matcha ackordets namn med dess ljud.", same_chords_desc: "Hitta två ljud av samma ackord." },
-            de: { title: "Kartentyp", images: "Bildpaare", image_word: "Bild + Wort", words: "Wort + Wort", chords: "Akkorde", same_chords: "Note + Note", images_desc: "Finde zwei zusammengehörige Bilder.", image_word_desc: "Ordne ein Bild einem Wort zu.", words_desc: "Verbinde Wörter mit derselben Bedeutung.", chords_desc: "Ordne einen Akkordnamen seinem Klang zu.", same_chords_desc: "Finde zwei Klänge desselben Akkords." },
-            fr: { title: "Type de cartes", images: "Paires d'images", image_word: "Image + mot", words: "Mot + mot", chords: "Accords", same_chords: "Note + note", images_desc: "Associez deux images liées.", image_word_desc: "Associez une image à un mot.", words_desc: "Associez des mots qui ont le même sens.", chords_desc: "Associez le nom de l'accord à son son.", same_chords_desc: "Trouvez deux sons du même accord." },
-            es: { title: "Tipo de cartas", images: "Parejas de imágenes", image_word: "Imagen + palabra", words: "Palabra + palabra", chords: "Acordes", same_chords: "Nota + nota", images_desc: "Relaciona dos imágenes conectadas.", image_word_desc: "Relaciona una imagen con una palabra.", words_desc: "Relaciona palabras que significan lo mismo.", chords_desc: "Relaciona el nombre del acorde con su sonido.", same_chords_desc: "Encuentra dos sonidos del mismo acorde." },
-            it: { title: "Tipo di carte", images: "Coppie di immagini", image_word: "Immagine + parola", words: "Parola + parola", chords: "Accordi", same_chords: "Nota + nota", images_desc: "Abbina due immagini collegate tra loro.", image_word_desc: "Abbina un'immagine a una parola.", words_desc: "Abbina parole con lo stesso significato.", chords_desc: "Abbina il nome dell'accordo al suo suono.", same_chords_desc: "Trova due suoni dello stesso accordo." },
-            pt: { title: "Tipo de cartas", images: "Pares de imagens", image_word: "Imagem + palavra", words: "Palavra + palavra", chords: "Acordes", same_chords: "Nota + nota", images_desc: "Relaciona duas imagens ligadas entre si.", image_word_desc: "Relaciona uma imagem com uma palavra.", words_desc: "Relaciona palavras com o mesmo significado.", chords_desc: "Relaciona o nome do acorde com o seu som.", same_chords_desc: "Encontra dois sons do mesmo acorde." }
+            sv: { title: "Korttyp", images: "Bildpar", image_word: "Bild + ord", words: "Ord + ord", chords: "Ackord", same_chords: "Not + not", gomoku: "Minnesgomoku", images_desc: "Matcha två bilder som hör ihop.", image_word_desc: "Matcha en bild med ett ord.", words_desc: "Matcha ord som betyder samma sak.", chords_desc: "Matcha ackordets namn med dess ljud.", same_chords_desc: "Hitta två ljud av samma ackord.", gomoku_desc: "Fem i rad — men kom ihåg var stenarna ligger." },
+            de: { title: "Kartentyp", images: "Bildpaare", image_word: "Bild + Wort", words: "Wort + Wort", chords: "Akkorde", same_chords: "Note + Note", gomoku: "Gedächtnis-Gomoku", images_desc: "Finde zwei zusammengehörige Bilder.", image_word_desc: "Ordne ein Bild einem Wort zu.", words_desc: "Verbinde Wörter mit derselben Bedeutung.", chords_desc: "Ordne einen Akkordnamen seinem Klang zu.", same_chords_desc: "Finde zwei Klänge desselben Akkords.", gomoku_desc: "Fünf in einer Reihe — aber merke dir die Positionen der Steine." },
+            fr: { title: "Type de cartes", images: "Paires d'images", image_word: "Image + mot", words: "Mot + mot", chords: "Accords", same_chords: "Note + note", gomoku: "Gomoku mémoire", images_desc: "Associez deux images liées.", image_word_desc: "Associez une image à un mot.", words_desc: "Associez des mots qui ont le même sens.", chords_desc: "Associez le nom de l'accord à son son.", same_chords_desc: "Trouvez deux sons du même accord.", gomoku_desc: "Cinq d'affilée — mais il faut se souvenir où sont les pierres." },
+            es: { title: "Tipo de cartas", images: "Parejas de imágenes", image_word: "Imagen + palabra", words: "Palabra + palabra", chords: "Acordes", same_chords: "Nota + nota", gomoku: "Gomoku de memoria", images_desc: "Relaciona dos imágenes conectadas.", image_word_desc: "Relaciona una imagen con una palabra.", words_desc: "Relaciona palabras que significan lo mismo.", chords_desc: "Relaciona el nombre del acorde con su sonido.", same_chords_desc: "Encuentra dos sonidos del mismo acorde.", gomoku_desc: "Cinco en línea — pero debes recordar dónde están las fichas." },
+            it: { title: "Tipo di carte", images: "Coppie di immagini", image_word: "Immagine + parola", words: "Parola + parola", chords: "Accordi", same_chords: "Nota + nota", gomoku: "Gomoku memoria", images_desc: "Abbina due immagini collegate tra loro.", image_word_desc: "Abbina un'immagine a una parola.", words_desc: "Abbina parole con lo stesso significato.", chords_desc: "Abbina il nome dell'accordo al suo suono.", same_chords_desc: "Trova due suoni dello stesso accordo.", gomoku_desc: "Cinque in fila — ma devi ricordare dove sono le pedine." },
+            pt: { title: "Tipo de cartas", images: "Pares de imagens", image_word: "Imagem + palavra", words: "Palavra + palavra", chords: "Acordes", same_chords: "Nota + nota", gomoku: "Gomoku da memória", images_desc: "Relaciona duas imagens ligadas entre si.", image_word_desc: "Relaciona uma imagem com uma palavra.", words_desc: "Relaciona palavras com o mesmo significado.", chords_desc: "Relaciona o nome do acorde com o seu som.", same_chords_desc: "Encontra dois sons do mesmo acorde.", gomoku_desc: "Cinco em linha — mas é preciso lembrar onde estão as peças." }
         };
 
         function getLanguage() {
@@ -682,11 +699,11 @@
 
         function getSelectedCardMode() {
             const stored = localStorage.getItem("preferred_card_mode");
-            return ["images", "image_word", "words", "chords", "same_chords"].includes(stored) ? stored : "image_word";
+            return ["images", "image_word", "words", "chords", "same_chords", "gomoku"].includes(stored) ? stored : "image_word";
         }
 
         function setSelectedCardMode(mode) {
-            const next = ["images", "image_word", "words", "chords", "same_chords"].includes(mode) ? mode : "image_word";
+            const next = ["images", "image_word", "words", "chords", "same_chords", "gomoku"].includes(mode) ? mode : "image_word";
             localStorage.setItem("preferred_card_mode", next);
             return next;
         }
@@ -729,11 +746,13 @@
             document.getElementById("indexCardModeWordsText").textContent = cardTexts.words;
             document.getElementById("indexCardModeChordsText").textContent = cardTexts.chords || cardModeTranslations.en.chords;
             document.getElementById("indexCardModeSameChordsText").textContent = cardTexts.same_chords || cardModeTranslations.en.same_chords;
+            document.getElementById("indexCardModeGomokuText").textContent = cardTexts.gomoku || cardModeTranslations.en.gomoku;
             document.getElementById("indexCardModeImagesDesc").textContent = cardTexts.images_desc;
             document.getElementById("indexCardModeImageWordDesc").textContent = cardTexts.image_word_desc;
             document.getElementById("indexCardModeWordsDesc").textContent = cardTexts.words_desc;
             document.getElementById("indexCardModeChordsDesc").textContent = cardTexts.chords_desc || cardModeTranslations.en.chords_desc;
             document.getElementById("indexCardModeSameChordsDesc").textContent = cardTexts.same_chords_desc || cardModeTranslations.en.same_chords_desc;
+            document.getElementById("indexCardModeGomokuDesc").textContent = cardTexts.gomoku_desc || cardModeTranslations.en.gomoku_desc;
             const joinBtn = document.getElementById("joinBtn");
             const joinBotBtn = document.getElementById("joinBotBtn");
             const joinSoloBtn = document.getElementById("joinSoloBtn");
@@ -873,6 +892,10 @@
             dismissTextInputFocus();
             const username = requireUsername();
             if (!username) return;
+            if (mode === "solo" && getSelectedCardMode() === "gomoku") {
+                document.getElementById("error").textContent = t("gomoku_no_solo");
+                return;
+            }
             const reconnectToken = getReconnectToken();
             if (!reconnectToken) {
                 alert(t("reconnect_missing"));
@@ -943,7 +966,7 @@
                 return;
             }
             const langFlags = { fi: "🇫🇮", en: "🇬🇧", es: "🇪🇸", sv: "🇸🇪", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", pt: "🇵🇹" };
-            const cardIcons = { images: "🖼🖼", image_word: "🖼📝", words: "📝📝", chords: "🎵🎼", same_chords: "🎵🎵" };
+            const cardIcons = { images: "🖼🖼", image_word: "🖼📝", words: "📝📝", chords: "🎵🎼", same_chords: "🎵🎵", gomoku: "⚫⚪" };
             lobbyStatus.classList.remove("is-empty");
             lobbyStatus.innerHTML = `
                 <div class="home-lobby-panel">
@@ -955,7 +978,7 @@
                             chips.push(getQueueWordSourceLabel(room.game_mode || "random"));
                             if (room.pending_theme) chips.push(`"${room.pending_theme}"`);
                             chips.push(`${cardIcons[room.card_mode] || ""} ${getQueueCardModeLabel(room.card_mode || "image_word")}`.trim());
-                            if (room.target_language && !["chords", "same_chords"].includes(room.card_mode)) chips.push(`${langFlags[room.target_language] || ""} ${getQueueLanguageLabel(room.target_language)}`.trim());
+                            if (room.target_language && !["chords", "same_chords", "gomoku"].includes(room.card_mode)) chips.push(`${langFlags[room.target_language] || ""} ${getQueueLanguageLabel(room.target_language)}`.trim());
                             return `<div class="home-lobby-entry">
                                 <div class="home-lobby-main">
                                     <span class="home-lobby-name">${escapeHtml(room.username || "?")}</span>

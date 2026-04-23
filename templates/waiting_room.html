@@ -1500,11 +1500,13 @@
                 label_word_filter_mode: "Ordförråd",
                 card_mode_chords: "Ackord",
                 card_mode_same_chords: "Not + not",
+                card_mode_gomoku: "Minnesgomoku",
                 card_mode_images_desc: "Matcha två bilder som hör ihop.",
                 card_mode_image_word_desc: "Matcha en bild med ett ord.",
                 card_mode_words_desc: "Matcha ord som betyder samma sak.",
                 card_mode_chords_desc: "Matcha ett ackords namn med dess ljud.",
                 card_mode_same_chords_desc: "Hitta två ljud av samma ackord.",
+                card_mode_gomoku_desc: "Fem i rad — men kom ihåg var stenarna ligger.",
                 word_filter_clear: "Tydliga",
                 word_filter_broad: "Mångsidiga",
                 queue_source_chords: "Ackord"
@@ -1514,11 +1516,13 @@
                 label_word_filter_mode: "Wortschatz",
                 card_mode_chords: "Akkorde",
                 card_mode_same_chords: "Note + Note",
+                card_mode_gomoku: "Gedächtnis-Gomoku",
                 card_mode_images_desc: "Finde zwei zusammengehörige Bilder.",
                 card_mode_image_word_desc: "Ordne ein Bild einem Wort zu.",
                 card_mode_words_desc: "Verbinde Wörter mit derselben Bedeutung.",
                 card_mode_chords_desc: "Ordne einen Akkordnamen seinem Klang zu.",
                 card_mode_same_chords_desc: "Finde zwei Klänge desselben Akkords.",
+                card_mode_gomoku_desc: "Fünf in einer Reihe — aber merke dir die Positionen der Steine.",
                 word_filter_clear: "Klar",
                 word_filter_broad: "Vielseitig",
                 queue_source_chords: "Akkorde"
@@ -1528,11 +1532,13 @@
                 label_word_filter_mode: "Vocabulaire",
                 card_mode_chords: "Accords",
                 card_mode_same_chords: "Note + note",
+                card_mode_gomoku: "Gomoku mémoire",
                 card_mode_images_desc: "Associez deux images liées.",
                 card_mode_image_word_desc: "Associez une image à un mot.",
                 card_mode_words_desc: "Associez des mots qui ont le même sens.",
                 card_mode_chords_desc: "Associez le nom d'un accord à son son.",
                 card_mode_same_chords_desc: "Trouvez deux sons du même accord.",
+                card_mode_gomoku_desc: "Cinq d'affilée — mais il faut se souvenir où sont les pierres.",
                 word_filter_clear: "Clair",
                 word_filter_broad: "Varié",
                 queue_source_chords: "Accords"
@@ -1542,11 +1548,13 @@
                 label_word_filter_mode: "Vocabulario",
                 card_mode_chords: "Acordes",
                 card_mode_same_chords: "Nota + nota",
+                card_mode_gomoku: "Gomoku de memoria",
                 card_mode_images_desc: "Relaciona dos imágenes conectadas.",
                 card_mode_image_word_desc: "Relaciona una imagen con una palabra.",
                 card_mode_words_desc: "Relaciona palabras que significan lo mismo.",
                 card_mode_chords_desc: "Relaciona el nombre de un acorde con su sonido.",
                 card_mode_same_chords_desc: "Encuentra dos sonidos del mismo acorde.",
+                card_mode_gomoku_desc: "Cinco en línea — pero debes recordar dónde están las fichas.",
                 word_filter_clear: "Claras",
                 word_filter_broad: "Variadas",
                 queue_source_chords: "Acordes"
@@ -1556,11 +1564,13 @@
                 label_word_filter_mode: "Vocabolario",
                 card_mode_chords: "Accordi",
                 card_mode_same_chords: "Nota + nota",
+                card_mode_gomoku: "Gomoku memoria",
                 card_mode_images_desc: "Abbina due immagini collegate tra loro.",
                 card_mode_image_word_desc: "Abbina un'immagine a una parola.",
                 card_mode_words_desc: "Abbina parole con lo stesso significato.",
                 card_mode_chords_desc: "Abbina il nome di un accordo al suo suono.",
                 card_mode_same_chords_desc: "Trova due suoni dello stesso accordo.",
+                card_mode_gomoku_desc: "Cinque in fila — ma devi ricordare dove sono le pedine.",
                 word_filter_clear: "Chiare",
                 word_filter_broad: "Varie",
                 queue_source_chords: "Accordi"
@@ -1570,11 +1580,13 @@
                 label_word_filter_mode: "Vocabulário",
                 card_mode_chords: "Acordes",
                 card_mode_same_chords: "Nota + nota",
+                card_mode_gomoku: "Gomoku da memória",
                 card_mode_images_desc: "Relaciona duas imagens ligadas entre si.",
                 card_mode_image_word_desc: "Relaciona uma imagem com uma palavra.",
                 card_mode_words_desc: "Relaciona palavras com o mesmo significado.",
                 card_mode_chords_desc: "Relaciona o nome de um acorde com o seu som.",
                 card_mode_same_chords_desc: "Encontra dois sons do mesmo acorde.",
+                card_mode_gomoku_desc: "Cinco em linha — mas é preciso lembrar onde estão as peças.",
                 word_filter_clear: "Claras",
                 word_filter_broad: "Variadas",
                 queue_source_chords: "Acordes"
@@ -1674,7 +1686,8 @@
 
         function getQueueWordSourceLabel(mode, cardMode = null) {
             const effectiveMode = cardMode || window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word";
-            if (effectiveMode === "chords" || mode === "chords") return t("queue_source_chords");
+            if (effectiveMode === "gomoku" || mode === "gomoku") return "";
+            if (effectiveMode === "chords" || effectiveMode === "same_chords" || mode === "chords" || mode === "same_chords") return t("queue_source_chords");
             const imagesOnly = effectiveMode === "images";
             if (mode === "manual") return t(imagesOnly ? "queue_source_manual_images" : "queue_source_manual");
             if (mode === "theme") return t(imagesOnly ? "queue_source_theme_images" : "queue_source_theme");
@@ -3004,11 +3017,11 @@
                     if (r.pending_theme) chips.push(`"${escapeHtml(r.pending_theme)}"`);
                     const cardLabel = `${cardModeIcon[r.card_mode] || ""} ${getQueueCardModeLabel(r.card_mode || "image_word")}`.trim();
                     if (cardLabel) chips.push(cardLabel);
-                    if (r.target_language && !["chords", "same_chords"].includes(r.card_mode)) {
+                    if (r.target_language && !["chords", "same_chords", "gomoku"].includes(r.card_mode)) {
                         const langLabel = `${langFlagEmoji[r.target_language] || ""} ${getQueueLanguageLabel(r.target_language)}`.trim();
                         if (langLabel) chips.push(langLabel);
                     }
-                    if (r.word_filter_mode && !["images", "chords"].includes(r.card_mode)) {
+                    if (r.word_filter_mode && !["images", "chords", "same_chords", "gomoku"].includes(r.card_mode)) {
                         chips.push(getQueueWordFilterLabel(r.word_filter_mode, r.card_mode || "image_word"));
                     }
                     return `<div class="lobby-entry">
@@ -3076,6 +3089,13 @@
                 const isSolo = (localStorage.getItem("play_mode") || "") === "solo";
                 const btn = document.getElementById("cardModeGomoku");
                 if (btn) btn.style.display = isSolo ? "none" : "";
+                if (isSolo && selectedCardMode === "gomoku") {
+                    selectedCardMode = "image_word";
+                    try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (_) {}
+                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((modeBtn) => {
+                        modeBtn.classList.toggle("active", modeBtn.dataset.mode === selectedCardMode);
+                    });
+                }
             }
 
             function updateWordFilterVisibility() {

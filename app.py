@@ -3032,7 +3032,7 @@ def leaderboard():
                         if len(grouped[key]) < 10:
                             grouped[key].append(row[2:])  # drop grouping prefix
                     # define canonical order
-                    cm_order = ["images", "image_word", "words", "chords", "same_chords"]
+                    cm_order = ["images", "image_word", "words", "chords", "same_chords", "gomoku"]
                     seen = set()
                     for cm in cm_order:
                         for key in sorted(grouped.keys()):
@@ -3085,10 +3085,10 @@ def on_join(data):
     wants_solo = bool((data or {}).get("solo_mode"))
     requested_play_mode = "solo" if wants_solo else ("bot" if wants_bot else "queue")
     preferred_card_mode = str((data or {}).get("card_mode") or "image_word").strip().lower()
-    if preferred_card_mode not in {"images", "image_word", "words", "chords", "same_chords"}:
+    if preferred_card_mode not in {"images", "image_word", "words", "chords", "same_chords", "gomoku"}:
         preferred_card_mode = "image_word"
     preferred_target_language = str((data or {}).get("target_language") or "").strip().lower()
-    if preferred_card_mode in {"images", "chords", "same_chords"}:
+    if preferred_card_mode in {"images", "chords", "same_chords", "gomoku"}:
         preferred_target_language = ""
 
     if not reconnect_token:
@@ -3445,9 +3445,9 @@ def handle_start_custom_game(data=None):
         room.round_starter = get_round_starter_name(room)
         init_gomoku_round(room)
         return
-    if mode not in {"manual", "theme", "random", "chords", "same_chords"}:
+    if mode not in {"manual", "theme", "random", "chords", "same_chords", "gomoku"}:
         mode = "manual"
-    if card_mode not in {"images", "image_word", "words", "chords", "same_chords"}:
+    if card_mode not in {"images", "image_word", "words", "chords", "same_chords", "gomoku"}:
         card_mode = "image_word"
     all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
     room.ui_language = ui_language if ui_language in all_ui_langs else "en"
@@ -4154,14 +4154,14 @@ def handle_join_queue(data=None):
             print(f"[INFO] Ohitetaan join_queue: {username} on jo matchatussa huoneessa {mapped_room_id}.")
             return
     card_mode = str(data.get("card_mode") or "image_word").strip().lower()
-    if card_mode not in {"images", "image_word", "words", "chords", "same_chords"}:
+    if card_mode not in {"images", "image_word", "words", "chords", "same_chords", "gomoku"}:
         card_mode = "image_word"
     target_language = str(data.get("target_language") or "").strip().lower()
     player_info["in_waiting"] = True
     player_info["pref_card_mode"] = card_mode
-    player_info["pref_target_language"] = "" if card_mode in {"images", "chords", "same_chords"} else target_language
+    player_info["pref_target_language"] = "" if card_mode in {"images", "chords", "same_chords", "gomoku"} else target_language
     player_info["pref_ready"] = (
-        card_mode in {"images", "chords", "same_chords"}
+        card_mode in {"images", "chords", "same_chords", "gomoku"}
         or bool(player_info["pref_target_language"])
     )
     room.card_mode = player_info["pref_card_mode"] or room.card_mode
