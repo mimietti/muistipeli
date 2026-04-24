@@ -1730,12 +1730,12 @@
                 targetStarted = true;
                 clearTimeout(refFallbackTimer);
                 activeChordPreview.reference = null;
-                targetFallbackTimer = setTimeout(finishTarget, 8000);
+                targetFallbackTimer = setTimeout(finishTarget, 4500);
                 targetAudio.play().catch(finishTarget);
             };
 
             if (!cardData.reference_audio) {
-                targetFallbackTimer = setTimeout(finishTarget, 8000);
+                targetFallbackTimer = setTimeout(finishTarget, 4500);
                 targetAudio.play().catch(finishTarget);
                 return;
             }
@@ -1746,7 +1746,7 @@
 
             let refFallbackTimer = setTimeout(() => {
                 if (activeChordPreview.token === previewToken) startTargetAudio();
-            }, 8000);
+            }, 4500);
             referenceAudio.onloadedmetadata = () => {
                 clearTimeout(refFallbackTimer);
                 refFallbackTimer = setTimeout(() => {
@@ -1772,14 +1772,12 @@
             revealedOrder.forEach((index, orderIndex) => {
                 const cardElement = document.getElementById(`card-${index}`);
                 if (!cardElement) return;
-                if (orderIndex === 0) {
+                if (audioRevealLock && cards[index] && cards[index].card_type === "audio") {
+                    cardElement.classList.add("revealed-audio-pending");
+                } else if (orderIndex === 0) {
                     cardElement.classList.add("revealed-first");
                 } else if (orderIndex === 1) {
-                    if (audioRevealLock && cards[index] && cards[index].card_type === "audio") {
-                        cardElement.classList.add("revealed-audio-pending");
-                    } else {
-                        cardElement.classList.add("revealed-second");
-                    }
+                    cardElement.classList.add("revealed-second");
                 }
             });
         }
@@ -2926,6 +2924,7 @@
         socket.on("pair_found", (data) => {
             console.log("[DEBUG] Pari löytyi:", data.word);
             stopChordPreview();
+            trackerPreviewUsedThisTurn = false;
             data.indices.forEach(i => matched.add(i));
             revealedOrder = revealedOrder.filter((index) => !data.indices.includes(index));
             const matchedCards = data.indices.map(i => document.getElementById(`card-${i}`)).filter(Boolean);
