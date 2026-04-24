@@ -1153,6 +1153,13 @@
                     <button class="opt-btn" data-bot-difficulty="hard" id="botDifficultyHard">Hard</button>
                 </div>
             </div>
+            <div class="option-group" id="gomokuSizePicker" style="display:none;">
+                <div class="option-group-label" id="labelGomokuSize">Board size</div>
+                <div class="option-group-btns">
+                    <button class="opt-btn" data-gomoku-size="19" id="gomokuSize19">19×19</button>
+                    <button class="opt-btn" data-gomoku-size="13" id="gomokuSize13">13×13</button>
+                </div>
+            </div>
             <button id="startRoundBtn">Start</button>
         </div>
         <div id="setupStatus">
@@ -1318,6 +1325,7 @@
                 label_word_filter_mode: "Vocabulary",
                 label_image_filter_mode: "Vocabulary",
                 label_bot_difficulty: "Bot difficulty",
+                label_gomoku_size: "Board size",
                 bot_difficulty_summary: "Difficulty: {difficulty}",
                 word_filter_clear: "Clear",
                 word_filter_broad: "Varied",
@@ -1472,6 +1480,7 @@
                 label_word_filter_mode: "Sanasto",
                 label_image_filter_mode: "Sanasto",
                 label_bot_difficulty: "Botin vaikeusaste",
+                label_gomoku_size: "Laudan koko",
                 bot_difficulty_summary: "Vaikeusaste: {difficulty}",
                 word_filter_clear: "Selkeät",
                 word_filter_broad: "Monipuoliset",
@@ -1849,6 +1858,7 @@
             el("labelLang").textContent = t("label_lang");
             el("labelWordFilterMode").textContent = t(imagesOnly ? "label_image_filter_mode" : "label_word_filter_mode");
             el("labelBotDifficulty").textContent = t("label_bot_difficulty");
+            el("labelGomokuSize").textContent = t("label_gomoku_size");
             el("srcManualBtn").textContent = t(imagesOnly ? "enter_words_images" : "enter_words");
             el("srcThemeBtn").textContent = t(imagesOnly ? "enter_theme_images" : "enter_theme");
             el("srcRandomBtn").textContent = t("enter_random");
@@ -2421,10 +2431,14 @@
                     selectedWordFilterMode = payload.word_filter_mode;
                     try { localStorage.setItem("preferred_word_filter_mode", selectedWordFilterMode); } catch (_) {}
                 }
-                if (payload && payload.card_mode && ["images", "image_word", "words"].includes(payload.card_mode)) {
+                if (payload && payload.card_mode && ["images", "image_word", "words", "chords", "same_chords", "gomoku"].includes(payload.card_mode)) {
                     selectedCardMode = payload.card_mode;
                     window.currentWaitingCardMode = selectedCardMode;
                     try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (_) {}
+                }
+                if (payload && payload.gomoku_size && ["13", "19"].includes(String(payload.gomoku_size))) {
+                    selectedGomokuSize = String(payload.gomoku_size);
+                    try { localStorage.setItem("preferred_gomoku_size", selectedGomokuSize); } catch (_) {}
                 }
                 if (payload && payload.target_language) {
                     selectedLang = payload.target_language;
@@ -2477,6 +2491,9 @@
                 document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
                 });
+                document.querySelectorAll("#gomokuSize19, #gomokuSize13").forEach((btn) => {
+                    btn.classList.toggle("active", btn.dataset.gomokuSize === selectedGomokuSize);
+                });
                 applyTranslations();
                 document.querySelectorAll(".lang-flag-btn").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.lang === selectedLang);
@@ -2485,6 +2502,7 @@
                 updateLangPickerVisibility();
                 updateChordAudioTypeVisibility();
                 updateBotDifficultyVisibility();
+                updateGomokuSizeVisibility();
                 updateGomokuButtonVisibility();
                 renderPlayerRole(playersInfo);
                 renderPreparedQueueSummary(payload);
@@ -3065,6 +3083,9 @@
             let selectedChordAudioType = ["single", "progression"].includes(localStorage.getItem("preferred_chord_audio_type"))
                 ? localStorage.getItem("preferred_chord_audio_type")
                 : "single";
+            let selectedGomokuSize = ["13", "19"].includes(localStorage.getItem("preferred_gomoku_size"))
+                ? localStorage.getItem("preferred_gomoku_size")
+                : "19";
             let selectedBotDifficulty = ["easy", "medium", "hard"].includes(localStorage.getItem("bot_difficulty"))
                 ? localStorage.getItem("bot_difficulty")
                 : "easy";
@@ -3085,6 +3106,12 @@
                 document.getElementById("botDifficultyPicker").style.display = isBotMode ? "block" : "none";
             }
 
+            function updateGomokuSizeVisibility() {
+                const picker = document.getElementById("gomokuSizePicker");
+                if (!picker) return;
+                picker.style.display = selectedCardMode === "gomoku" ? "block" : "none";
+            }
+
             function updateGomokuButtonVisibility() {
                 const isSolo = (localStorage.getItem("play_mode") || "") === "solo";
                 const btn = document.getElementById("cardModeGomoku");
@@ -3095,6 +3122,7 @@
                     document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((modeBtn) => {
                         modeBtn.classList.toggle("active", modeBtn.dataset.mode === selectedCardMode);
                     });
+                    updateGomokuSizeVisibility();
                 }
             }
 
@@ -3110,6 +3138,7 @@
                 const cardModePickerEl = document.getElementById("cardModePicker");
                 const langPickerEl = document.getElementById("langPicker");
                 const botDifficultyPickerEl = document.getElementById("botDifficultyPicker");
+                const gomokuSizePickerEl = document.getElementById("gomokuSizePicker");
                 const startRoundBtnEl = document.getElementById("startRoundBtn");
                 const isChordMode = ["chords", "same_chords", "gomoku"].includes(selectedCardMode);
                 if (!active) {
@@ -3117,6 +3146,7 @@
                     wordSourcePickerEl.style.display = isChordMode ? "none" : "";
                     wordFilterPickerEl.style.display = isChordMode ? "none" : "";
                     botDifficultyPickerEl.style.display = (localStorage.getItem("play_mode") || "") === "bot" ? "block" : "none";
+                    gomokuSizePickerEl.style.display = selectedCardMode === "gomoku" ? "block" : "none";
                     startRoundBtnEl.style.display = "";
                     return;
                 }
@@ -3126,6 +3156,7 @@
                 cardModePickerEl.style.display = "none";
                 langPickerEl.style.display = prepared ? "none" : (!["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? "block" : "none");
                 botDifficultyPickerEl.style.display = "none";
+                gomokuSizePickerEl.style.display = (prepared || selectedCardMode !== "gomoku") ? "none" : "block";
                 startRoundBtnEl.style.display = prepared ? "none" : "";
             }
 
@@ -3150,9 +3181,10 @@
                     updateLangPickerVisibility();
                     updateWordFilterVisibility();
                     updateChordAudioTypeVisibility();
+                    updateGomokuSizeVisibility();
                     renderQueuePreferencePicker(isQueueSearchLobby(window.latestLobbyPayload, window.latestPlayersInfo), Boolean(window.latestLobbyPayload && window.latestLobbyPayload.queue_round_prepared));
                     applyTranslations();
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5") });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5"), gomoku_size: parseInt(selectedGomokuSize, 10) });
                 });
             });
 
@@ -3183,6 +3215,9 @@
             document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
             });
+            document.querySelectorAll("#gomokuSize19, #gomokuSize13").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.gomokuSize === selectedGomokuSize);
+            });
             document.querySelectorAll("#chordAudioSingle, #chordAudioProgression").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.chordAudio === selectedChordAudioType);
             });
@@ -3191,6 +3226,7 @@
             updateLangPickerVisibility();
             updateChordAudioTypeVisibility();
             updateBotDifficultyVisibility();
+            updateGomokuSizeVisibility();
             updateGomokuButtonVisibility();
 
             document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach(btn => {
@@ -3215,6 +3251,19 @@
 
             document.querySelectorAll("#botDifficultyEasy, #botDifficultyMedium, #botDifficultyHard").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.botDifficulty === selectedBotDifficulty);
+            });
+
+            document.querySelectorAll("#gomokuSize19, #gomokuSize13").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    selectedGomokuSize = btn.dataset.gomokuSize;
+                    try { localStorage.setItem("preferred_gomoku_size", selectedGomokuSize); } catch (e) {}
+                    document.querySelectorAll("#gomokuSize19, #gomokuSize13").forEach(b => b.classList.toggle("active", b === btn));
+                    socket.emit("preference_changed", {
+                        card_mode: selectedCardMode,
+                        target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
+                        gomoku_size: parseInt(selectedGomokuSize, 10)
+                    });
+                });
             });
 
             document.querySelectorAll(".lang-flag-btn").forEach(btn => {
@@ -3246,7 +3295,7 @@
                     return;
                 }
                 if (selectedCardMode === "gomoku") {
-                    const payload = { mode: "gomoku", card_mode: "gomoku", ui_language: getLanguage() };
+                    const payload = { mode: "gomoku", card_mode: "gomoku", ui_language: getLanguage(), gomoku_size: parseInt(selectedGomokuSize, 10) };
                     if ((localStorage.getItem("play_mode") || "") === "bot") {
                         payload.bot_difficulty = selectedBotDifficulty;
                     }

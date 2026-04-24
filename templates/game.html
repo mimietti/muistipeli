@@ -31,6 +31,28 @@
             font-size: 14px;
             line-height: 1.2;
         }
+        .player-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-right: 8px;
+        }
+        .player-stone {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            border: 1px solid rgba(255,255,255,0.24);
+            flex: 0 0 auto;
+        }
+        .player-stone.white {
+            background: #ffffff;
+            border-color: #a0a0a0;
+        }
+        .player-stone.black {
+            background: #1a1a1a;
+            border-color: #666666;
+        }
         #roundActions {
             display: flex;
             justify-content: center;
@@ -719,6 +741,95 @@
         .gomoku-click { fill: rgba(0, 0, 0, 0.001); pointer-events: all; }
         .gomoku-stone { transition: opacity 0.2s; }
         .gomoku-win-stone { filter: drop-shadow(0 0 6px gold); }
+        #gomoku-rematch-panel {
+            display: none;
+            width: min(720px, calc(100% - 18px));
+            margin: 10px auto 12px;
+            text-align: left;
+        }
+        .gomoku-rematch-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 16px 18px;
+            margin-bottom: 12px;
+        }
+        .gomoku-rematch-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #7cf58a;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+        .gomoku-rematch-score {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 7px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 15px;
+        }
+        .gomoku-rematch-score:last-child {
+            border-bottom: none;
+        }
+        .gomoku-rematch-label {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #6a7a6a;
+            margin-bottom: 10px;
+        }
+        .gomoku-rematch-vote {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            margin-bottom: 8px;
+        }
+        .gomoku-rematch-vote.is-ready {
+            background: rgba(124, 245, 138, 0.08);
+            border: 1px solid rgba(124, 245, 138, 0.2);
+        }
+        .gomoku-rematch-status-msg {
+            font-size: 13px;
+            color: #b9c5b9;
+            text-align: center;
+            min-height: 18px;
+            margin-top: 8px;
+        }
+        .gomoku-rematch-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+        .gomoku-rematch-btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .gomoku-rematch-btn.primary {
+            background: limegreen;
+            color: #0c150e;
+        }
+        .gomoku-rematch-btn.secondary {
+            background: rgba(255,255,255,0.07);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .gomoku-rematch-btn:disabled {
+            opacity: 0.45;
+            cursor: default;
+        }
     </style>
 </head>
 <body>
@@ -805,6 +916,7 @@
     <div id="gomoku-wrap" style="display:none; text-align:center; padding:10px; overflow:auto;">
         <svg id="gomoku-board"></svg>
     </div>
+    <div id="gomoku-rematch-panel"></div>
     <div id="chord-tempo-picker" style="display:none; max-width:860px; margin:0 auto 12px; padding:0 14px; box-sizing:border-box;">
         <div style="color:#fff2a8; font-size:13px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:4px;">
             <span id="chordTempoLabelGame">Chord duration</span>: <span id="chordTempoValueGame">2.5s</span>
@@ -902,6 +1014,18 @@
                 gomoku_move_rejected: "The move could not be played.",
                 gomoku_you_white: "You play white (○)",
                 gomoku_you_black: "You play black (●)",
+                rematch_title: "Play the next round?",
+                rematch_btn: "Play the next round",
+                rematch_exit: "Back to start",
+                rematch_ready: "Wants a new round",
+                rematch_waiting: "Has not chosen yet",
+                rematch_you_ready: "You want to play the next round.",
+                rematch_waiting_other: "Waiting for {name}.",
+                rematch_both_ready: "Both players are ready. Opening the next round...",
+                rematch_room_ended: "Game session has ended.",
+                draw_label: "Tie",
+                draw_count: "draw",
+                draw_count_plural: "draws",
             },
             fi: {
                 page_title: "Muistipeli",
@@ -984,6 +1108,18 @@
                 gomoku_move_rejected: "Siirtoa ei voitu tehdä.",
                 gomoku_you_white: "Pelaat valkoisella (○)",
                 gomoku_you_black: "Pelaat mustalla (●)",
+                rematch_title: "Pelataanko uusi erä samoilla asetuksilla?",
+                rematch_btn: "Pelaa uusi erä",
+                rematch_exit: "Palaa alkuun",
+                rematch_ready: "Haluaa uuden erän",
+                rematch_waiting: "Ei ole vielä valinnut",
+                rematch_you_ready: "Haluat pelata uuden erän.",
+                rematch_waiting_other: "Odotetaan pelaajaa {name}.",
+                rematch_both_ready: "Molemmat ovat valmiina. Avataan uusi erä...",
+                rematch_room_ended: "Peli-istunto on päättynyt.",
+                draw_label: "Tasapeli",
+                draw_count: "tasapeli",
+                draw_count_plural: "tasapeliä",
             },
             sv: {
                 settings_tracker_visibility: "Ordlista",
@@ -1241,6 +1377,9 @@
         const socket = io();
         try { window.socket = socket; } catch (_) {}
         let gameOverShown = false;
+        let gomokuRematchMyVote = false;
+        let gomokuRematchOpponentLeft = false;
+        let gomokuRematchJoined = false;
         let gridRetryTimer = null;
         const surrenderRoundBtn = document.getElementById("surrenderRoundBtn");
         const exitGameBtn = document.getElementById("exitGameBtn");
@@ -1996,11 +2135,26 @@
             const name = (data && data.username) || "";
             if (!name || name === myName) return;
             showOpponentStatusToast(t("opponent_reconnecting", { name }), null);
+            const panel = document.getElementById("gomoku-rematch-panel");
+            const msg = document.getElementById("gomoku-rematch-msg");
+            if (panel && panel.style.display !== "none" && msg) {
+                msg.textContent = t("opponent_reconnecting", { name });
+            }
         });
         socket.on("opponent_returned", (data) => {
             const name = (data && data.username) || "";
             if (!name || name === myName) return;
             showOpponentStatusToast(t("opponent_returned", { name }), 3000);
+            const panel = document.getElementById("gomoku-rematch-panel");
+            const msg = document.getElementById("gomoku-rematch-msg");
+            if (panel && panel.style.display !== "none" && msg) {
+                msg.textContent = t("opponent_returned", { name });
+                setTimeout(() => {
+                    if (panel.style.display !== "none") {
+                        msg.textContent = "";
+                    }
+                }, 3000);
+            }
         });
 
         // ---------------------------------------------------------------------------
@@ -2021,6 +2175,35 @@
                 GOMOKU_MARGIN + col * GOMOKU_CELL + GOMOKU_CELL / 2,
                 GOMOKU_MARGIN + row * GOMOKU_CELL + GOMOKU_CELL / 2
             ];
+        }
+
+        function gomokuStarPoints(size) {
+            if (size === 13) return [3, 6, 9];
+            return [3, 9, 15];
+        }
+
+        function centerGomokuView(animated = true) {
+            const wrap = document.getElementById("gomoku-wrap");
+            if (!wrap || !gomokuState) return;
+            const size = gomokuState.size || 19;
+            const targets = [gomokuState.lastWhite, gomokuState.lastBlack].filter((idx) => Number.isInteger(idx) && idx >= 0);
+            if (!targets.length) return;
+
+            let focusRow = Math.floor(targets[0] / size);
+            let focusCol = targets[0] % size;
+            if (targets.length === 2) {
+                focusRow = Math.round((Math.floor(targets[0] / size) + Math.floor(targets[1] / size)) / 2);
+                focusCol = Math.round(((targets[0] % size) + (targets[1] % size)) / 2);
+            }
+
+            const [x, y] = gomokuXY(focusRow * size + focusCol, size);
+            const left = Math.max(0, x - wrap.clientWidth / 2);
+            const top = Math.max(0, y - wrap.clientHeight / 2);
+            wrap.scrollTo({
+                left,
+                top,
+                behavior: animated ? "smooth" : "auto"
+            });
         }
 
         function drawGomokuBoard() {
@@ -2044,7 +2227,7 @@
                 html += `<line x1="${GOMOKU_MARGIN}" y1="${y}" x2="${GOMOKU_MARGIN + size * GOMOKU_CELL}" y2="${y}" stroke="#555" stroke-width="0.8"/>`;
             }
             // Star points aligned to the visible cell centers.
-            const stars = [3, 9, 15];
+            const stars = gomokuStarPoints(size);
             for (const sr of stars) {
                 for (const sc of stars) {
                     const sx = GOMOKU_MARGIN + sc * GOMOKU_CELL + GOMOKU_CELL / 2;
@@ -2135,8 +2318,130 @@
             }
         }
 
+        function resetGomokuRematchPanel() {
+            const panel = document.getElementById("gomoku-rematch-panel");
+            if (!panel) return;
+            panel.style.display = "none";
+            panel.innerHTML = "";
+            gomokuRematchMyVote = false;
+            gomokuRematchOpponentLeft = false;
+            gomokuRematchJoined = false;
+        }
+
+        function renderGomokuRematchStatus(votes, presentPlayers) {
+            const list = document.getElementById("gomoku-rematch-status");
+            const msg = document.getElementById("gomoku-rematch-msg");
+            const rematchBtn = document.getElementById("gomoku-rematch-btn");
+            if (!list || !msg || !rematchBtn) return;
+            list.replaceChildren();
+
+            if (!presentPlayers.length) {
+                msg.textContent = t("opponent_left");
+                rematchBtn.disabled = true;
+                return;
+            }
+
+            presentPlayers.forEach((name) => {
+                const ready = votes.includes(name);
+                const row = document.createElement("div");
+                row.className = `gomoku-rematch-vote${ready ? " is-ready" : ""}`;
+                row.innerHTML = `
+                    <span>${name}</span>
+                    <span>${ready ? t("rematch_ready") : t("rematch_waiting")}</span>
+                `;
+                list.appendChild(row);
+            });
+
+            if (gomokuRematchMyVote) {
+                const others = presentPlayers.filter((name) => name !== myName && !votes.includes(name));
+                msg.textContent = others.length
+                    ? `${t("rematch_you_ready")} ${t("rematch_waiting_other", { name: others[0] })}`
+                    : t("rematch_you_ready");
+            } else {
+                const others = presentPlayers.filter((name) => name !== myName);
+                msg.textContent = others.length ? t("rematch_waiting_other", { name: others[0] }) : "";
+            }
+            rematchBtn.disabled = gomokuRematchMyVote || gomokuRematchOpponentLeft;
+        }
+
+        function showGomokuRematchPanel(data) {
+            const panel = document.getElementById("gomoku-rematch-panel");
+            if (!panel) return;
+            const points = data.points || {};
+            const wins = data.round_win || {};
+            const ties = Number(data.round_ties || 0);
+            const winner = data.winner || "";
+            const isDraw = winner === "Tasapeli" || winner === "Tie";
+            panel.innerHTML = `
+                <div class="gomoku-rematch-card">
+                    <div class="gomoku-rematch-title">${isDraw ? t("draw_label") : t("game_over", { winner })}</div>
+                    <div class="gomoku-rematch-label">${t("points")}</div>
+                    ${Object.entries(points).map(([name, pts]) => `
+                        <div class="gomoku-rematch-score">
+                            <span>${name}</span>
+                            <span>${pts} ${t("pairs_suffix")}</span>
+                        </div>
+                    `).join("")}
+                </div>
+                <div class="gomoku-rematch-card">
+                    <div class="gomoku-rematch-label">${t("round_wins")}</div>
+                    ${Object.entries(wins).map(([name, count]) => `
+                        <div class="gomoku-rematch-score">
+                            <span>${name}</span>
+                            <span>${count} ${t("wins_suffix")}</span>
+                        </div>
+                    `).join("")}
+                    ${ties > 0 ? `
+                        <div class="gomoku-rematch-score">
+                            <span>${t("draw_label")}</span>
+                            <span>${ties} ${ties === 1 ? t("draw_count") : t("draw_count_plural")}</span>
+                        </div>
+                    ` : ""}
+                </div>
+                <div class="gomoku-rematch-card">
+                    <div class="gomoku-rematch-label">${t("rematch_title")}</div>
+                    <div id="gomoku-rematch-status"></div>
+                    <div id="gomoku-rematch-msg" class="gomoku-rematch-status-msg"></div>
+                    <div class="gomoku-rematch-actions">
+                        <button id="gomoku-rematch-btn" class="gomoku-rematch-btn primary">${t("rematch_btn")}</button>
+                        <button id="gomoku-rematch-exit" class="gomoku-rematch-btn secondary">${t("rematch_exit")}</button>
+                    </div>
+                </div>
+            `;
+            panel.style.display = "block";
+            gomokuRematchMyVote = false;
+            gomokuRematchOpponentLeft = false;
+            gomokuRematchJoined = true;
+
+            document.getElementById("gomoku-rematch-btn")?.addEventListener("click", () => {
+                if (gomokuRematchMyVote || gomokuRematchOpponentLeft) return;
+                gomokuRematchMyVote = true;
+                socket.emit("want_rematch", {
+                    reconnect_token: getReconnectToken(),
+                    username: myName,
+                });
+                renderGomokuRematchStatus([], (gomokuState && [gomokuState.whitePlayer, gomokuState.blackPlayer].filter(Boolean)) || []);
+            });
+            document.getElementById("gomoku-rematch-exit")?.addEventListener("click", () => {
+                socket.emit("leave_summary", {
+                    reconnect_token: getReconnectToken(),
+                    username: myName,
+                });
+                try { sessionStorage.removeItem("summary_result"); } catch (_) {}
+                try { sessionStorage.removeItem("pending_same_settings_rematch"); } catch (_) {}
+                try { localStorage.removeItem("memory_summary_round_wins"); } catch (_) {}
+                navigateTo("/");
+            });
+
+            socket.emit("join_summary", {
+                reconnect_token: getReconnectToken(),
+                username: myName,
+            });
+        }
+
         socket.on("init_gomoku", (data) => {
             console.log("[DEBUG] init_gomoku", data);
+            resetGomokuRematchPanel();
             document.getElementById("grid").style.display = "none";
             document.getElementById("image-pair-tracker").style.display = "none";
             document.getElementById("gomoku-wrap").style.display = "block";
@@ -2160,6 +2465,7 @@
             try { sessionStorage.setItem("players", JSON.stringify(gomokuPlayers)); } catch (_) {}
             currentTurn = data.turn;
             drawGomokuBoard();
+            requestAnimationFrame(() => centerGomokuView(false));
             updateRoundActionsVisibility();
             updatePlayers();
             hideSetupStatus();
@@ -2183,6 +2489,7 @@
             }
             currentTurn = data.next_turn;
             drawGomokuBoard();
+            requestAnimationFrame(() => centerGomokuView(true));
             updatePlayers();
             if (data.own_stone) {
                 showToast(t("gomoku_own_stone"));
@@ -2198,6 +2505,44 @@
             if (data.penalty_player === myName) {
                 showToast(t("gomoku_occupied"));
             }
+        });
+
+        window.addEventListener("resize", () => {
+            if (!gomokuState) return;
+            requestAnimationFrame(() => centerGomokuView(false));
+        });
+
+        socket.on("rematch_status", (data) => {
+            const panel = document.getElementById("gomoku-rematch-panel");
+            if (!panel || panel.style.display === "none") return;
+            const votes = data.votes || [];
+            const presentPlayers = data.players || [];
+            gomokuRematchOpponentLeft = presentPlayers.length === 0;
+            renderGomokuRematchStatus(votes, presentPlayers);
+        });
+
+        socket.on("rematch_ready", () => {
+            const panel = document.getElementById("gomoku-rematch-panel");
+            if (!panel || panel.style.display === "none") return;
+            const msg = document.getElementById("gomoku-rematch-msg");
+            const rematchBtn = document.getElementById("gomoku-rematch-btn");
+            if (msg) msg.textContent = t("rematch_both_ready");
+            if (rematchBtn) rematchBtn.disabled = true;
+            try {
+                sessionStorage.setItem("pending_same_settings_rematch", "1");
+            } catch (_) {}
+            setTimeout(() => {
+                navigateTo("/waiting");
+            }, 600);
+        });
+
+        socket.on("summary_error", () => {
+            const panel = document.getElementById("gomoku-rematch-panel");
+            if (!panel || panel.style.display === "none") return;
+            const msg = document.getElementById("gomoku-rematch-msg");
+            const rematchBtn = document.getElementById("gomoku-rematch-btn");
+            if (msg) msg.textContent = t("rematch_room_ended");
+            if (rematchBtn) rematchBtn.disabled = true;
         });
 
         socket.on("gomoku_rejected", (data) => {
@@ -2501,18 +2846,26 @@
                 return;
             }
             gameOverShown = true;
-            gomokuState = null;
-            document.getElementById("gomoku-wrap").style.display = "none";
             console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
             stopSoloTimer();
             soloStatsEl.classList.remove("active");
             persistSummary(data);
             clearTranslationHint();
+            updateRoundActionsVisibility();
+            themeProgress.style.display = "none";
+            if (window.currentCardMode === "gomoku") {
+                document.getElementById("grid").style.display = "none";
+                imagePairTracker.style.display = "none";
+                document.getElementById("gomoku-wrap").style.display = "block";
+                document.getElementById("players").style.display = "";
+                showGomokuRematchPanel(data);
+                return;
+            }
+            gomokuState = null;
+            document.getElementById("gomoku-wrap").style.display = "none";
             document.getElementById("grid").style.display = "none";
             imagePairTracker.style.display = "none";
             document.getElementById("players").style.display = "none";
-            updateRoundActionsVisibility();
-            themeProgress.style.display = "none";
             const oldResults = document.getElementById("results");
             if (oldResults) oldResults.remove();
 
@@ -2773,14 +3126,28 @@
             const playersDiv = document.getElementById("players");
             playersDiv.innerHTML = "";
             const isBotMode = (localStorage.getItem("play_mode") || "") === "bot";
+            const isGomokuMode = window.currentCardMode === "gomoku" && gomokuState;
 
             players.forEach(name => {
                 const span = document.createElement("span");
+                span.className = "player-chip";
                 let displayName = name;
                 if (isBotMode && name === "Muistibotti") {
                     displayName = `${name} · ${getDifficultyLabel(currentBotDifficulty)}`;
                 }
-                span.textContent = displayName + " ";
+                if (isGomokuMode) {
+                    let stoneColor = "";
+                    if (name === gomokuState.whitePlayer) stoneColor = "white";
+                    if (name === gomokuState.blackPlayer) stoneColor = "black";
+                    if (stoneColor) {
+                        const stone = document.createElement("span");
+                        stone.className = `player-stone ${stoneColor}`;
+                        span.appendChild(stone);
+                    }
+                }
+                const nameNode = document.createElement("span");
+                nameNode.textContent = displayName;
+                span.appendChild(nameNode);
                 if (name === currentTurn) {
                     span.classList.add("active");
                 }

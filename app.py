@@ -132,6 +132,7 @@ BOT_MEMORY_USE_PROBABILITY = {
 }
 GOMOKU_SIZE = 19
 GOMOKU_WIN = 5
+GOMOKU_ALLOWED_SIZES = {13, 19}
 DEFAULT_ROOM_ID = "default"
 MAX_PLAYERS = 2
 
@@ -196,6 +197,7 @@ class RoomState:
     solo_seen_cards: set = field(default_factory=set)
     rematch_votes: set = field(default_factory=set)
     summary_sids: dict = field(default_factory=dict)  # username -> sid
+    gomoku_results_acks: set = field(default_factory=set)
     queue_round_prepared: bool = False
     chord_audio_type: str = "single"  # single | progression
     chord_tempo_seconds: float = 2.5  # per-chord duration for bot timing
@@ -204,6 +206,7 @@ class RoomState:
     gomoku_last_black: int = -1
     gomoku_white_player: str = ""
     gomoku_black_player: str = ""
+    gomoku_size: int = 19
 
 
 # --- Global indexes (not game state) ---
@@ -2657,7 +2660,7 @@ def try_match_from_queue():
 def build_lobby_payload(room):
     players_ordered = get_active_players_ordered(room)
     usernames = [v["username"] for v in players_ordered]
-    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token"), "in_waiting": v.get("in_waiting", False), "pref_card_mode": v.get("pref_card_mode"), "pref_target_language": v.get("pref_target_language")} for v in players_ordered]
+    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token"), "in_waiting": v.get("in_waiting", False), "pref_card_mode": v.get("pref_card_mode"), "pref_target_language": v.get("pref_target_language"), "pref_gomoku_size": v.get("pref_gomoku_size")} for v in players_ordered]
     last_token = infos[-1]["reconnect_token"] if infos else None
     return {
         "room_id": room.room_id,
@@ -2668,6 +2671,7 @@ def build_lobby_payload(room):
         "pending_theme": room.pending_theme,
         "bot_difficulty": room.bot_difficulty,
         "word_filter_mode": room.word_filter_mode,
+        "gomoku_size": room.gomoku_size,
         "players": usernames,
         "players_info": infos,
         "last_joined_token": last_token,
@@ -2717,17 +2721,17 @@ def generate_grid():
 # Gomoku helpers
 # ---------------------------------------------------------------------------
 
-def gomoku_check_win(board, idx):
+def gomoku_check_win(board, idx, size=GOMOKU_SIZE):
     color = board.get(idx)
     if not color:
         return None
-    row, col = divmod(idx, GOMOKU_SIZE)
+    row, col = divmod(idx, size)
     for dr, dc in [(0, 1), (1, 0), (1, 1), (1, -1)]:
         line = [idx]
         for sign in (1, -1):
             r, c = row + sign * dr, col + sign * dc
-            while 0 <= r < GOMOKU_SIZE and 0 <= c < GOMOKU_SIZE and board.get(r * GOMOKU_SIZE + c) == color:
-                line.append(r * GOMOKU_SIZE + c)
+            while 0 <= r < size and 0 <= c < size and board.get(r * size + c) == color:
+                line.append(r * size + c)
                 r += sign * dr
                 c += sign * dc
         if len(line) >= GOMOKU_WIN:
@@ -2735,14 +2739,14 @@ def gomoku_check_win(board, idx):
     return None
 
 
-def _gomoku_count_line(board, idx, color):
-    row, col = divmod(idx, GOMOKU_SIZE)
+def _gomoku_count_line(board, idx, color, size=GOMOKU_SIZE):
+    row, col = divmod(idx, size)
     best = 0
     for dr, dc in [(0, 1), (1, 0), (1, 1), (1, -1)]:
         n = 1
         for sign in (1, -1):
             r, c = row + sign * dr, col + sign * dc
-            while 0 <= r < GOMOKU_SIZE and 0 <= c < GOMOKU_SIZE and board.get(r * GOMOKU_SIZE + c) == color:
+            while 0 <= r < size and 0 <= c < size and board.get(r * size + c) == color:
                 n += 1
                 r += sign * dr
                 c += sign * dc
@@ -2750,12 +2754,12 @@ def _gomoku_count_line(board, idx, color):
     return best
 
 
-def _gomoku_near_stone(idx, occupied, radius=2):
+def _gomoku_near_stone(idx, occupied, size=GOMOKU_SIZE, radius=2):
     if not occupied:
         return True
-    row, col = divmod(idx, GOMOKU_SIZE)
+    row, col = divmod(idx, size)
     for oidx in occupied:
-        or_, oc = divmod(oidx, GOMOKU_SIZE)
+        or_, oc = divmod(oidx, size)
         if abs(or_ - row) <= radius and abs(oc - col) <= radius:
             return True
     return False
@@ -2764,7 +2768,10 @@ def _gomoku_near_stone(idx, occupied, radius=2):
 def choose_gomoku_bot_move(room):
     bot_name = next((name for name, info in room.players.items() if info.get("is_bot")), None)
     if not bot_name:
-        return random.randint(0, GOMOKU_SIZE * GOMOKU_SIZE - 1)
+        size = room.gomoku_size or GOMOKU_SIZE
+        return random.randint(0, size * size - 1)
+    difficulty = room.bot_difficulty or "easy"
+    size = room.gomoku_size or GOMOKU_SIZE
     bot_color = "white" if bot_name == room.gomoku_white_player else "black"
     opp_color = "black" if bot_color == "white" else "white"
     # Bot's perceived board: own stones + visible opp stone + remembered opp stones
@@ -2775,48 +2782,55 @@ def choose_gomoku_bot_move(room):
     for k, v in room.bot_memory.items():
         if v == opp_color:
             perceived[k] = v
-    all_cells = GOMOKU_SIZE * GOMOKU_SIZE
+    all_cells = size * size
     occupied = set(room.gomoku_board.keys())
     empty = [i for i in range(all_cells) if i not in occupied]
     if not empty:
         return -1
-    center = (GOMOKU_SIZE // 2) * GOMOKU_SIZE + GOMOKU_SIZE // 2
+    center = (size // 2) * size + size // 2
     if not occupied:
         return center
     # 1. Win in 1
     for idx in empty:
         perceived[idx] = bot_color
-        if gomoku_check_win(perceived, idx):
+        if gomoku_check_win(perceived, idx, size=size):
             del perceived[idx]
             return idx
         del perceived[idx]
     # 2. Block opponent winning move (known positions only)
     for idx in empty:
         perceived[idx] = opp_color
-        if gomoku_check_win(perceived, idx):
+        if gomoku_check_win(perceived, idx, size=size):
             del perceived[idx]
-            return idx
+            if difficulty != "easy" or random.random() < 0.6:
+                return idx
         del perceived[idx]
     # 3. Best scoring move near existing stones
     best_score = -1
     best_candidates = []
-    near = [i for i in empty if _gomoku_near_stone(i, occupied)]
+    scored_candidates = []
+    near = [i for i in empty if _gomoku_near_stone(i, occupied, size=size)]
     candidates = near if near else empty
     for idx in candidates:
         perceived[idx] = bot_color
-        my_score = _gomoku_count_line(perceived, idx, bot_color)
+        my_score = _gomoku_count_line(perceived, idx, bot_color, size=size)
         del perceived[idx]
         perceived[idx] = opp_color
-        opp_score = _gomoku_count_line(perceived, idx, opp_color)
+        opp_score = _gomoku_count_line(perceived, idx, opp_color, size=size)
         del perceived[idx]
         score = my_score * 2 + opp_score
-        distance_penalty = abs((idx // GOMOKU_SIZE) - (GOMOKU_SIZE // 2)) + abs((idx % GOMOKU_SIZE) - (GOMOKU_SIZE // 2))
+        distance_penalty = abs((idx // size) - (size // 2)) + abs((idx % size) - (size // 2))
         weighted_score = score * 100 - distance_penalty
+        scored_candidates.append((weighted_score, idx))
         if weighted_score > best_score:
             best_score = weighted_score
             best_candidates = [idx]
         elif weighted_score == best_score:
             best_candidates.append(idx)
+    if difficulty == "easy" and scored_candidates:
+        scored_candidates.sort(key=lambda item: item[0], reverse=True)
+        shortlist = [idx for _, idx in scored_candidates[:min(4, len(scored_candidates))]]
+        return random.choice(shortlist)
     if best_candidates:
         if center in best_candidates:
             return center
@@ -2826,6 +2840,7 @@ def choose_gomoku_bot_move(room):
 
 def init_gomoku_round(room):
     """Start a new gomoku round, swapping colors if not first round."""
+    room.gomoku_size = room.gomoku_size if room.gomoku_size in GOMOKU_ALLOWED_SIZES else GOMOKU_SIZE
     if room.gomoku_white_player and room.gomoku_white_player in room.player_order:
         # Swap colors each round
         room.gomoku_white_player, room.gomoku_black_player = room.gomoku_black_player, room.gomoku_white_player
@@ -2843,7 +2858,7 @@ def init_gomoku_round(room):
     except ValueError:
         room.turn = 0
     emit_to_room("init_gomoku", {
-        "size": GOMOKU_SIZE,
+        "size": room.gomoku_size,
         "white_player": room.gomoku_white_player,
         "black_player": room.gomoku_black_player,
         "turn": room.gomoku_white_player,
@@ -2893,8 +2908,9 @@ def schedule_gomoku_bot_turn_if_needed(room):
 def process_gomoku_place(idx, player_info, room, sid=None):
     """Core gomoku placement logic called from both handler and bot."""
     player_name = player_info.get("username") or player_info.get("name", "")
-    row = idx // GOMOKU_SIZE if idx >= 0 else -1
-    col = idx % GOMOKU_SIZE if idx >= 0 else -1
+    size = room.gomoku_size or GOMOKU_SIZE
+    row = idx // size if idx >= 0 else -1
+    col = idx % size if idx >= 0 else -1
     def reject(reason, **payload):
         debug_payload = {"reason": reason, **payload}
         print(f"[WARNING] Gomoku-siirto hylätty: {debug_payload}")
@@ -2911,7 +2927,7 @@ def process_gomoku_place(idx, player_info, room, sid=None):
     if room.player_order[room.turn] != player_name:
         reject("not_your_turn", idx=idx, row=row, col=col, player=player_name, expected_player=room.player_order[room.turn])
         return
-    if not (0 <= idx < GOMOKU_SIZE * GOMOKU_SIZE):
+    if not (0 <= idx < size * size):
         reject("invalid_index", idx=idx, row=row, col=col, player=player_name)
         return
     my_color = "white" if player_name == room.gomoku_white_player else "black"
@@ -2957,7 +2973,7 @@ def process_gomoku_place(idx, player_info, room, sid=None):
         prob = get_bot_memory_probability(room)
         if random.random() < prob:
             room.bot_memory[old_last] = my_color
-    win_line = gomoku_check_win(room.gomoku_board, idx)
+    win_line = gomoku_check_win(room.gomoku_board, idx, size=size)
     room.turn = (room.turn + 1) % len(room.player_order)
     print(
         f"[INFO] Gomoku-nappula asetettu: player={player_name}, color={my_color}, idx={idx}, row={row}, col={col}, "
@@ -3314,7 +3330,7 @@ def handle_grid_request(data=None):
 
     if room.card_mode == "gomoku" and room.status in ("playing", "setup", "results"):
         emit("init_gomoku", {
-            "size": GOMOKU_SIZE,
+            "size": room.gomoku_size or GOMOKU_SIZE,
             "white_player": room.gomoku_white_player,
             "black_player": room.gomoku_black_player,
             "turn": room.player_order[room.turn] if room.player_order else "",
@@ -3393,7 +3409,7 @@ def handle_ready_for_game():
     room = get_room_for_sid(request.sid)
     if room.card_mode == "gomoku" and room.status in ("playing", "setup", "results"):
         emit("init_gomoku", {
-            "size": GOMOKU_SIZE,
+            "size": room.gomoku_size or GOMOKU_SIZE,
             "white_player": room.gomoku_white_player,
             "black_player": room.gomoku_black_player,
             "turn": room.player_order[room.turn] if room.player_order else "",
@@ -3464,6 +3480,12 @@ def handle_start_custom_game(data=None):
     ui_language = str(data.get("ui_language", "")).strip().lower()
     card_mode = str(data.get("card_mode", "")).strip().lower()
     bot_difficulty = str(data.get("bot_difficulty", room.bot_difficulty or "easy")).strip().lower()
+    try:
+        gomoku_size = int(data.get("gomoku_size", room.gomoku_size or GOMOKU_SIZE))
+    except (TypeError, ValueError):
+        gomoku_size = room.gomoku_size or GOMOKU_SIZE
+    if gomoku_size not in GOMOKU_ALLOWED_SIZES:
+        gomoku_size = GOMOKU_SIZE
     word_filter_mode = str(data.get("word_filter_mode", room.word_filter_mode or "clear")).strip().lower()
     chord_audio_type = str(data.get("chord_audio_type", "single")).strip().lower()
     if chord_audio_type not in {"single", "progression"}:
@@ -3483,6 +3505,7 @@ def handle_start_custom_game(data=None):
         room.card_mode = "gomoku"
         room.game_mode = "gomoku"
         room.status = "setup"
+        room.gomoku_size = gomoku_size
         all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
         room.ui_language = ui_language if ui_language in all_ui_langs else "en"
         if room.play_mode == "bot":
@@ -3951,18 +3974,26 @@ def build_same_settings_start_payload(room):
         payload["theme"] = room.pending_theme
     if room.play_mode == "bot":
         payload["bot_difficulty"] = room.bot_difficulty or "easy"
+    if room.card_mode == "gomoku":
+        payload["gomoku_size"] = room.gomoku_size or GOMOKU_SIZE
     return payload
 
 
 def _broadcast_rematch_status(room):
     emit_to_room("rematch_status", {
         "votes": list(room.rematch_votes),
-        "players": list(room.summary_sids.keys()),
+        "players": [
+            name for name in room.player_order
+            if is_bot_player(name, room) or name in room.summary_sids
+        ],
     }, room_id=room.room_id)
 
 
 def _summary_connected_usernames(room):
     connected = set()
+    for uname in room.player_order:
+        if is_bot_player(uname, room):
+            connected.add(uname)
     for uname, summary_sid in room.summary_sids.items():
         info = room.players.get(summary_sid)
         if info and info.get("connected", False):
@@ -3971,7 +4002,7 @@ def _summary_connected_usernames(room):
 
 
 def _maybe_fire_rematch_ready(room):
-    all_players = set(room.summary_sids.keys())
+    all_players = set(room.player_order)
     if not all_players:
         return False
     connected = _summary_connected_usernames(room)
@@ -4012,6 +4043,10 @@ def on_join_summary(data):
     except Exception:
         pass
     room.summary_sids[username] = sid
+    if room.play_mode == "bot":
+        for name in room.player_order:
+            if is_bot_player(name, room):
+                room.rematch_votes.add(name)
     _broadcast_rematch_status(room)
     _maybe_fire_rematch_ready(room)
 
@@ -4027,6 +4062,10 @@ def on_want_rematch(data):
     if not room or room.status != "results":
         return
     room.rematch_votes.add(username)
+    if room.play_mode == "bot":
+        for name in room.player_order:
+            if is_bot_player(name, room):
+                room.rematch_votes.add(name)
     _broadcast_rematch_status(room)
     _maybe_fire_rematch_ready(room)
 
@@ -4247,6 +4286,12 @@ def handle_preference_changed(data=None):
     if pref_chord_audio in {"single", "progression"}:
         room.players[sid]["pref_chord_audio_type"] = pref_chord_audio
     try:
+        pref_gomoku_size = int(data.get("gomoku_size") or 0)
+        if pref_gomoku_size in GOMOKU_ALLOWED_SIZES:
+            room.players[sid]["pref_gomoku_size"] = pref_gomoku_size
+    except (TypeError, ValueError):
+        pass
+    try:
         pref_tempo = float(data.get("chord_tempo") or 0)
         if pref_tempo >= 0.1:
             room.players[sid]["pref_chord_tempo"] = max(0.1, min(10.0, pref_tempo))
@@ -4270,6 +4315,9 @@ def handle_preference_changed(data=None):
         chord_at = room.players[sid].get("pref_chord_audio_type")
         if chord_at:
             room.chord_audio_type = chord_at
+        pref_gomoku_size = room.players[sid].get("pref_gomoku_size")
+        if pref_gomoku_size in GOMOKU_ALLOWED_SIZES:
+            room.gomoku_size = pref_gomoku_size
         pref_t = room.players[sid].get("pref_chord_tempo")
         if pref_t:
             room.chord_tempo_seconds = pref_t
