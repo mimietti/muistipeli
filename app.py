@@ -804,7 +804,7 @@ def resolve_player_for_event(data=None):
                 if existing_sid != sid and existing_sid in r.players:
                     del r.players[existing_sid]
                     _sid_to_room_id.pop(existing_sid, None)
-                _sid_to_room_id[sid] = r.room_id
+                move_sid_to_room(sid, r.room_id)
                 _notify_opponent_returned(r, r.players[sid], updated.get("username"), was_disconnected)
                 return sid, r.players[sid]
             if username_hint and info.get("username") == username_hint:
@@ -816,7 +816,7 @@ def resolve_player_for_event(data=None):
                 if existing_sid != sid and existing_sid in r.players:
                     del r.players[existing_sid]
                     _sid_to_room_id.pop(existing_sid, None)
-                _sid_to_room_id[sid] = r.room_id
+                move_sid_to_room(sid, r.room_id)
                 _notify_opponent_returned(r, r.players[sid], updated.get("username"), was_disconnected)
                 return sid, r.players[sid]
 

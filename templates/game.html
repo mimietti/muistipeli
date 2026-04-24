@@ -1003,6 +1003,7 @@
                 word_invalid: "That word is not valid. Use only letters (no numbers or special characters).",
                 pixabay_retry: "Pixabay could not find an image for that word. Try another word.",
                 found_word: "Pair found: {word}",
+                audio_enable_prompt: "Tap once to enable sound on this device.",
                 opponent_reconnecting: "Waiting for {name} to reconnect…",
                 opponent_returned: "{name} is back.",
                 pair_found_label: "Pair found",
@@ -1099,6 +1100,7 @@
                 word_invalid: "Sana ei kelpaa. Käytä vain kirjaimia (ei numeroita tai erikoismerkkejä).",
                 pixabay_retry: "Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.",
                 found_word: "Pari löytyi: {word}",
+                audio_enable_prompt: "Napauta kerran, niin äänet aktivoituvat tällä laitteella.",
                 opponent_reconnecting: "Odotetaan, että {name} yhdistää uudelleen…",
                 opponent_returned: "{name} palasi peliin.",
                 pair_found_label: "Pari löytyi",
@@ -1463,8 +1465,116 @@
         let currentNativeLanguage = getLanguage();
         let activeChordPreview = { reference: null, target: null, pauseTimer: null, token: 0 };
         let audioRevealLock = false;
+        const SILENT_AUDIO_DATA_URI = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
+        const AUDIO_UNLOCK_EVENTS = ["pointerdown", "touchstart", "keydown"];
+        let audioPlaybackUnlocked = false;
+        let audioUnlockListenersArmed = false;
+        let lastAudioUnlockPromptAt = 0;
         applyPersonalSettings();
         applyTranslations();
+
+        function createGameAudio(src) {
+            const audio = new Audio(src);
+            audio.preload = "auto";
+            try { audio.playsInline = true; } catch (_) {}
+            return audio;
+        }
+
+        function isAutoplayBlocked(error) {
+            const name = String((error && error.name) || "");
+            const message = String((error && error.message) || "");
+            return name === "NotAllowedError"
+                || /autoplay|user gesture|didn't interact|play\(\) failed/i.test(message);
+        }
+
+        function disarmAudioUnlockListeners() {
+            if (!audioUnlockListenersArmed) return;
+            AUDIO_UNLOCK_EVENTS.forEach((eventName) => {
+                window.removeEventListener(eventName, handleAudioUnlockInteraction, true);
+            });
+            audioUnlockListenersArmed = false;
+        }
+
+        function showAudioUnlockPrompt() {
+            const now = Date.now();
+            if (now - lastAudioUnlockPromptAt < 2500) return;
+            lastAudioUnlockPromptAt = now;
+            showToast(t("audio_enable_prompt"), 3500);
+        }
+
+        function markAudioPlaybackUnlocked() {
+            audioPlaybackUnlocked = true;
+            disarmAudioUnlockListeners();
+        }
+
+        function armAudioUnlockListeners() {
+            if (audioPlaybackUnlocked || audioUnlockListenersArmed) return;
+            AUDIO_UNLOCK_EVENTS.forEach((eventName) => {
+                window.addEventListener(eventName, handleAudioUnlockInteraction, true);
+            });
+            audioUnlockListenersArmed = true;
+        }
+
+        function primeAudioPlayback() {
+            const probe = createGameAudio(SILENT_AUDIO_DATA_URI);
+            probe.muted = true;
+            probe.volume = 0;
+            try {
+                const playPromise = probe.play();
+                if (playPromise && typeof playPromise.then === "function") {
+                    playPromise.then(() => {
+                        try {
+                            probe.pause();
+                            probe.currentTime = 0;
+                        } catch (_) {}
+                        markAudioPlaybackUnlocked();
+                    }).catch(() => {});
+                    return;
+                }
+                markAudioPlaybackUnlocked();
+            } catch (_) {}
+        }
+
+        function handleAudioUnlockInteraction() {
+            if (audioPlaybackUnlocked) {
+                disarmAudioUnlockListeners();
+                return;
+            }
+            primeAudioPlayback();
+        }
+
+        function safePlayAudio(audio, onFailure) {
+            if (!audio) {
+                if (typeof onFailure === "function") onFailure();
+                return;
+            }
+            try {
+                const playPromise = audio.play();
+                if (playPromise && typeof playPromise.then === "function") {
+                    playPromise.then(() => {
+                        markAudioPlaybackUnlocked();
+                    }).catch((error) => {
+                        if (isAutoplayBlocked(error)) {
+                            audioPlaybackUnlocked = false;
+                            armAudioUnlockListeners();
+                            showAudioUnlockPrompt();
+                        }
+                        if (typeof onFailure === "function") onFailure(error);
+                    });
+                    return;
+                }
+                markAudioPlaybackUnlocked();
+            } catch (error) {
+                if (isAutoplayBlocked(error)) {
+                    audioPlaybackUnlocked = false;
+                    armAudioUnlockListeners();
+                    showAudioUnlockPrompt();
+                }
+                if (typeof onFailure === "function") onFailure(error);
+            }
+        }
+
+        armAudioUnlockListeners();
 
         function getLangLabel(langCode) {
             const ui = getLanguage();
@@ -1684,7 +1794,7 @@
                 const playNext = (pos) => {
                     if (activeChordPreview.token !== previewToken) return;
                     if (pos >= cardData.audio_sequence.length) { markPreviewFinished(); return; }
-                    const audio = new Audio(cardData.audio_sequence[pos]);
+                    const audio = createGameAudio(cardData.audio_sequence[pos]);
                     activeChordPreview.target = audio;
                     let advanced = false;
                     const advance = () => {
@@ -1697,15 +1807,14 @@
                     const fallbackTimer = setTimeout(advance, chordMs + 500);
                     audio.onended = advance;
                     audio.onerror = advance;
-                    audio.play().catch(advance);
+                    safePlayAudio(audio, advance);
                 };
                 playNext(0);
                 return;
             }
 
             // Preload target immediately so it's ready when reference ends
-            const targetAudio = new Audio(cardData.audio);
-            targetAudio.preload = "auto";
+            const targetAudio = createGameAudio(cardData.audio);
             activeChordPreview.target = targetAudio;
             let targetFallbackTimer = null;
             const finishTarget = () => {
@@ -1731,17 +1840,16 @@
                 clearTimeout(refFallbackTimer);
                 activeChordPreview.reference = null;
                 targetFallbackTimer = setTimeout(finishTarget, 4500);
-                targetAudio.play().catch(finishTarget);
+                safePlayAudio(targetAudio, finishTarget);
             };
 
             if (!cardData.reference_audio) {
                 targetFallbackTimer = setTimeout(finishTarget, 4500);
-                targetAudio.play().catch(finishTarget);
+                safePlayAudio(targetAudio, finishTarget);
                 return;
             }
 
-            const referenceAudio = new Audio(cardData.reference_audio);
-            referenceAudio.preload = "auto";
+            const referenceAudio = createGameAudio(cardData.reference_audio);
             activeChordPreview.reference = referenceAudio;
 
             let refFallbackTimer = setTimeout(() => {
@@ -1760,7 +1868,7 @@
             referenceAudio.onerror = () => {
                 if (activeChordPreview.token === previewToken) startTargetAudio();
             };
-            referenceAudio.play().catch(() => {
+            safePlayAudio(referenceAudio, () => {
                 if (activeChordPreview.token === previewToken) startTargetAudio();
             });
         }
@@ -1892,7 +2000,7 @@
                 let stopped = false;
                 const playNext = (pos) => {
                     if (stopped || pos >= cardData.audio_sequence.length) return;
-                    const audio = new Audio(cardData.audio_sequence[pos]);
+                    const audio = createGameAudio(cardData.audio_sequence[pos]);
                     activeTrackerPreview = audio;
                     let advanced = false;
                     const advance = () => {
@@ -1904,14 +2012,14 @@
                     const ft = setTimeout(advance, chordMs + 500);
                     audio.onended = advance;
                     audio.onerror = advance;
-                    audio.play().catch(advance);
+                    safePlayAudio(audio, advance);
                 };
                 playNext(0);
             } else if (cardData.audio) {
-                const audio = new Audio(cardData.audio);
+                const audio = createGameAudio(cardData.audio);
                 activeTrackerPreview = audio;
                 audio.onended = () => { activeTrackerPreview = null; };
-                audio.play().catch(() => {});
+                safePlayAudio(audio, () => { activeTrackerPreview = null; });
             }
         }
 
@@ -3190,18 +3298,18 @@
                             const replayNext = (pos) => {
                                 if (activeChordPreview.token !== replayToken) return;
                                 if (pos >= cardData.audio_sequence.length) return;
-                                const ra = new Audio(cardData.audio_sequence[pos]);
+                                const ra = createGameAudio(cardData.audio_sequence[pos]);
                                 activeChordPreview.target = ra;
                                 let adv = false;
                                 const advance = () => { if (!adv && activeChordPreview.token === replayToken) { adv = true; clearTimeout(ft); replayNext(pos + 1); } };
                                 const ft = setTimeout(advance, chordMs + 500);
                                 ra.onended = advance; ra.onerror = advance;
-                                ra.play().catch(advance);
+                                safePlayAudio(ra, advance);
                             };
                             replayNext(0);
                         } else {
-                            const replay = new Audio(cardData.audio);
-                            replay.play().catch(() => {});
+                            const replay = createGameAudio(cardData.audio);
+                            safePlayAudio(replay);
                         }
                         return;
                     }
