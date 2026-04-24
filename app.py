@@ -118,7 +118,7 @@ VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "y
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 DISCONNECT_NOTIFY_DELAY_SECONDS = 10
-APP_VERSION = "Beta v0.11 (2026-04-23)"
+APP_VERSION = "Beta v0.11 (2026-04-24)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -2927,6 +2927,7 @@ def process_gomoku_place(idx, player_info, room, sid=None):
             "penalty_player": player_name,
             "next_turn": room.player_order[room.turn],
         }, room_id=room.room_id)
+        schedule_gomoku_bot_turn_if_needed(room)
         return
     if existing == my_color:
         # Own stone: wasted move, turn advances, no board change
@@ -2940,6 +2941,7 @@ def process_gomoku_place(idx, player_info, room, sid=None):
             "own_stone": True,
             "win_line": [],
         }, room_id=room.room_id)
+        schedule_gomoku_bot_turn_if_needed(room)
         return
     # Place stone
     old_last = room.gomoku_last_white if my_color == "white" else room.gomoku_last_black
@@ -2976,6 +2978,8 @@ def process_gomoku_place(idx, player_info, room, sid=None):
             conclude_round(player_name, room)
 
         socketio.start_background_task(end_gomoku)
+        return
+    schedule_gomoku_bot_turn_if_needed(room)
 
 
 # ---------------------------------------------------------------------------
