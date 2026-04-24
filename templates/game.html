@@ -259,6 +259,14 @@
             color: #b7ffca;
             box-shadow: 0 0 0 2px rgba(113, 240, 161, 0.28);
         }
+        button.image-pair-chip {
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button.image-pair-chip:hover {
+            background: rgba(255,255,255,0.12);
+            border-color: rgba(255,255,255,0.25);
+        }
         .card {
             width: 100%;
             aspect-ratio: 1 / 1;
@@ -1393,14 +1401,14 @@
         const translationHintGrid = document.getElementById("translation-hint-grid");
         const translationHintLabel = document.getElementById("translation-hint-label");
         const NASHVILLE_C_MAJOR = {
-            "C major": { num: "I", order: 1 },
-            "D minor": { num: "ii", order: 2 },
-            "E minor": { num: "iii", order: 3 },
-            "F major": { num: "IV", order: 4 },
-            "G major": { num: "V", order: 5 },
-            "G7":      { num: "V7", order: 6 },
-            "A minor": { num: "vi", order: 7 },
-            "B dim":   { num: "vii°", order: 8 },
+            "C major": { num: "I",    order: 1 },
+            "D minor": { num: "II",   order: 2 },
+            "E minor": { num: "III",  order: 3 },
+            "F major": { num: "IV",   order: 4 },
+            "G major": { num: "V",    order: 5 },
+            "G7":      { num: "V7",   order: 6 },
+            "A minor": { num: "VI",   order: 7 },
+            "B dim":   { num: "VII°", order: 8 },
         };
         function nashvilleChipLabel(entry) {
             if (!entry.indices.length) return entry.label;
@@ -1840,6 +1848,38 @@
             return (matchingEntry && matchingEntry.label) || fallback || "";
         }
 
+        let activeTrackerPreview = null;
+        function playTrackerPreview(cardData) {
+            if (!cardData || cardData.card_type !== "audio") return;
+            if (activeTrackerPreview) { try { activeTrackerPreview.pause(); } catch (_) {} activeTrackerPreview = null; }
+            if (cardData.audio_sequence && cardData.audio_sequence.length) {
+                const chordMs = Math.round((parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5")) * 1000);
+                let stopped = false;
+                const playNext = (pos) => {
+                    if (stopped || pos >= cardData.audio_sequence.length) return;
+                    const audio = new Audio(cardData.audio_sequence[pos]);
+                    activeTrackerPreview = audio;
+                    let advanced = false;
+                    const advance = () => {
+                        if (advanced) return; advanced = true;
+                        clearTimeout(ft);
+                        activeTrackerPreview = null;
+                        playNext(pos + 1);
+                    };
+                    const ft = setTimeout(advance, chordMs + 500);
+                    audio.onended = advance;
+                    audio.onerror = advance;
+                    audio.play().catch(advance);
+                };
+                playNext(0);
+            } else if (cardData.audio) {
+                const audio = new Audio(cardData.audio);
+                activeTrackerPreview = audio;
+                audio.onended = () => { activeTrackerPreview = null; };
+                audio.play().catch(() => {});
+            }
+        }
+
         function renderImagePairTracker() {
             if (!shouldShowImagePairTracker()) {
                 imagePairTracker.style.display = "none";
@@ -1855,11 +1895,22 @@
                 imagePairTrackerList.replaceChildren();
                 return;
             }
+            const isChordMode = window.currentCardMode === "chords" || window.currentCardMode === "same_chords";
             const chips = entries.map((entry) => {
-                const item = document.createElement("div");
                 const found = entry.indices.length > 0 && entry.indices.every((index) => matched.has(index));
+                const clickable = isChordMode && !found;
+                const item = document.createElement(clickable ? "button" : "div");
                 item.className = found ? "image-pair-chip found" : "image-pair-chip";
+                if (clickable) item.type = "button";
                 item.textContent = nashvilleChipLabel(entry);
+                if (clickable) {
+                    item.addEventListener("click", () => {
+                        const audioCard = entry.indices.map(i => cards[i]).find(c => c && c.card_type === "audio");
+                        if (!audioCard) return;
+                        playTrackerPreview(audioCard);
+                        socket.emit("tracker_preview", { label: nashvilleChipLabel(entry) });
+                    });
+                }
                 if (found && !scheduledPairRemovalKeys.has(entry.key)) {
                     scheduledPairRemovalKeys.add(entry.key);
                     setTimeout(() => {
@@ -2506,6 +2557,10 @@
             if (data.penalty_player === myName) {
                 showToast(t("gomoku_occupied"));
             }
+        });
+
+        socket.on("tracker_preview_notify", (data) => {
+            showToast(`${data.player}: ${data.label}`);
         });
 
         window.addEventListener("resize", () => {

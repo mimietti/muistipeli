@@ -287,6 +287,15 @@ CHORD_QUALITY_LABELS = {
     "dim": "dim",
 }
 CHORD_POSITION_IGNORE = {"open", "shape", "barre", "capo", "position", "pos"}
+ROMAN_NUMERAL_LABELS = {
+    "vii": "VII",
+    "iii": "III",
+    "vi": "VI",
+    "iv": "IV",
+    "ii": "II",
+    "v": "V",
+    "i": "I",
+}
 
 
 def prettify_chord_label_from_filename(filename):
@@ -310,6 +319,18 @@ def prettify_chord_label_from_filename(filename):
     if quality:
         return f"{note} {quality}".strip()
     return note
+
+
+def normalize_chord_progression_label(label):
+    normalized = str(label or "").strip()
+    if not normalized:
+        return ""
+    return re.sub(
+        r"\b(vii|iii|vi|iv|ii|v|i)\b",
+        lambda match: ROMAN_NUMERAL_LABELS.get(match.group(1).lower(), match.group(1)),
+        normalized,
+        flags=re.IGNORECASE,
+    )
 
 
 def load_chord_library():
@@ -345,12 +366,13 @@ def _build_chord_progressions_with_urls():
     url_map = {e["label"]: e["url"] for e in CHORD_LIBRARY}
     result = []
     for prog in CHORD_PROGRESSIONS_DEF:
+        label = normalize_chord_progression_label(prog.get("label"))
         urls = [url_map.get(c) for c in prog["chords"]]
         if all(urls):
-            result.append({"label": prog["label"], "audio_sequence": urls + [urls[0]]})
+            result.append({"label": label, "audio_sequence": urls + [urls[0]]})
         else:
             missing = [c for c in prog["chords"] if not url_map.get(c)]
-            print(f"[WARNING] Progression '{prog['label']}' missing chords: {missing}")
+            print(f"[WARNING] Progression '{label}' missing chords: {missing}")
     return result
 
 CHORD_PROGRESSIONS = _build_chord_progressions_with_urls()
@@ -535,6 +557,10 @@ def get_first_human_player_name(room):
         if not is_bot_player(player):
             return player.get("username")
     return room.player_order[0] if room.player_order else None
+
+
+def usernames_match(name_a, name_b):
+    return str(name_a or "").strip().casefold() == str(name_b or "").strip().casefold()
 
 
 def get_round_starter_name(room):
@@ -2151,7 +2177,12 @@ def build_image_pair_tracker_entries(room):
         if not key or not label:
             continue
         if key not in by_key:
-            by_key[key] = {"key": str(key), "label": label, "indices": []}
+            by_key[key] = {
+                "key": str(key),
+                "label": label,
+                "indices": [],
+                "pair_id": card.get("pair_id"),
+            }
             entries.append(by_key[key])
         by_key[key]["indices"].append(index)
     return entries
@@ -2618,7 +2649,8 @@ def try_match_from_queue():
         for j in range(i + 1, len(matchmaking_queue)):
             p1, p2 = matchmaking_queue[i], matchmaking_queue[j]
             if (p1.get("card_mode") == p2.get("card_mode") and
-                    p1.get("target_language") == p2.get("target_language")):
+                    p1.get("target_language") == p2.get("target_language") and
+                    not usernames_match(p1.get("username"), p2.get("username"))):
                 matchmaking_queue.pop(j)
                 matchmaking_queue.pop(i)
                 break
@@ -4365,6 +4397,22 @@ def handle_preference_changed(data=None):
     broadcast_lobby_browser()
 
 
+@socketio.on("tracker_preview")
+def handle_tracker_preview(data=None):
+    data = data or {}
+    sid = request.sid
+    room = get_room_for_sid(sid)
+    if not room or sid not in room.players:
+        return
+    player_name = room.players[sid].get("name", "")
+    label = str(data.get("label") or "").strip()
+    if not label:
+        return
+    for other_sid in room.players:
+        if other_sid != sid:
+            emit("tracker_preview_notify", {"player": player_name, "label": label}, to=other_sid)
+
+
 @socketio.on("request_lobby_browser")
 def handle_request_lobby_browser():
     emit("lobby_browser_updated", {"rooms": get_available_rooms()})
@@ -4392,6 +4440,19 @@ def handle_join_room_direct(data=None):
         return
     if not prepared_round_is_joinable(target_room):
         emit("direct_join_failed", {"reason": "Huone ei ole vielä valmis."})
+        broadcast_lobby_browser()
+        return
+    same_name_human = next(
+        (
+            info for info in target_room.players.values()
+            if not is_bot_player(info)
+            and usernames_match(info.get("username"), username)
+            and info.get("reconnect_token") != reconnect_token
+        ),
+        None,
+    )
+    if same_name_human:
+        emit("direct_join_failed", {"reason": "Samanniminen pelaaja on jo tässä pelissä. Valitse toinen nimi."})
         broadcast_lobby_browser()
         return
     human_count = sum(1 for info in target_room.players.values() if not is_bot_player(info))
