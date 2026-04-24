@@ -1279,7 +1279,7 @@
 
         let cards = [];
         let matched = new Set();
-        let gomokuState = null;  // {size, whitePlayer, blackPlayer, myColor, currentTurn, lastWhite, lastBlack, winLine}
+        let gomokuState = null;  // {size, whitePlayer, blackPlayer, myColor, currentTurn, lastWhite, lastBlack, winLine, revealBoard, board}
         let imagePairTrackerEntries = [];
         let removedPairKeys = new Set();
         let scheduledPairRemovalKeys = new Set();
@@ -2057,18 +2057,28 @@
                 const [x, y] = gomokuXY(i, size);
                 html += `<rect x="${x - GOMOKU_CELL / 2}" y="${y - GOMOKU_CELL / 2}" width="${GOMOKU_CELL}" height="${GOMOKU_CELL}" data-idx="${i}" class="gomoku-click"/>`;
             }
-            // Stones — only the last stone of each color is visible
-            if (g.lastWhite >= 0) {
-                const [x, y] = gomokuXY(g.lastWhite, size);
-                const isWin = g.winLine && g.winLine.includes(g.lastWhite);
-                html += `<circle cx="${x}" cy="${y}" r="13" fill="white" stroke="#888" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
-                html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa"/>`;
-            }
-            if (g.lastBlack >= 0) {
-                const [x, y] = gomokuXY(g.lastBlack, size);
-                const isWin = g.winLine && g.winLine.includes(g.lastBlack);
-                html += `<circle cx="${x}" cy="${y}" r="13" fill="#1a1a1a" stroke="#444" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
-                html += `<circle cx="${x}" cy="${y}" r="3" fill="#555"/>`;
+            // Stones — during play only the latest stone of each color is visible; after a win reveal the whole board.
+            if (g.revealBoard && g.board) {
+                Object.entries(g.board).forEach(([cellIdx, color]) => {
+                    const numericIdx = Number(cellIdx);
+                    const [x, y] = gomokuXY(numericIdx, size);
+                    const isWhite = color === "white";
+                    const isWin = g.winLine && g.winLine.includes(numericIdx);
+                    html += `<circle cx="${x}" cy="${y}" r="13" fill="${isWhite ? 'white' : '#1a1a1a'}" stroke="${isWhite ? '#888' : '#444'}" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                });
+            } else {
+                if (g.lastWhite >= 0) {
+                    const [x, y] = gomokuXY(g.lastWhite, size);
+                    const isWin = g.winLine && g.winLine.includes(g.lastWhite);
+                    html += `<circle cx="${x}" cy="${y}" r="13" fill="white" stroke="#888" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                    html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa"/>`;
+                }
+                if (g.lastBlack >= 0) {
+                    const [x, y] = gomokuXY(g.lastBlack, size);
+                    const isWin = g.winLine && g.winLine.includes(g.lastBlack);
+                    html += `<circle cx="${x}" cy="${y}" r="13" fill="#1a1a1a" stroke="#444" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                    html += `<circle cx="${x}" cy="${y}" r="3" fill="#555"/>`;
+                }
             }
             svg.innerHTML = html;
             svg.onclick = (evt) => {
@@ -2142,6 +2152,8 @@
                 lastWhite: data.last_white !== undefined ? data.last_white : -1,
                 lastBlack: data.last_black !== undefined ? data.last_black : -1,
                 winLine: null,
+                revealBoard: Boolean(data.reveal_board),
+                board: data.board || {},
             };
             // Store player order for updatePlayers
             const gomokuPlayers = [data.white_player, data.black_player].filter(Boolean);
@@ -2160,6 +2172,12 @@
             gomokuState.lastWhite = data.last_white;
             gomokuState.lastBlack = data.last_black;
             gomokuState.currentTurn = data.next_turn;
+            if (typeof data.reveal_board !== "undefined") {
+                gomokuState.revealBoard = Boolean(data.reveal_board);
+            }
+            if (data.board) {
+                gomokuState.board = data.board;
+            }
             if (data.win_line && data.win_line.length > 0) {
                 gomokuState.winLine = data.win_line;
             }

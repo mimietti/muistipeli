@@ -2849,6 +2849,8 @@ def init_gomoku_round(room):
         "turn": room.gomoku_white_player,
         "last_white": room.gomoku_last_white,
         "last_black": room.gomoku_last_black,
+        "reveal_board": False,
+        "board": {},
     }, room_id=room.room_id)
     schedule_gomoku_bot_turn_if_needed(room)
 
@@ -2967,6 +2969,8 @@ def process_gomoku_place(idx, player_info, room, sid=None):
         "last_white": room.gomoku_last_white, "last_black": room.gomoku_last_black,
         "next_turn": room.player_order[room.turn],
         "own_stone": False,
+        "reveal_board": bool(win_line),
+        "board": dict(room.gomoku_board) if win_line else {},
         "win_line": win_line or [],
     }, room_id=room.room_id)
     if win_line:
@@ -3308,7 +3312,7 @@ def handle_grid_request(data=None):
     room_id = room.room_id if room else "NONE"
     print(f"[INFO] request_grid: token={token_short}, room={room_id}, grid_size={grid_size}, solo={is_solo(room) if room else 'N/A'}, player={player_found}")
 
-    if room.card_mode == "gomoku" and room.status in ("playing", "setup"):
+    if room.card_mode == "gomoku" and room.status in ("playing", "setup", "results"):
         emit("init_gomoku", {
             "size": GOMOKU_SIZE,
             "white_player": room.gomoku_white_player,
@@ -3316,6 +3320,8 @@ def handle_grid_request(data=None):
             "turn": room.player_order[room.turn] if room.player_order else "",
             "last_white": room.gomoku_last_white,
             "last_black": room.gomoku_last_black,
+            "reveal_board": room.status == "results",
+            "board": dict(room.gomoku_board) if room.status == "results" else {},
         })
         return
 
@@ -3385,7 +3391,7 @@ def handle_grid_request(data=None):
 @socketio.on("ready_for_game")
 def handle_ready_for_game():
     room = get_room_for_sid(request.sid)
-    if room.card_mode == "gomoku" and room.status in ("playing", "setup"):
+    if room.card_mode == "gomoku" and room.status in ("playing", "setup", "results"):
         emit("init_gomoku", {
             "size": GOMOKU_SIZE,
             "white_player": room.gomoku_white_player,
@@ -3393,6 +3399,8 @@ def handle_ready_for_game():
             "turn": room.player_order[room.turn] if room.player_order else "",
             "last_white": room.gomoku_last_white,
             "last_black": room.gomoku_last_black,
+            "reveal_board": room.status == "results",
+            "board": dict(room.gomoku_board) if room.status == "results" else {},
         })
         return
     if room.grid_data and len(room.grid_data) == 16:
