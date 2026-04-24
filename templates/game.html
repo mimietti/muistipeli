@@ -2528,12 +2528,6 @@
             const rematchBtn = document.getElementById("gomoku-rematch-btn");
             if (msg) msg.textContent = t("rematch_both_ready");
             if (rematchBtn) rematchBtn.disabled = true;
-            try {
-                sessionStorage.setItem("pending_same_settings_rematch", "1");
-            } catch (_) {}
-            setTimeout(() => {
-                navigateTo("/waiting");
-            }, 600);
         });
 
         socket.on("summary_error", () => {
