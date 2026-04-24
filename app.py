@@ -2046,6 +2046,15 @@ def launch_grid_round(room):
     schedule_bot_turn_if_needed(room)
 
 
+def launch_gomoku_round(room):
+    has_bot = any(info.get("is_bot") for info in room.players.values())
+    if queue_can_prepare_round_while_waiting(room) and not has_bot:
+        emit_queue_round_prepared(room)
+        return
+    room.queue_round_prepared = False
+    init_gomoku_round(room)
+
+
 def conclude_round(winner_label, room, surrendered_by=None):
     clear_audio_preview_lock(room)
     room.last_round_starter = room.round_starter
@@ -2679,13 +2688,21 @@ def build_lobby_payload(room):
     }
 
 
+def prepared_round_is_joinable(room):
+    if not room or not room.queue_round_prepared:
+        return False
+    if room.card_mode == "gomoku":
+        return True
+    return len(room.grid_data) == 16
+
+
 def get_available_rooms():
     """Rooms with exactly 1 waiting connected human player (available for direct join)."""
     result = []
     for room_id, room in rooms.items():
         if room.status != "waiting":
             continue
-        if not room.queue_round_prepared or len(room.grid_data) != 16:
+        if not prepared_round_is_joinable(room):
             continue
         human_players = [
             (sid, info) for sid, info in room.players.items()
@@ -2704,6 +2721,7 @@ def get_available_rooms():
             "target_language": room.target_language or "",
             "pending_theme": room.pending_theme or "",
             "word_filter_mode": room.word_filter_mode or "clear",
+            "gomoku_size": room.gomoku_size,
         })
     return result
 
@@ -3328,6 +3346,11 @@ def handle_grid_request(data=None):
     room_id = room.room_id if room else "NONE"
     print(f"[INFO] request_grid: token={token_short}, room={room_id}, grid_size={grid_size}, solo={is_solo(room) if room else 'N/A'}, player={player_found}")
 
+    if room.card_mode == "gomoku" and room.queue_round_prepared and queue_can_prepare_round_while_waiting(room):
+        emit("queue_round_prepared", build_lobby_payload(room))
+        emit("no_grid", {"reason": "queue_round_prepared"})
+        return
+
     if room.card_mode == "gomoku" and room.status in ("playing", "setup", "results"):
         emit("init_gomoku", {
             "size": room.gomoku_size or GOMOKU_SIZE,
@@ -3407,6 +3430,10 @@ def handle_grid_request(data=None):
 @socketio.on("ready_for_game")
 def handle_ready_for_game():
     room = get_room_for_sid(request.sid)
+    if room.card_mode == "gomoku" and room.queue_round_prepared and queue_can_prepare_round_while_waiting(room):
+        emit("queue_round_prepared", build_lobby_payload(room))
+        emit("no_grid", {"reason": "queue_round_prepared"})
+        return
     if room.card_mode == "gomoku" and room.status in ("playing", "setup", "results"):
         emit("init_gomoku", {
             "size": room.gomoku_size or GOMOKU_SIZE,
@@ -3504,7 +3531,6 @@ def handle_start_custom_game(data=None):
     if mode == "gomoku":
         room.card_mode = "gomoku"
         room.game_mode = "gomoku"
-        room.status = "setup"
         room.gomoku_size = gomoku_size
         all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
         room.ui_language = ui_language if ui_language in all_ui_langs else "en"
@@ -3512,7 +3538,17 @@ def handle_start_custom_game(data=None):
             room.bot_difficulty = bot_difficulty if bot_difficulty in BOT_MEMORY_USE_PROBABILITY else "easy"
         room.player_order = [v["username"] for v in get_effective_players_ordered(room)]
         room.round_starter = get_round_starter_name(room)
-        init_gomoku_round(room)
+        if queue_prepare_mode:
+            room.status = "waiting"
+            for player in room.players.values():
+                if is_bot_player(player):
+                    continue
+                player["pref_ready"] = True
+                player["in_waiting"] = True
+            emit_queue_round_prepared(room)
+            return
+        room.status = "setup"
+        launch_gomoku_round(room)
         return
     if mode not in {"manual", "theme", "random", "chords", "same_chords", "gomoku"}:
         mode = "manual"
@@ -4351,7 +4387,7 @@ def handle_join_room_direct(data=None):
         emit("direct_join_failed", {"reason": "Peli on jo alkanut."})
         broadcast_lobby_browser()
         return
-    if not target_room.queue_round_prepared or len(target_room.grid_data) != 16:
+    if not prepared_round_is_joinable(target_room):
         emit("direct_join_failed", {"reason": "Huone ei ole vielä valmis."})
         broadcast_lobby_browser()
         return
@@ -4382,6 +4418,7 @@ def handle_join_room_direct(data=None):
         "in_waiting": True,
         "pref_card_mode": target_room.card_mode,
         "pref_target_language": target_room.target_language,
+        "pref_gomoku_size": target_room.gomoku_size,
         "pref_ready": True,
     }
     target_room.play_mode = "multiplayer"
@@ -4395,7 +4432,10 @@ def handle_join_room_direct(data=None):
     broadcast_lobby_browser()
     target_room.player_order = [info["username"] for info in get_effective_players_ordered(target_room)]
     target_room.last_tokens = set(v["reconnect_token"] for v in get_effective_players_ordered(target_room))
-    launch_grid_round(target_room)
+    if target_room.card_mode == "gomoku":
+        launch_gomoku_round(target_room)
+    else:
+        launch_grid_round(target_room)
 
 
 @socketio.on("start_waiting_bot_round")
@@ -4407,7 +4447,7 @@ def handle_start_waiting_bot_round(data=None):
         return
 
     room = resolve_room_for_event(data, player_info)
-    if room.play_mode != "queue" or not room.queue_round_prepared or len(room.grid_data) != 16:
+    if room.play_mode != "queue" or not prepared_round_is_joinable(room):
         emit("queue_bot_failed", {"reason": "Kierros ei ole vielä valmis."})
         return
 
@@ -4424,7 +4464,10 @@ def handle_start_waiting_bot_round(data=None):
     room.player_order = [info["username"] for info in get_effective_players_ordered(room)]
     room.last_tokens = set(v["reconnect_token"] for v in get_effective_players_ordered(room))
     broadcast_lobby_browser()
-    launch_grid_round(room)
+    if room.card_mode == "gomoku":
+        launch_gomoku_round(room)
+    else:
+        launch_grid_round(room)
 
 
 @socketio.on("edit_prepared_queue")
@@ -4454,6 +4497,9 @@ def handle_edit_prepared_queue(data=None):
         owner_info["pref_ready"] = False
         room.card_mode = owner_info.get("pref_card_mode") or room.card_mode
         room.target_language = owner_info.get("pref_target_language") or ""
+        owner_gomoku_size = owner_info.get("pref_gomoku_size")
+        if owner_gomoku_size in GOMOKU_ALLOWED_SIZES:
+            room.gomoku_size = owner_gomoku_size
     payload = build_lobby_payload(room)
     emit_to_room("player_joined", payload, room_id=room.room_id)
     broadcast_lobby_browser()
