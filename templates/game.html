@@ -1700,30 +1700,58 @@
             const targetAudio = new Audio(cardData.audio);
             targetAudio.preload = "auto";
             activeChordPreview.target = targetAudio;
-            targetAudio.onended = () => {
+            let targetFallbackTimer = null;
+            const finishTarget = () => {
+                clearTimeout(targetFallbackTimer);
                 if (activeChordPreview.token === previewToken) {
                     activeChordPreview.target = null;
                     markPreviewFinished();
                 }
             };
+            targetAudio.onloadedmetadata = () => {
+                if (targetFallbackTimer !== null) {
+                    clearTimeout(targetFallbackTimer);
+                    targetFallbackTimer = setTimeout(finishTarget, Math.round((targetAudio.duration || 5) * 1000) + 500);
+                }
+            };
+            targetAudio.onended = finishTarget;
+            targetAudio.onerror = finishTarget;
 
+            let targetStarted = false;
             const startTargetAudio = () => {
-                if (activeChordPreview.token !== previewToken) return;
+                if (targetStarted || activeChordPreview.token !== previewToken) return;
+                targetStarted = true;
+                clearTimeout(refFallbackTimer);
                 activeChordPreview.reference = null;
-                targetAudio.play().catch(() => markPreviewFinished());
+                targetFallbackTimer = setTimeout(finishTarget, 8000);
+                targetAudio.play().catch(finishTarget);
             };
 
             if (!cardData.reference_audio) {
-                targetAudio.play().catch(() => markPreviewFinished());
+                targetFallbackTimer = setTimeout(finishTarget, 8000);
+                targetAudio.play().catch(finishTarget);
                 return;
             }
 
             const referenceAudio = new Audio(cardData.reference_audio);
             referenceAudio.preload = "auto";
             activeChordPreview.reference = referenceAudio;
+
+            let refFallbackTimer = setTimeout(() => {
+                if (activeChordPreview.token === previewToken) startTargetAudio();
+            }, 8000);
+            referenceAudio.onloadedmetadata = () => {
+                clearTimeout(refFallbackTimer);
+                refFallbackTimer = setTimeout(() => {
+                    if (activeChordPreview.token === previewToken) startTargetAudio();
+                }, Math.round((referenceAudio.duration || 5) * 1000) + 500);
+            };
             referenceAudio.onended = () => {
                 if (activeChordPreview.token !== previewToken) return;
                 startTargetAudio();
+            };
+            referenceAudio.onerror = () => {
+                if (activeChordPreview.token === previewToken) startTargetAudio();
             };
             referenceAudio.play().catch(() => {
                 if (activeChordPreview.token === previewToken) startTargetAudio();
