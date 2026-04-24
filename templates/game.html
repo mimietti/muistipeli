@@ -2423,13 +2423,14 @@
                 renderGomokuRematchStatus([], (gomokuState && [gomokuState.whitePlayer, gomokuState.blackPlayer].filter(Boolean)) || []);
             });
             document.getElementById("gomoku-rematch-exit")?.addEventListener("click", () => {
-                socket.emit("leave_summary", {
+                socket.emit("leave_game", {
                     reconnect_token: getReconnectToken(),
                     username: myName,
                 });
                 try { sessionStorage.removeItem("summary_result"); } catch (_) {}
                 try { sessionStorage.removeItem("pending_same_settings_rematch"); } catch (_) {}
                 try { localStorage.removeItem("memory_summary_round_wins"); } catch (_) {}
+                try { localStorage.removeItem("reconnect_token"); } catch (_) {}
                 navigateTo("/");
             });
 

@@ -538,16 +538,19 @@ def get_first_human_player_name(room):
 
 
 def get_round_starter_name(room):
-    human_names = [
+    candidate_names = [name for name in room.player_order if name] if room.player_order else [
         data.get("username")
-        for _, data in get_effective_human_player_items(room)
+        for _, data in get_effective_players_ordered(room)
         if data.get("username")
     ]
-    if not human_names:
-        return room.player_order[0] if room.player_order else None
-    if len(human_names) == 2 and room.last_round_starter in human_names:
-        return human_names[1] if human_names[0] == room.last_round_starter else human_names[0]
-    return human_names[0]
+    if not candidate_names:
+        return None
+    if len(candidate_names) == 1:
+        return candidate_names[0]
+    if room.last_round_starter in candidate_names:
+        starter_index = candidate_names.index(room.last_round_starter)
+        return candidate_names[(starter_index + 1) % len(candidate_names)]
+    return random.choice(candidate_names)
 
 
 def queue_can_prepare_round_while_waiting(room):
