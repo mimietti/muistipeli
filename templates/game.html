@@ -1016,6 +1016,7 @@
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
                 pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env.",
                 gomoku_occupied: "That spot was taken — your turn is forfeited.",
+                gomoku_occupied_opponent: "{player} tried an occupied cell — your turn!",
                 gomoku_own_stone: "You placed on your own stone.",
                 gomoku_not_your_turn: "It's not your turn yet.",
                 gomoku_not_ready: "The board is not ready for a move yet.",
@@ -1110,6 +1111,7 @@
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta.",
                 gomoku_occupied: "Paikka oli jo varattu — menetit vuorosi.",
+                gomoku_occupied_opponent: "{player} yritti varattuun paikkaan — sinun siirtosi!",
                 gomoku_own_stone: "Asetit oman nappulasi päälle.",
                 gomoku_not_your_turn: "Ei ole vielä sinun vuorosi.",
                 gomoku_not_ready: "Lauta ei ole vielä valmis siirrolle.",
@@ -2556,6 +2558,8 @@
             updatePlayers();
             if (data.penalty_player === myName) {
                 showToast(t("gomoku_occupied"));
+            } else {
+                showToast(t("gomoku_occupied_opponent", { player: data.penalty_player }));
             }
         });
 
