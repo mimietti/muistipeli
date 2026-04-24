@@ -263,9 +263,13 @@
             cursor: pointer;
             font-family: inherit;
         }
-        button.image-pair-chip:hover {
+        button.image-pair-chip:hover:not(:disabled) {
             background: rgba(255,255,255,0.12);
             border-color: rgba(255,255,255,0.25);
+        }
+        button.image-pair-chip:disabled {
+            opacity: 0.4;
+            cursor: default;
         }
         .card {
             width: 100%;
@@ -1018,6 +1022,7 @@
                 gomoku_occupied: "That spot was taken — your turn is forfeited.",
                 gomoku_occupied_opponent: "{player} tried an occupied cell — your turn!",
                 gomoku_own_stone: "You placed on your own stone.",
+                tracker_preview_notify: "Opponent listened to: {label}",
                 gomoku_not_your_turn: "It's not your turn yet.",
                 gomoku_not_ready: "The board is not ready for a move yet.",
                 gomoku_move_rejected: "The move could not be played.",
@@ -1113,6 +1118,7 @@
                 gomoku_occupied: "Paikka oli jo varattu — menetit vuorosi.",
                 gomoku_occupied_opponent: "{player} yritti varattuun paikkaan — sinun siirtosi!",
                 gomoku_own_stone: "Asetit oman nappulasi päälle.",
+                tracker_preview_notify: "Vastustaja kuunteli: {label}",
                 gomoku_not_your_turn: "Ei ole vielä sinun vuorosi.",
                 gomoku_not_ready: "Lauta ei ole vielä valmis siirrolle.",
                 gomoku_move_rejected: "Siirtoa ei voitu tehdä.",
@@ -1434,6 +1440,7 @@
         let scheduledPairRemovalKeys = new Set();
         let revealedOrder = [];
         let currentTurn = null;
+        let trackerPreviewUsedThisTurn = false;
         let currentTranslationHint = null;
         let currentBotDifficulty = (function() {
             try { return sessionStorage.getItem("bot_difficulty") || "easy"; } catch (_) { return "easy"; }
@@ -1926,17 +1933,25 @@
                 return;
             }
             const isChordMode = window.currentCardMode === "chords" || window.currentCardMode === "same_chords";
+            const isMyTurn = isSoloMode || currentTurn === myName;
+            const canPreview = isChordMode && isMyTurn && !trackerPreviewUsedThisTurn;
             const chips = entries.map((entry) => {
                 const found = entry.indices.length > 0 && entry.indices.every((index) => matched.has(index));
-                const clickable = isChordMode && !found;
-                const item = document.createElement(clickable ? "button" : "div");
+                const clickable = canPreview && !found;
+                const item = document.createElement(isChordMode && !found ? "button" : "div");
                 item.className = found ? "image-pair-chip found" : "image-pair-chip";
-                if (clickable) item.type = "button";
+                if (isChordMode && !found) {
+                    item.type = "button";
+                    item.disabled = !clickable;
+                }
                 item.textContent = nashvilleChipLabel(entry);
                 if (clickable) {
                     item.addEventListener("click", () => {
+                        if (trackerPreviewUsedThisTurn) return;
                         const audioCard = entry.indices.map(i => cards[i]).find(c => c && c.card_type === "audio");
                         if (!audioCard) return;
+                        trackerPreviewUsedThisTurn = true;
+                        renderImagePairTracker();
                         playTrackerPreview(audioCard);
                         socket.emit("tracker_preview", { label: nashvilleChipLabel(entry) });
                     });
@@ -2592,7 +2607,7 @@
         });
 
         socket.on("tracker_preview_notify", (data) => {
-            showToast(`${data.player}: ${data.label}`);
+            showToast(t("tracker_preview_notify", { label: data.label }));
         });
 
         window.addEventListener("resize", () => {
@@ -2645,6 +2660,7 @@
         // Kun peli käynnistyy, aseta front-flag
         socket.on("init_grid", (data) => {
             stopChordPreview();
+            trackerPreviewUsedThisTurn = false;
             // Hide gomoku board if switching back to card mode
             gomokuState = null;
             document.getElementById("gomoku-wrap").style.display = "none";
@@ -2868,7 +2884,9 @@
         socket.on("update_turn", (data) => {
             console.log("[DEBUG] Vuoro vaihtui:", data.turn);
             currentTurn = data.turn;
+            trackerPreviewUsedThisTurn = false;
             updatePlayers();
+            renderImagePairTracker();
         });
 
         socket.on("reveal_card", (data) => {
@@ -2889,6 +2907,7 @@
         socket.on("hide_cards", (data) => {
             console.log("[DEBUG] Piilotetaan kortit:", data.indices);
             stopChordPreview();
+            trackerPreviewUsedThisTurn = false;
             revealedOrder = revealedOrder.filter((index) => !data.indices.includes(index));
             data.indices.forEach(i => {
                 const card = document.getElementById(`card-${i}`);
