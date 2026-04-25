@@ -2891,7 +2891,7 @@ def choose_gomoku_bot_move(room):
         perceived[idx] = opp_color
         if gomoku_check_win(perceived, idx, size=size):
             del perceived[idx]
-            if difficulty != "easy" or random.random() < 0.6:
+            if difficulty != "easy" or random.random() < 0.8:
                 return idx
         del perceived[idx]
     # 3. Capture 2 opponent stones (capture pairs mode)
