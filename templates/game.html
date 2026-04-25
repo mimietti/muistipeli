@@ -2461,28 +2461,38 @@
                 const n = wh.length + bh.length > 0 ? Math.max(wh.length, bh.length) : 1;
                 // Render older stones first so the newest is on top
                 const maxLen = Math.max(wh.length, bh.length);
+                const vp = g.visiblePairs || 1;
+                // opacity: 0.25 only for the stone that will be removed next move (oldest when history is full)
+                // other stones scale 0.55–0.85
+                function stoneOpacity(histIdx, histLen) {
+                    const isFull = histLen >= vp;
+                    if (isFull && histIdx === 0) return 0.25;
+                    const activeCount = isFull ? histLen - 1 : histLen;
+                    if (activeCount <= 1) return 0.85;
+                    const effIdx = isFull ? histIdx - 1 : histIdx;
+                    const ageFromNewest = activeCount - 1 - effIdx;
+                    return Math.round((0.55 + 0.3 * (1 - ageFromNewest / (activeCount - 1))) * 100) / 100;
+                }
                 for (let i = 0; i < maxLen; i++) {
-                    // i=0 is oldest, i=maxLen-1 is newest
-                    const age = maxLen - 1 - i;  // 0 = newest, increases for older
-                    // opacity: newest=0.85, oldest=0.25
-                    const opacity = maxLen <= 1 ? 0.85 : Math.round((0.25 + 0.6 * (1 - age / (maxLen - 1))) * 100) / 100;
                     if (i < wh.length) {
+                        const opW = stoneOpacity(i, wh.length);
                         const widx = wh[i];
                         const [x, y] = gomokuXY(widx, size);
                         const isWin = g.winLine && g.winLine.includes(widx);
                         const isLast = widx === g.lastPlacedIdx && g.lastPlacedColor === "white";
-                        html += `<circle cx="${x}" cy="${y}" r="13" fill="white" stroke="#888" stroke-width="1.5" opacity="${opacity}" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
-                        if (age === 0) html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa" opacity="${opacity}"/>`;
-                        if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#555" stroke-width="1.5" opacity="${opacity}"/>`;
+                        html += `<circle cx="${x}" cy="${y}" r="13" fill="white" stroke="#888" stroke-width="1.5" opacity="${opW}" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                        if (i === wh.length - 1) html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa" opacity="${opW}"/>`;
+                        if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#555" stroke-width="1.5" opacity="${opW}"/>`;
                     }
                     if (i < bh.length) {
+                        const opB = stoneOpacity(i, bh.length);
                         const bidx = bh[i];
                         const [x, y] = gomokuXY(bidx, size);
                         const isWin = g.winLine && g.winLine.includes(bidx);
                         const isLast = bidx === g.lastPlacedIdx && g.lastPlacedColor === "black";
-                        html += `<circle cx="${x}" cy="${y}" r="13" fill="#1a1a1a" stroke="#444" stroke-width="1.5" opacity="${opacity}" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
-                        if (age === 0) html += `<circle cx="${x}" cy="${y}" r="3" fill="#555" opacity="${opacity}"/>`;
-                        if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#aaa" stroke-width="1.5" opacity="${opacity}"/>`;
+                        html += `<circle cx="${x}" cy="${y}" r="13" fill="#1a1a1a" stroke="#444" stroke-width="1.5" opacity="${opB}" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                        if (i === bh.length - 1) html += `<circle cx="${x}" cy="${y}" r="3" fill="#555" opacity="${opB}"/>`;
+                        if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#aaa" stroke-width="1.5" opacity="${opB}"/>`;
                     }
                 }
             }
