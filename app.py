@@ -384,7 +384,7 @@ def _build_chord_progressions_with_urls():
         label = normalize_chord_progression_label(prog.get("label"))
         urls = [url_map.get(c) for c in prog["chords"]]
         if all(urls):
-            result.append({"label": label, "audio_sequence": urls + [urls[0]]})
+            result.append({"label": label, "audio_sequence": urls})
         else:
             missing = [c for c in prog["chords"] if not url_map.get(c)]
             print(f"[WARNING] Progression '{label}' missing chords: {missing}")
@@ -1914,8 +1914,7 @@ def append_chord_progression_pair_to_grid(prog, room, pair_index=None):
     audio_sequence = prog.get("audio_sequence") or []
     if not label or not audio_sequence:
         return False
-    reference_audio_url = (CHORD_REFERENCE_ENTRY or {}).get("url") or (audio_sequence[0] if audio_sequence else None)
-    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence, "reference_audio": reference_audio_url}
+    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence, "reference_audio": None}
     room.grid_data.append({"pair_id": pair_id, "card_type": "word", "text": label, **common})
     room.grid_data.append({"pair_id": pair_id, "card_type": "audio", **common})
     return True
@@ -1930,8 +1929,7 @@ def append_same_chord_progression_pair_to_grid(prog, room, pair_index=None):
     audio_sequence = prog.get("audio_sequence") or []
     if not label or not audio_sequence:
         return False
-    reference_audio_url = (CHORD_REFERENCE_ENTRY or {}).get("url") or (audio_sequence[0] if audio_sequence else None)
-    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence, "reference_audio": reference_audio_url, "pair_id": pair_id, "card_type": "audio"}
+    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence, "reference_audio": None, "pair_id": pair_id, "card_type": "audio"}
     room.grid_data.append(dict(common))
     room.grid_data.append(dict(common))
     return True
