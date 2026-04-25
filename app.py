@@ -2722,6 +2722,8 @@ def build_lobby_payload(room):
         "bot_difficulty": room.bot_difficulty,
         "word_filter_mode": room.word_filter_mode,
         "gomoku_size": room.gomoku_size,
+        "gomoku_visible_pairs": room.gomoku_visible_pairs,
+        "gomoku_capture_pairs": room.gomoku_capture_pairs,
         "players": usernames,
         "players_info": infos,
         "last_joined_token": last_token,

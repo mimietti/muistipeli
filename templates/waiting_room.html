@@ -226,6 +226,77 @@
             margin-bottom: 7px;
             padding-left: 2px;
         }
+        .option-group-label-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 7px;
+            position: relative;
+        }
+        .option-group-label-row .option-group-label {
+            margin-bottom: 0;
+        }
+        .help-popover-wrap {
+            position: relative;
+            display: inline-flex;
+        }
+        .help-popover-btn {
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.07);
+            color: #dfe8df;
+            font-size: 14px;
+            line-height: 1;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        .help-popover-btn:hover,
+        .help-popover-btn:focus-visible {
+            background: rgba(124,245,138,0.14);
+            border-color: rgba(124,245,138,0.42);
+            color: #7cf58a;
+            outline: none;
+        }
+        .help-popover {
+            position: absolute;
+            left: 0;
+            top: calc(100% + 8px);
+            z-index: 20;
+            width: min(320px, calc(100vw - 44px));
+            padding: 12px 36px 12px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: #18201b;
+            color: #e8f0e8;
+            box-shadow: 0 14px 36px rgba(0,0,0,0.35);
+            font-size: 14px;
+            line-height: 1.45;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        .help-popover[hidden] {
+            display: none;
+        }
+        .help-popover-close {
+            position: absolute;
+            top: 7px;
+            right: 7px;
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.06);
+            color: #e8f0e8;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+        }
         .option-group-btns {
             display: flex;
             flex-wrap: wrap;
@@ -1154,7 +1225,16 @@
                 </div>
             </div>
             <div class="option-group" id="gomokuVisiblePairsPicker" style="display:none;">
-                <div class="option-group-label" id="labelGomokuVisiblePairs">Recognizable move pairs</div>
+                <div class="option-group-label-row">
+                    <div class="option-group-label" id="labelGomokuVisiblePairs">Visible pairs</div>
+                    <span class="help-popover-wrap" id="gomokuVisiblePairsHelpWrap">
+                        <button type="button" class="help-popover-btn" id="gomokuVisiblePairsHelpBtn" aria-expanded="false" aria-controls="gomokuVisiblePairsHelpText">?</button>
+                        <span class="help-popover" id="gomokuVisiblePairsHelpText" role="dialog" aria-live="polite" hidden>
+                            <span id="gomokuVisiblePairsHelpCopy">Choose how many previous move pairs are shown.</span>
+                            <button type="button" class="help-popover-close" id="gomokuVisiblePairsHelpClose" aria-label="Close">x</button>
+                        </span>
+                    </span>
+                </div>
                 <div class="option-group-btns" id="gomokuVisiblePairsBtns">
                     <button class="opt-btn" data-gomoku-visible-pairs="1" id="gomokuVP1">1</button>
                     <button class="opt-btn" data-gomoku-visible-pairs="2" id="gomokuVP2">2</button>
@@ -1317,6 +1397,8 @@
                 queue_summary_cards: "Cards",
                 queue_summary_language: "Language",
                 queue_summary_word_style: "Vocabulary",
+                queue_summary_on: "On",
+                queue_summary_off: "Off",
                 queue_source_manual: "Own words",
                 queue_source_manual_images: "Own image ideas",
                 queue_source_theme: "Theme",
@@ -1333,10 +1415,11 @@
                 label_card_mode: "Cards",
                 label_lang: "Target language",
                 label_word_filter_mode: "Vocabulary",
-                label_image_filter_mode: "Vocabulary",
+                label_image_filter_mode: "Image set",
                 label_bot_difficulty: "Bot difficulty",
                 label_gomoku_size: "Board size",
-                label_gomoku_visible_pairs: "Recognizable move pairs",
+                label_gomoku_visible_pairs: "Number of visible pairs",
+                gomoku_visible_pairs_help: "Choose how many previous move pairs are shown. Older pieces stay on the board, but you only know whose they are if you remember them.",
                 label_gomoku_capture_pairs: "Pair capture",
                 bot_difficulty_summary: "Difficulty: {difficulty}",
                 word_filter_clear: "Clear",
@@ -1358,7 +1441,8 @@
                 enter_random: "Random",
                 setup_status_random: "Finding random words...",
                 setup_status_random_creating: "Creating cards...",
-                start_round: "Prepare cards"
+                start_round: "Prepare cards",
+                start_gomoku: "Start game"
             },
             fi: {
                 page_title: "Odotushuone",
@@ -1474,6 +1558,8 @@
                 queue_summary_cards: "Kortit",
                 queue_summary_language: "Kieli",
                 queue_summary_word_style: "Sanasto",
+                queue_summary_on: "Päällä",
+                queue_summary_off: "Pois",
                 queue_source_manual: "Omat sanat",
                 queue_source_manual_images: "Omat ideat",
                 queue_source_theme: "Teema",
@@ -1490,10 +1576,11 @@
                 label_card_mode: "Kortit",
                 label_lang: "Opiskeltava kieli",
                 label_word_filter_mode: "Sanasto",
-                label_image_filter_mode: "Sanasto",
+                label_image_filter_mode: "Kuvavalikoima",
                 label_bot_difficulty: "Botin vaikeusaste",
                 label_gomoku_size: "Laudan koko",
-                label_gomoku_visible_pairs: "Tunnistettavat siirtoparit",
+                label_gomoku_visible_pairs: "Näkyvien parien määrä",
+                gomoku_visible_pairs_help: "Valitaan montako edellistä siirtoparia näytetään. Sitä vanhemmat nappulat pysyvät laudalla, mutta niistä ei enää tiedä kuin muistamalla kumman ne ovat.",
                 label_gomoku_capture_pairs: "Kahden kaappaus",
                 bot_difficulty_summary: "Vaikeusaste: {difficulty}",
                 word_filter_clear: "Selkeät",
@@ -1515,12 +1602,13 @@
                 enter_random: "Satunnaiset",
                 setup_status_random: "Etsitään satunnaisia sanoja...",
                 setup_status_random_creating: "Luodaan kortteja...",
-                start_round: "Valmistele kortit"
+                start_round: "Valmistele kortit",
+                start_gomoku: "Aloita peli"
             },
             sv: {
                 bot_difficulty_summary: "Svårighetsgrad: {difficulty}",
-                label_word_filter_mode: "Ordtyp",
                 label_word_filter_mode: "Ordförråd",
+                label_image_filter_mode: "Bilduppsättning",
                 card_mode_chords: "Ackord",
                 card_mode_same_chords: "Not + not",
                 card_mode_gomoku: "Minnesgomoku",
@@ -1537,6 +1625,7 @@
             de: {
                 bot_difficulty_summary: "Schwierigkeit: {difficulty}",
                 label_word_filter_mode: "Wortschatz",
+                label_image_filter_mode: "Bildauswahl",
                 card_mode_chords: "Akkorde",
                 card_mode_same_chords: "Note + Note",
                 card_mode_gomoku: "Gedächtnis-Gomoku",
@@ -1553,6 +1642,7 @@
             fr: {
                 bot_difficulty_summary: "Difficulté : {difficulty}",
                 label_word_filter_mode: "Vocabulaire",
+                label_image_filter_mode: "Images",
                 card_mode_chords: "Accords",
                 card_mode_same_chords: "Note + note",
                 card_mode_gomoku: "Gomoku mémoire",
@@ -1569,6 +1659,7 @@
             es: {
                 bot_difficulty_summary: "Dificultad: {difficulty}",
                 label_word_filter_mode: "Vocabulario",
+                label_image_filter_mode: "Imágenes",
                 card_mode_chords: "Acordes",
                 card_mode_same_chords: "Nota + nota",
                 card_mode_gomoku: "Gomoku de memoria",
@@ -1585,6 +1676,7 @@
             it: {
                 bot_difficulty_summary: "Difficoltà: {difficulty}",
                 label_word_filter_mode: "Vocabolario",
+                label_image_filter_mode: "Immagini",
                 card_mode_chords: "Accordi",
                 card_mode_same_chords: "Nota + nota",
                 card_mode_gomoku: "Gomoku memoria",
@@ -1601,6 +1693,7 @@
             pt: {
                 bot_difficulty_summary: "Dificuldade: {difficulty}",
                 label_word_filter_mode: "Vocabulário",
+                label_image_filter_mode: "Imagens",
                 card_mode_chords: "Acordes",
                 card_mode_same_chords: "Nota + nota",
                 card_mode_gomoku: "Gomoku da memória",
@@ -1700,6 +1793,11 @@
                 value = value.replaceAll(`{${name}}`, String(replacement));
             });
             return value;
+        }
+
+        function getStartRoundButtonText() {
+            const cardMode = window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word";
+            return cardMode === "gomoku" ? t("start_gomoku") : t("start_round");
         }
 
         function getDifficultyLabel(code, lang = getLanguage()) {
@@ -1813,16 +1911,29 @@
             }
 
             const chips = [];
-            chips.push([t("queue_summary_word_source"), getQueueWordSourceLabel(payload.game_mode || "random", payload.card_mode || "image_word")]);
+            const cardMode = payload.card_mode || "image_word";
+            const gameMode = payload.game_mode || "random";
+            const wordSourceLabel = getQueueWordSourceLabel(gameMode, cardMode);
+            if (wordSourceLabel) {
+                chips.push([t("queue_summary_word_source"), wordSourceLabel]);
+            }
             if (payload.pending_theme) {
                 chips.push([t("queue_summary_theme"), payload.pending_theme]);
             }
-            chips.push([t("queue_summary_cards"), getQueueCardModeLabel(payload.card_mode || "image_word")]);
-            if (!["images", "chords"].includes(payload.card_mode) && payload.target_language) {
+            chips.push([t("queue_summary_cards"), getQueueCardModeLabel(cardMode)]);
+            if (cardMode === "gomoku") {
+                chips.push([t("label_gomoku_size"), `${payload.gomoku_size || 13}x${payload.gomoku_size || 13}`]);
+                chips.push([t("label_gomoku_visible_pairs"), String(payload.gomoku_visible_pairs || 5)]);
+                if (typeof payload.gomoku_capture_pairs === "boolean") {
+                    chips.push([t("label_gomoku_capture_pairs"), payload.gomoku_capture_pairs ? t("queue_summary_on") : t("queue_summary_off")]);
+                }
+            }
+            if (!["images", "chords", "same_chords", "gomoku"].includes(cardMode) && payload.target_language) {
                 chips.push([t("queue_summary_language"), getQueueLanguageLabel(payload.target_language)]);
             }
-            if ((payload.game_mode === "theme" || payload.game_mode === "random") && payload.card_mode !== "chords") {
-                chips.push([t("queue_summary_word_style"), getQueueWordFilterLabel(payload.word_filter_mode || "clear", payload.card_mode || "image_word")]);
+            const wordFilterLabel = getQueueWordFilterLabel(payload.word_filter_mode || "clear", cardMode);
+            if ((gameMode === "theme" || gameMode === "random") && wordFilterLabel) {
+                chips.push([t("queue_summary_word_style"), wordFilterLabel]);
             }
 
             titleEl.textContent = t("queue_summary_title");
@@ -1873,6 +1984,8 @@
             el("labelWordFilterMode").textContent = t(imagesOnly ? "label_image_filter_mode" : "label_word_filter_mode");
             el("labelBotDifficulty").textContent = t("label_bot_difficulty");
             el("labelGomokuVisiblePairs").textContent = t("label_gomoku_visible_pairs");
+            el("gomokuVisiblePairsHelpCopy").textContent = t("gomoku_visible_pairs_help");
+            el("gomokuVisiblePairsHelpClose").setAttribute("aria-label", t("settings_close"));
             el("labelGomokuCapturePairs").textContent = t("label_gomoku_capture_pairs");
             el("srcManualBtn").textContent = t(imagesOnly ? "enter_words_images" : "enter_words");
             el("srcThemeBtn").textContent = t(imagesOnly ? "enter_theme_images" : "enter_theme");
@@ -1898,7 +2011,7 @@
             el("botDifficultyEasy").textContent = getDifficultyLabel("easy");
             el("botDifficultyMedium").textContent = getDifficultyLabel("medium");
             el("botDifficultyHard").textContent = getDifficultyLabel("hard");
-            el("startRoundBtn").textContent = t("start_round");
+            el("startRoundBtn").textContent = getStartRoundButtonText();
             el("pageTitle").textContent = t(titleKey);
             el("introText").textContent = t(introKey);
             el("exitGameBtn").textContent = t("exit_game");
@@ -1948,6 +2061,35 @@
         document.querySelectorAll("[data-close-settings]").forEach((el) => el.addEventListener("click", closeSettings));
         document.addEventListener("keydown", (event) => {
             if (event.key === "Escape") closeSettings();
+        });
+
+        const gomokuHelpWrap = document.getElementById("gomokuVisiblePairsHelpWrap");
+        const gomokuHelpBtn = document.getElementById("gomokuVisiblePairsHelpBtn");
+        const gomokuHelpText = document.getElementById("gomokuVisiblePairsHelpText");
+        const gomokuHelpClose = document.getElementById("gomokuVisiblePairsHelpClose");
+        function setGomokuHelpOpen(open) {
+            if (!gomokuHelpBtn || !gomokuHelpText) return;
+            gomokuHelpText.hidden = !open;
+            gomokuHelpBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        }
+        gomokuHelpBtn?.addEventListener("click", (event) => {
+            event.stopPropagation();
+            setGomokuHelpOpen(gomokuHelpText ? gomokuHelpText.hidden : true);
+        });
+        gomokuHelpWrap?.addEventListener("mouseenter", () => setGomokuHelpOpen(true));
+        gomokuHelpWrap?.addEventListener("mouseleave", () => setGomokuHelpOpen(false));
+        gomokuHelpClose?.addEventListener("click", (event) => {
+            event.stopPropagation();
+            setGomokuHelpOpen(false);
+            gomokuHelpBtn?.focus();
+        });
+        document.addEventListener("click", (event) => {
+            if (gomokuHelpWrap && !gomokuHelpWrap.contains(event.target)) {
+                setGomokuHelpOpen(false);
+            }
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") setGomokuHelpOpen(false);
         });
 
         function safeUUID() {
@@ -2077,7 +2219,7 @@
                 roundBuildPending = Boolean(isPending);
                 if (!startRoundBtnEl) return;
                 startRoundBtnEl.disabled = roundBuildPending;
-                startRoundBtnEl.textContent = t("start_round");
+                startRoundBtnEl.textContent = getStartRoundButtonText();
             }
 
             function navigateTo(path) {
@@ -3205,7 +3347,7 @@
                 const startRoundBtnEl = document.getElementById("startRoundBtn");
                 const isChordMode = ["chords", "same_chords", "gomoku"].includes(selectedCardMode);
                 if (!active) {
-                    cardModePickerEl.style.display = "";
+                    cardModePickerEl.style.display = "none";
                     wordSourcePickerEl.style.display = isChordMode ? "none" : "";
                     wordFilterPickerEl.style.display = isChordMode ? "none" : "";
                     botDifficultyPickerEl.style.display = (localStorage.getItem("play_mode") || "") === "bot" ? "block" : "none";
