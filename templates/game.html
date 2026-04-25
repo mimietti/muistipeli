@@ -2453,20 +2453,34 @@
                 const strokeWidth = options.strokeWidth != null ? options.strokeWidth : 1.5;
                 const extraClass = options.extraClass || "";
                 const win = Boolean(options.win);
-                const fill = isWhite ? "white" : "#1a1a1a";
-                const stroke = isWhite ? "#888" : "#444";
-                html += `<circle cx="${x}" cy="${y}" r="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${opacity}" class="gomoku-stone${win ? ' gomoku-win-stone' : ''}${extraClass ? ` ${extraClass}` : ''}"/>`;
+                const baseFill = isWhite ? "#f4f4f0" : "#20211f";
+                const stroke = isWhite ? "#8a8e87" : "#494d47";
+                const coreFill = isWhite ? "#ffffff" : "#323530";
+                const shadowFill = isWhite ? "#c9cdc5" : "#111210";
+                const highlightFill = isWhite ? "#ffffff" : "#666b64";
+                html += `<circle cx="${x + radius * 0.08}" cy="${y + radius * 0.12}" r="${radius * 0.95}" fill="${shadowFill}" opacity="${opacity * (isWhite ? 0.22 : 0.3)}"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="${radius}" fill="${baseFill}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${opacity}" class="gomoku-stone${win ? ' gomoku-win-stone' : ''}${extraClass ? ` ${extraClass}` : ''}"/>`;
+                html += `<circle cx="${x - radius * 0.04}" cy="${y - radius * 0.08}" r="${radius * 0.82}" fill="${coreFill}" opacity="${opacity * (isWhite ? 0.46 : 0.34)}"/>`;
+                html += `<circle cx="${x - radius * 0.34}" cy="${y - radius * 0.36}" r="${radius * 0.34}" fill="${highlightFill}" opacity="${opacity * (isWhite ? 0.22 : 0.18)}"/>`;
                 return { x, y, isWhite, opacity };
             };
             const renderHiddenMarker = (idx, progress = 1) => {
                 const [x, y] = gomokuXY(idx, size);
                 const eased = Math.max(0, Math.min(1, progress));
-                const baseOpacity = 0.78 * eased;
-                const outerRadius = 11.6 - 0.9 * (1 - eased);
-                const midRadius = 8.7 - 0.7 * (1 - eased);
-                html += `<circle cx="${x}" cy="${y}" r="${outerRadius}" fill="#777a76" stroke="#5f625d" stroke-width="1.2" opacity="${baseOpacity}"/>`;
-                html += `<circle cx="${x}" cy="${y}" r="${midRadius}" fill="#8d918b" opacity="${0.2 * eased}"/>`;
-                html += `<circle cx="${x}" cy="${y}" r="2.2" fill="#cfd4cc" opacity="${0.18 * eased}"/>`;
+                const baseOpacity = 0.84 * eased;
+                const outerRadius = 11.8 - 0.7 * (1 - eased);
+                const innerRadius = 10.1 - 0.5 * (1 - eased);
+                const shadowRadius = 8.5 - 0.5 * (1 - eased);
+                const highlightRadius = 4.8 - 0.2 * (1 - eased);
+                html += `<circle cx="${x}" cy="${y}" r="${outerRadius}" fill="#6f736d" stroke="#535650" stroke-width="1.35" opacity="${baseOpacity}"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="${innerRadius}" fill="#8d928b" opacity="${0.24 * eased}"/>`;
+                html += `<circle cx="${x + 1.4}" cy="${y + 1.7}" r="${shadowRadius}" fill="#5c5f5a" opacity="${0.18 * eased}"/>`;
+                html += `<circle cx="${x - 3.2}" cy="${y - 3.1}" r="${highlightRadius}" fill="#d3d7cf" opacity="${0.14 * eased}"/>`;
+            };
+            const mixColor = (from, to, progress) => {
+                const t = Math.max(0, Math.min(1, progress));
+                const mixed = from.map((value, index) => Math.round(value + (to[index] - value) * t));
+                return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
             };
 
             let html = '';
@@ -2529,34 +2543,24 @@
                 }
                 // Render older stones first so the newest is on top
                 const maxLen = Math.max(wh.length, bh.length);
-                const vp = g.visiblePairs || 1;
-                // newest stone: 0.9, older history: 0.75, about-to-be-removed: 0.25
-                function stoneOpacity(histIdx, histLen) {
-                    const isFull = histLen >= vp;
-                    if (isFull && histIdx === 0) return 0.25;
-                    const isNewest = histIdx === histLen - 1;
-                    return isNewest ? 0.9 : 0.75;
-                }
                 for (let i = 0; i < maxLen; i++) {
                     if (i < wh.length) {
-                        const opW = stoneOpacity(i, wh.length);
                         const widx = wh[i];
                         const isWin = g.winLine && g.winLine.includes(widx);
                         const isLast = widx === g.lastPlacedIdx && g.lastPlacedColor === "white";
-                        const stone = renderStone(widx, "white", { win: isWin, opacity: opW });
+                        const stone = renderStone(widx, "white", { win: isWin, opacity: 1 });
                         const { x, y } = stone;
-                        if (i === wh.length - 1) html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa" opacity="${opW}"/>`;
-                        if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#555" stroke-width="1.5" opacity="${opW}"/>`;
+                        if (i === wh.length - 1) html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa" opacity="1"/>`;
+                        if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#555" stroke-width="1.5" opacity="1"/>`;
                     }
                     if (i < bh.length) {
-                        const opB = stoneOpacity(i, bh.length);
                         const bidx = bh[i];
                         const isWin = g.winLine && g.winLine.includes(bidx);
                         const isLast = bidx === g.lastPlacedIdx && g.lastPlacedColor === "black";
-                        const stone = renderStone(bidx, "black", { win: isWin, opacity: opB });
+                        const stone = renderStone(bidx, "black", { win: isWin, opacity: 1 });
                         const { x, y } = stone;
-                        if (i === bh.length - 1) html += `<circle cx="${x}" cy="${y}" r="3" fill="#555" opacity="${opB}"/>`;
-                        if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#aaa" stroke-width="1.5" opacity="${opB}"/>`;
+                        if (i === bh.length - 1) html += `<circle cx="${x}" cy="${y}" r="3" fill="#555" opacity="1"/>`;
+                        if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#aaa" stroke-width="1.5" opacity="1"/>`;
                     }
                 }
             }
@@ -2587,17 +2591,30 @@
                 const { idx, color, startedAt } = stone;
                 const [x, y] = gomokuXY(idx, size);
                 const isW = color === "white";
-                const fill = isW ? "white" : "#1a1a1a";
-                const stroke = isW ? "#888" : "#444";
-                const ringStroke = isW ? "#d8d1c4" : "#8d8477";
                 const progress = Math.max(0, Math.min(1, (now - (startedAt || now)) / GOMOKU_EXPIRE_MS));
                 const eased = 1 - Math.pow(1 - progress, 3);
-                const stoneRadius = 13 * (1 - 0.28 * eased);
-                const stoneOpacity = 0.9 * (1 - eased);
-                const ringRadius = 13 + 8 * eased;
-                const ringOpacity = 0.28 * (1 - eased);
-                html += `<circle cx="${x}" cy="${y}" r="${stoneRadius}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" opacity="${stoneOpacity}" class="stone-expiring"/>`;
-                html += `<circle cx="${x}" cy="${y}" r="${ringRadius}" fill="none" stroke="${ringStroke}" stroke-width="${1.6 - 0.5 * eased}" opacity="${ringOpacity}" class="stone-expiring"/>`;
+                const flash = Math.sin(progress * Math.PI);
+                const fill = mixColor(
+                    isW ? [255, 255, 255] : [26, 26, 26],
+                    [119, 122, 118],
+                    Math.min(1, eased * 1.15)
+                );
+                const stroke = mixColor(
+                    isW ? [136, 136, 136] : [68, 68, 68],
+                    [95, 98, 93],
+                    Math.min(1, eased * 1.05)
+                );
+                const flashFill = isW ? "#f5e8c8" : "#efd8a2";
+                const ringStroke = isW ? "#efe4c8" : "#e8c878";
+                const stoneRadius = 13 * (1 + 0.06 * flash - 0.34 * eased);
+                const stoneOpacity = 1 - 0.82 * eased;
+                const flashRadius = 13 + 2.8 * flash;
+                const flashOpacity = 0.34 * flash * (1 - 0.35 * eased);
+                const ringRadius = 13 + 12 * eased;
+                const ringOpacity = 0.18 + 0.44 * flash - 0.24 * eased;
+                html += `<circle cx="${x}" cy="${y}" r="${flashRadius}" fill="${flashFill}" opacity="${Math.max(0, flashOpacity)}" class="stone-expiring"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="${stoneRadius}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" opacity="${Math.max(0, stoneOpacity)}" class="stone-expiring"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="${ringRadius}" fill="none" stroke="${ringStroke}" stroke-width="${2.4 - 0.9 * eased}" opacity="${Math.max(0, ringOpacity)}" class="stone-expiring"/>`;
             }
             svg.innerHTML = html;
             svg.onclick = (evt) => {
