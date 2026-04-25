@@ -2766,6 +2766,12 @@
             const rematchBtn = document.getElementById("gomoku-rematch-btn");
             if (msg) msg.textContent = t("rematch_both_ready");
             if (rematchBtn) rematchBtn.disabled = true;
+            setTimeout(() => {
+                socket.emit("start_same_settings_rematch", {
+                    reconnect_token: getReconnectToken(),
+                    username: myName,
+                });
+            }, 600);
         });
 
         socket.on("summary_error", () => {
