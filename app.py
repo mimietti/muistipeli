@@ -118,7 +118,7 @@ VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "y
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 DISCONNECT_NOTIFY_DELAY_SECONDS = 10
-APP_VERSION = "Beta v0.11 (2026-04-24)"
+APP_VERSION = "Beta v0.11 (2026-04-25)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -133,6 +133,9 @@ BOT_MEMORY_USE_PROBABILITY = {
 GOMOKU_SIZE = 19
 GOMOKU_WIN = 5
 GOMOKU_ALLOWED_SIZES = {13, 19}
+GOMOKU_VISIBLE_PAIRS_DEFAULT = 1
+GOMOKU_VISIBLE_PAIRS_MIN = 1
+GOMOKU_VISIBLE_PAIRS_MAX = 10
 DEFAULT_ROOM_ID = "default"
 MAX_PLAYERS = 2
 
@@ -202,11 +205,12 @@ class RoomState:
     chord_audio_type: str = "single"  # single | progression
     chord_tempo_seconds: float = 2.5  # per-chord duration for bot timing
     gomoku_board: dict = field(default_factory=dict)   # {cell_idx: "white"|"black"}
-    gomoku_last_white: int = -1   # -1 = none placed yet
-    gomoku_last_black: int = -1
+    gomoku_white_history: list = field(default_factory=list)  # last N white positions (most recent last)
+    gomoku_black_history: list = field(default_factory=list)  # last N black positions (most recent last)
     gomoku_white_player: str = ""
     gomoku_black_player: str = ""
     gomoku_size: int = 19
+    gomoku_visible_pairs: int = GOMOKU_VISIBLE_PAIRS_DEFAULT
 
 
 # --- Global indexes (not game state) ---
@@ -2704,7 +2708,7 @@ def try_match_from_queue():
 def build_lobby_payload(room):
     players_ordered = get_active_players_ordered(room)
     usernames = [v["username"] for v in players_ordered]
-    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token"), "in_waiting": v.get("in_waiting", False), "pref_card_mode": v.get("pref_card_mode"), "pref_target_language": v.get("pref_target_language"), "pref_gomoku_size": v.get("pref_gomoku_size")} for v in players_ordered]
+    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token"), "in_waiting": v.get("in_waiting", False), "pref_card_mode": v.get("pref_card_mode"), "pref_target_language": v.get("pref_target_language"), "pref_gomoku_size": v.get("pref_gomoku_size"), "pref_gomoku_visible_pairs": v.get("pref_gomoku_visible_pairs")} for v in players_ordered]
     last_token = infos[-1]["reconnect_token"] if infos else None
     return {
         "room_id": room.room_id,
@@ -2829,8 +2833,8 @@ def choose_gomoku_bot_move(room):
     opp_color = "black" if bot_color == "white" else "white"
     # Bot's perceived board: own stones + visible opp stone + remembered opp stones
     perceived = {k: v for k, v in room.gomoku_board.items() if v == bot_color}
-    opp_last = room.gomoku_last_white if opp_color == "white" else room.gomoku_last_black
-    if opp_last >= 0:
+    opp_history = room.gomoku_white_history if opp_color == "white" else room.gomoku_black_history
+    for opp_last in opp_history:
         perceived[opp_last] = opp_color
     for k, v in room.bot_memory.items():
         if v == opp_color:
@@ -2901,8 +2905,8 @@ def init_gomoku_round(room):
         room.gomoku_white_player = room.player_order[0] if room.player_order else ""
         room.gomoku_black_player = room.player_order[1] if len(room.player_order) > 1 else ""
     room.gomoku_board = {}
-    room.gomoku_last_white = -1
-    room.gomoku_last_black = -1
+    room.gomoku_white_history = []
+    room.gomoku_black_history = []
     room.bot_memory = {}
     room.player_points = {p: 0 for p in room.player_order}
     room.status = "playing"
@@ -2915,8 +2919,9 @@ def init_gomoku_round(room):
         "white_player": room.gomoku_white_player,
         "black_player": room.gomoku_black_player,
         "turn": room.gomoku_white_player,
-        "last_white": room.gomoku_last_white,
-        "last_black": room.gomoku_last_black,
+        "white_history": [],
+        "black_history": [],
+        "visible_pairs": room.gomoku_visible_pairs,
         "reveal_board": False,
         "board": {},
     }, room_id=room.room_id)
@@ -2988,7 +2993,7 @@ def process_gomoku_place(idx, player_info, room, sid=None):
     existing = room.gomoku_board.get(idx)
     print(
         f"[INFO] Gomoku-siirto käsittelyyn: player={player_name}, color={my_color}, idx={idx}, row={row}, col={col}, "
-        f"existing={existing}, white_last={room.gomoku_last_white}, black_last={room.gomoku_last_black}"
+        f"existing={existing}, white_history={room.gomoku_white_history}, black_history={room.gomoku_black_history}"
     )
     if existing == opp_color:
         # Penalty: turn passes
@@ -3006,8 +3011,8 @@ def process_gomoku_place(idx, player_info, room, sid=None):
         print(f"[INFO] Gomoku-pelaaja osui omaan nappulaansa. Vuoro siirtyy pelaajalle {room.player_order[room.turn]}.")
         emit_to_room("gomoku_update", {
             "placed_idx": idx, "color": my_color, "player": player_name,
-            "hide_idx": -1,
-            "last_white": room.gomoku_last_white, "last_black": room.gomoku_last_black,
+            "white_history": list(room.gomoku_white_history),
+            "black_history": list(room.gomoku_black_history),
             "next_turn": room.player_order[room.turn],
             "own_stone": True,
             "win_line": [],
@@ -3015,17 +3020,18 @@ def process_gomoku_place(idx, player_info, room, sid=None):
         schedule_gomoku_bot_turn_if_needed(room)
         return
     # Place stone
-    old_last = room.gomoku_last_white if my_color == "white" else room.gomoku_last_black
+    n = max(1, room.gomoku_visible_pairs)
+    history = room.gomoku_white_history if my_color == "white" else room.gomoku_black_history
+    # The stone that will become hidden (drops off the visible window)
+    old_hidden = history[0] if len(history) >= n else -1
     room.gomoku_board[idx] = my_color
-    if my_color == "white":
-        room.gomoku_last_white = idx
-    else:
-        room.gomoku_last_black = idx
+    history.append(idx)
+    del history[:-n]
     # Bot memory: when human's previous stone becomes hidden, bot may remember it
-    if room.play_mode == "bot" and old_last >= 0:
+    if room.play_mode == "bot" and old_hidden >= 0:
         prob = get_bot_memory_probability(room)
         if random.random() < prob:
-            room.bot_memory[old_last] = my_color
+            room.bot_memory[old_hidden] = my_color
     win_line = gomoku_check_win(room.gomoku_board, idx, size=size)
     room.turn = (room.turn + 1) % len(room.player_order)
     print(
@@ -3034,8 +3040,8 @@ def process_gomoku_place(idx, player_info, room, sid=None):
     )
     emit_to_room("gomoku_update", {
         "placed_idx": idx, "color": my_color, "player": player_name,
-        "hide_idx": old_last,
-        "last_white": room.gomoku_last_white, "last_black": room.gomoku_last_black,
+        "white_history": list(room.gomoku_white_history),
+        "black_history": list(room.gomoku_black_history),
         "next_turn": room.player_order[room.turn],
         "own_stone": False,
         "reveal_board": bool(win_line),
@@ -3392,8 +3398,9 @@ def handle_grid_request(data=None):
             "white_player": room.gomoku_white_player,
             "black_player": room.gomoku_black_player,
             "turn": room.player_order[room.turn] if room.player_order else "",
-            "last_white": room.gomoku_last_white,
-            "last_black": room.gomoku_last_black,
+            "white_history": list(room.gomoku_white_history),
+            "black_history": list(room.gomoku_black_history),
+            "visible_pairs": room.gomoku_visible_pairs,
             "reveal_board": room.status == "results",
             "board": dict(room.gomoku_board) if room.status == "results" else {},
         })
@@ -3475,8 +3482,9 @@ def handle_ready_for_game():
             "white_player": room.gomoku_white_player,
             "black_player": room.gomoku_black_player,
             "turn": room.player_order[room.turn] if room.player_order else "",
-            "last_white": room.gomoku_last_white,
-            "last_black": room.gomoku_last_black,
+            "white_history": list(room.gomoku_white_history),
+            "black_history": list(room.gomoku_black_history),
+            "visible_pairs": room.gomoku_visible_pairs,
             "reveal_board": room.status == "results",
             "board": dict(room.gomoku_board) if room.status == "results" else {},
         })
@@ -3548,6 +3556,11 @@ def handle_start_custom_game(data=None):
         gomoku_size = room.gomoku_size or GOMOKU_SIZE
     if gomoku_size not in GOMOKU_ALLOWED_SIZES:
         gomoku_size = GOMOKU_SIZE
+    try:
+        gomoku_visible_pairs = int(data.get("gomoku_visible_pairs", room.gomoku_visible_pairs))
+        gomoku_visible_pairs = max(GOMOKU_VISIBLE_PAIRS_MIN, min(GOMOKU_VISIBLE_PAIRS_MAX, gomoku_visible_pairs))
+    except (TypeError, ValueError):
+        gomoku_visible_pairs = room.gomoku_visible_pairs
     word_filter_mode = str(data.get("word_filter_mode", room.word_filter_mode or "clear")).strip().lower()
     chord_audio_type = str(data.get("chord_audio_type", "single")).strip().lower()
     if chord_audio_type not in {"single", "progression"}:
@@ -3567,6 +3580,7 @@ def handle_start_custom_game(data=None):
         room.card_mode = "gomoku"
         room.game_mode = "gomoku"
         room.gomoku_size = gomoku_size
+        room.gomoku_visible_pairs = gomoku_visible_pairs
         all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
         room.ui_language = ui_language if ui_language in all_ui_langs else "en"
         if room.play_mode == "bot":
@@ -4047,6 +4061,7 @@ def build_same_settings_start_payload(room):
         payload["bot_difficulty"] = room.bot_difficulty or "easy"
     if room.card_mode == "gomoku":
         payload["gomoku_size"] = room.gomoku_size or GOMOKU_SIZE
+        payload["gomoku_visible_pairs"] = room.gomoku_visible_pairs
     return payload
 
 
@@ -4363,6 +4378,12 @@ def handle_preference_changed(data=None):
     except (TypeError, ValueError):
         pass
     try:
+        pref_visible_pairs = int(data.get("gomoku_visible_pairs") or 0)
+        if GOMOKU_VISIBLE_PAIRS_MIN <= pref_visible_pairs <= GOMOKU_VISIBLE_PAIRS_MAX:
+            room.players[sid]["pref_gomoku_visible_pairs"] = pref_visible_pairs
+    except (TypeError, ValueError):
+        pass
+    try:
         pref_tempo = float(data.get("chord_tempo") or 0)
         if pref_tempo >= 0.1:
             room.players[sid]["pref_chord_tempo"] = max(0.1, min(10.0, pref_tempo))
@@ -4389,6 +4410,9 @@ def handle_preference_changed(data=None):
         pref_gomoku_size = room.players[sid].get("pref_gomoku_size")
         if pref_gomoku_size in GOMOKU_ALLOWED_SIZES:
             room.gomoku_size = pref_gomoku_size
+        pref_vp = room.players[sid].get("pref_gomoku_visible_pairs")
+        if pref_vp and GOMOKU_VISIBLE_PAIRS_MIN <= pref_vp <= GOMOKU_VISIBLE_PAIRS_MAX:
+            room.gomoku_visible_pairs = pref_vp
         pref_t = room.players[sid].get("pref_chord_tempo")
         if pref_t:
             room.chord_tempo_seconds = pref_t
@@ -4483,6 +4507,7 @@ def handle_join_room_direct(data=None):
         "pref_card_mode": target_room.card_mode,
         "pref_target_language": target_room.target_language,
         "pref_gomoku_size": target_room.gomoku_size,
+        "pref_gomoku_visible_pairs": target_room.gomoku_visible_pairs,
         "pref_ready": True,
     }
     target_room.play_mode = "multiplayer"
@@ -4564,6 +4589,9 @@ def handle_edit_prepared_queue(data=None):
         owner_gomoku_size = owner_info.get("pref_gomoku_size")
         if owner_gomoku_size in GOMOKU_ALLOWED_SIZES:
             room.gomoku_size = owner_gomoku_size
+        owner_vp = owner_info.get("pref_gomoku_visible_pairs")
+        if owner_vp and GOMOKU_VISIBLE_PAIRS_MIN <= owner_vp <= GOMOKU_VISIBLE_PAIRS_MAX:
+            room.gomoku_visible_pairs = owner_vp
     payload = build_lobby_payload(room)
     emit_to_room("player_joined", payload, room_id=room.room_id)
     broadcast_lobby_browser()

@@ -1160,6 +1160,16 @@
                     <button class="opt-btn" data-gomoku-size="13" id="gomokuSize13">13×13</button>
                 </div>
             </div>
+            <div class="option-group" id="gomokuVisiblePairsPicker" style="display:none;">
+                <div class="option-group-label" id="labelGomokuVisiblePairs">Visible move pairs</div>
+                <div class="option-group-btns" id="gomokuVisiblePairsBtns">
+                    <button class="opt-btn" data-gomoku-visible-pairs="1" id="gomokuVP1">1</button>
+                    <button class="opt-btn" data-gomoku-visible-pairs="2" id="gomokuVP2">2</button>
+                    <button class="opt-btn" data-gomoku-visible-pairs="3" id="gomokuVP3">3</button>
+                    <button class="opt-btn" data-gomoku-visible-pairs="5" id="gomokuVP5">5</button>
+                    <button class="opt-btn" data-gomoku-visible-pairs="10" id="gomokuVP10">10</button>
+                </div>
+            </div>
             <button id="startRoundBtn">Start</button>
         </div>
         <div id="setupStatus">
@@ -1326,6 +1336,7 @@
                 label_image_filter_mode: "Vocabulary",
                 label_bot_difficulty: "Bot difficulty",
                 label_gomoku_size: "Board size",
+                label_gomoku_visible_pairs: "Visible move pairs",
                 bot_difficulty_summary: "Difficulty: {difficulty}",
                 word_filter_clear: "Clear",
                 word_filter_broad: "Varied",
@@ -1481,6 +1492,7 @@
                 label_image_filter_mode: "Sanasto",
                 label_bot_difficulty: "Botin vaikeusaste",
                 label_gomoku_size: "Laudan koko",
+                label_gomoku_visible_pairs: "Näkyvät siirtoparet",
                 bot_difficulty_summary: "Vaikeusaste: {difficulty}",
                 word_filter_clear: "Selkeät",
                 word_filter_broad: "Monipuoliset",
@@ -1859,6 +1871,7 @@
             el("labelWordFilterMode").textContent = t(imagesOnly ? "label_image_filter_mode" : "label_word_filter_mode");
             el("labelBotDifficulty").textContent = t("label_bot_difficulty");
             el("labelGomokuSize").textContent = t("label_gomoku_size");
+            el("labelGomokuVisiblePairs").textContent = t("label_gomoku_visible_pairs");
             el("srcManualBtn").textContent = t(imagesOnly ? "enter_words_images" : "enter_words");
             el("srcThemeBtn").textContent = t(imagesOnly ? "enter_theme_images" : "enter_theme");
             el("srcRandomBtn").textContent = t("enter_random");
@@ -2440,6 +2453,13 @@
                     selectedGomokuSize = String(payload.gomoku_size);
                     try { localStorage.setItem("preferred_gomoku_size", selectedGomokuSize); } catch (_) {}
                 }
+                if (payload && payload.gomoku_visible_pairs) {
+                    const vpStr = String(payload.gomoku_visible_pairs);
+                    if (["1","2","3","5","10"].includes(vpStr)) {
+                        selectedGomokuVisiblePairs = vpStr;
+                        try { localStorage.setItem("preferred_gomoku_visible_pairs", selectedGomokuVisiblePairs); } catch (_) {}
+                    }
+                }
                 if (payload && payload.target_language) {
                     selectedLang = payload.target_language;
                 }
@@ -2494,6 +2514,9 @@
                 document.querySelectorAll("#gomokuSize19, #gomokuSize13").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.gomokuSize === selectedGomokuSize);
                 });
+                document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach((btn) => {
+                    btn.classList.toggle("active", btn.dataset.gomokuVisiblePairs === selectedGomokuVisiblePairs);
+                });
                 applyTranslations();
                 document.querySelectorAll(".lang-flag-btn").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.lang === selectedLang);
@@ -2503,6 +2526,7 @@
                 updateChordAudioTypeVisibility();
                 updateBotDifficultyVisibility();
                 updateGomokuSizeVisibility();
+                updateGomokuVisiblePairsVisibility();
                 updateGomokuButtonVisibility();
                 renderPlayerRole(playersInfo);
                 renderPreparedQueueSummary(payload);
@@ -3086,6 +3110,9 @@
             let selectedGomokuSize = ["13", "19"].includes(localStorage.getItem("preferred_gomoku_size"))
                 ? localStorage.getItem("preferred_gomoku_size")
                 : "19";
+            let selectedGomokuVisiblePairs = ["1","2","3","5","10"].includes(localStorage.getItem("preferred_gomoku_visible_pairs"))
+                ? localStorage.getItem("preferred_gomoku_visible_pairs")
+                : "1";
             let selectedBotDifficulty = ["easy", "medium", "hard"].includes(localStorage.getItem("bot_difficulty"))
                 ? localStorage.getItem("bot_difficulty")
                 : "easy";
@@ -3112,6 +3139,12 @@
                 picker.style.display = selectedCardMode === "gomoku" ? "block" : "none";
             }
 
+            function updateGomokuVisiblePairsVisibility() {
+                const picker = document.getElementById("gomokuVisiblePairsPicker");
+                if (!picker) return;
+                picker.style.display = selectedCardMode === "gomoku" ? "block" : "none";
+            }
+
             function updateGomokuButtonVisibility() {
                 const isSolo = (localStorage.getItem("play_mode") || "") === "solo";
                 const btn = document.getElementById("cardModeGomoku");
@@ -3123,6 +3156,7 @@
                         modeBtn.classList.toggle("active", modeBtn.dataset.mode === selectedCardMode);
                     });
                     updateGomokuSizeVisibility();
+                    updateGomokuVisiblePairsVisibility();
                 }
             }
 
@@ -3182,9 +3216,10 @@
                     updateWordFilterVisibility();
                     updateChordAudioTypeVisibility();
                     updateGomokuSizeVisibility();
+                    updateGomokuVisiblePairsVisibility();
                     renderQueuePreferencePicker(isQueueSearchLobby(window.latestLobbyPayload, window.latestPlayersInfo), Boolean(window.latestLobbyPayload && window.latestLobbyPayload.queue_round_prepared));
                     applyTranslations();
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5"), gomoku_size: parseInt(selectedGomokuSize, 10) });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5"), gomoku_size: parseInt(selectedGomokuSize, 10), gomoku_visible_pairs: parseInt(selectedGomokuVisiblePairs, 10) });
                 });
             });
 
@@ -3218,6 +3253,9 @@
             document.querySelectorAll("#gomokuSize19, #gomokuSize13").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.gomokuSize === selectedGomokuSize);
             });
+            document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.gomokuVisiblePairs === selectedGomokuVisiblePairs);
+            });
             document.querySelectorAll("#chordAudioSingle, #chordAudioProgression").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.chordAudio === selectedChordAudioType);
             });
@@ -3227,6 +3265,7 @@
             updateChordAudioTypeVisibility();
             updateBotDifficultyVisibility();
             updateGomokuSizeVisibility();
+            updateGomokuVisiblePairsVisibility();
             updateGomokuButtonVisibility();
 
             document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach(btn => {
@@ -3261,7 +3300,22 @@
                     socket.emit("preference_changed", {
                         card_mode: selectedCardMode,
                         target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
-                        gomoku_size: parseInt(selectedGomokuSize, 10)
+                        gomoku_size: parseInt(selectedGomokuSize, 10),
+                        gomoku_visible_pairs: parseInt(selectedGomokuVisiblePairs, 10)
+                    });
+                });
+            });
+
+            document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    selectedGomokuVisiblePairs = btn.dataset.gomokuVisiblePairs;
+                    try { localStorage.setItem("preferred_gomoku_visible_pairs", selectedGomokuVisiblePairs); } catch (e) {}
+                    document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach(b => b.classList.toggle("active", b === btn));
+                    socket.emit("preference_changed", {
+                        card_mode: selectedCardMode,
+                        target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
+                        gomoku_size: parseInt(selectedGomokuSize, 10),
+                        gomoku_visible_pairs: parseInt(selectedGomokuVisiblePairs, 10)
                     });
                 });
             });
@@ -3295,7 +3349,7 @@
                     return;
                 }
                 if (selectedCardMode === "gomoku") {
-                    const payload = { mode: "gomoku", card_mode: "gomoku", ui_language: getLanguage(), gomoku_size: parseInt(selectedGomokuSize, 10) };
+                    const payload = { mode: "gomoku", card_mode: "gomoku", ui_language: getLanguage(), gomoku_size: parseInt(selectedGomokuSize, 10), gomoku_visible_pairs: parseInt(selectedGomokuVisiblePairs, 10) };
                     if ((localStorage.getItem("play_mode") || "") === "bot") {
                         payload.bot_difficulty = selectedBotDifficulty;
                     }

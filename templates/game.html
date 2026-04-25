@@ -1436,7 +1436,7 @@
 
         let cards = [];
         let matched = new Set();
-        let gomokuState = null;  // {size, whitePlayer, blackPlayer, myColor, currentTurn, lastWhite, lastBlack, winLine, revealBoard, board}
+        let gomokuState = null;  // {size, whitePlayer, blackPlayer, myColor, currentTurn, whiteHistory, blackHistory, visiblePairs, winLine, revealBoard, board}
         let imagePairTrackerEntries = [];
         let removedPairKeys = new Set();
         let scheduledPairRemovalKeys = new Set();
@@ -2388,7 +2388,11 @@
             const wrap = document.getElementById("gomoku-wrap");
             if (!wrap || !gomokuState) return;
             const size = gomokuState.size || 19;
-            const targets = [gomokuState.lastWhite, gomokuState.lastBlack].filter((idx) => Number.isInteger(idx) && idx >= 0);
+            const wh = gomokuState.whiteHistory || [];
+            const bh = gomokuState.blackHistory || [];
+            const lastW = wh.length > 0 ? wh[wh.length - 1] : -1;
+            const lastB = bh.length > 0 ? bh[bh.length - 1] : -1;
+            const targets = [lastW, lastB].filter((idx) => Number.isInteger(idx) && idx >= 0);
             if (!targets.length) return;
 
             let focusRow = Math.floor(targets[0] / size);
@@ -2452,17 +2456,30 @@
                     html += `<circle cx="${x}" cy="${y}" r="13" fill="${isWhite ? 'white' : '#1a1a1a'}" stroke="${isWhite ? '#888' : '#444'}" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
                 });
             } else {
-                if (g.lastWhite >= 0) {
-                    const [x, y] = gomokuXY(g.lastWhite, size);
-                    const isWin = g.winLine && g.winLine.includes(g.lastWhite);
-                    html += `<circle cx="${x}" cy="${y}" r="13" fill="white" stroke="#888" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
-                    html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa"/>`;
-                }
-                if (g.lastBlack >= 0) {
-                    const [x, y] = gomokuXY(g.lastBlack, size);
-                    const isWin = g.winLine && g.winLine.includes(g.lastBlack);
-                    html += `<circle cx="${x}" cy="${y}" r="13" fill="#1a1a1a" stroke="#444" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
-                    html += `<circle cx="${x}" cy="${y}" r="3" fill="#555"/>`;
+                const wh = g.whiteHistory || [];
+                const bh = g.blackHistory || [];
+                const n = wh.length + bh.length > 0 ? Math.max(wh.length, bh.length) : 1;
+                // Render older stones first so the newest is on top
+                const maxLen = Math.max(wh.length, bh.length);
+                for (let i = 0; i < maxLen; i++) {
+                    // i=0 is oldest, i=maxLen-1 is newest
+                    const age = maxLen - 1 - i;  // 0 = newest, increases for older
+                    // opacity: newest=1.0, oldest fades to 0.25
+                    const opacity = maxLen <= 1 ? 1 : Math.round((1 - age * 0.75 / (maxLen - 1)) * 100) / 100;
+                    if (i < wh.length) {
+                        const widx = wh[i];
+                        const [x, y] = gomokuXY(widx, size);
+                        const isWin = g.winLine && g.winLine.includes(widx);
+                        html += `<circle cx="${x}" cy="${y}" r="13" fill="white" stroke="#888" stroke-width="1.5" opacity="${opacity}" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                        if (age === 0) html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa" opacity="${opacity}"/>`;
+                    }
+                    if (i < bh.length) {
+                        const bidx = bh[i];
+                        const [x, y] = gomokuXY(bidx, size);
+                        const isWin = g.winLine && g.winLine.includes(bidx);
+                        html += `<circle cx="${x}" cy="${y}" r="13" fill="#1a1a1a" stroke="#444" stroke-width="1.5" opacity="${opacity}" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                        if (age === 0) html += `<circle cx="${x}" cy="${y}" r="3" fill="#555" opacity="${opacity}"/>`;
+                    }
                 }
             }
             svg.innerHTML = html;
@@ -2495,8 +2512,8 @@
                     myName,
                     currentTurn: gomokuState.currentTurn,
                     roomId: debugRoomId,
-                    lastWhite: gomokuState.lastWhite,
-                    lastBlack: gomokuState.lastBlack
+                    whiteHistory: gomokuState.whiteHistory,
+                    blackHistory: gomokuState.blackHistory
                 });
                 if (gomokuState.currentTurn !== myName) {
                     console.warn("[DEBUG] Gomoku local turn mismatch, forwarding move to server anyway", {
@@ -2657,8 +2674,9 @@
                 blackPlayer: data.black_player,
                 myColor: data.white_player === myName ? "white" : (data.black_player === myName ? "black" : null),
                 currentTurn: data.turn,
-                lastWhite: data.last_white !== undefined ? data.last_white : -1,
-                lastBlack: data.last_black !== undefined ? data.last_black : -1,
+                whiteHistory: Array.isArray(data.white_history) ? data.white_history : [],
+                blackHistory: Array.isArray(data.black_history) ? data.black_history : [],
+                visiblePairs: data.visible_pairs || 1,
                 winLine: null,
                 revealBoard: Boolean(data.reveal_board),
                 board: data.board || {},
@@ -2678,8 +2696,8 @@
         socket.on("gomoku_update", (data) => {
             if (!gomokuState) return;
             console.log("[DEBUG] gomoku_update", data);
-            gomokuState.lastWhite = data.last_white;
-            gomokuState.lastBlack = data.last_black;
+            if (Array.isArray(data.white_history)) gomokuState.whiteHistory = data.white_history;
+            if (Array.isArray(data.black_history)) gomokuState.blackHistory = data.black_history;
             gomokuState.currentTurn = data.next_turn;
             if (typeof data.reveal_board !== "undefined") {
                 gomokuState.revealBoard = Boolean(data.reveal_board);
