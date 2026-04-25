@@ -3263,6 +3263,7 @@ def on_join(data):
     wants_bot = bool((data or {}).get("bot_mode"))
     wants_solo = bool((data or {}).get("solo_mode"))
     requested_play_mode = "solo" if wants_solo else ("bot" if wants_bot else "queue")
+    explicit_card_mode = "card_mode" in (data or {})
     preferred_card_mode = str((data or {}).get("card_mode") or "image_word").strip().lower()
     if preferred_card_mode not in {"images", "image_word", "words", "chords", "same_chords", "gomoku"}:
         preferred_card_mode = "image_word"
@@ -3355,8 +3356,8 @@ def on_join(data):
         "disconnected_at": None,
         "room_id": room_id,
         "in_waiting": preserved_waiting_state if preserved_waiting_state is not None else True,
-        "pref_card_mode": (existing_player_snapshot or {}).get("pref_card_mode") or preferred_card_mode,
-        "pref_target_language": (existing_player_snapshot or {}).get("pref_target_language") if existing_player_snapshot and existing_player_snapshot.get("pref_target_language") is not None else preferred_target_language,
+        "pref_card_mode": preferred_card_mode if explicit_card_mode else ((existing_player_snapshot or {}).get("pref_card_mode") or preferred_card_mode),
+        "pref_target_language": preferred_target_language if explicit_card_mode else ((existing_player_snapshot or {}).get("pref_target_language") if existing_player_snapshot and existing_player_snapshot.get("pref_target_language") is not None else preferred_target_language),
         "pref_ready": preserved_ready_state if preserved_ready_state is not None else (requested_play_mode != "queue" or len(active_human_players) > 0),
     }
     move_sid_to_room(sid, room_id)

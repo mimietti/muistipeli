@@ -1150,10 +1150,10 @@
                             <span class="opt-btn-desc" id="cardModeWordsDesc">Match words that mean the same.</span>
                         </button>
                         <button class="opt-btn" data-mode="chords" id="cardModeChords">
-                            <span class="opt-btn-title" id="cardModeChordsTitle">🎵 🎼 Chords</span>
+                            <span class="opt-btn-title" id="cardModeChordsTitle">🎵 + nimi Chords</span>
                             <span class="opt-btn-desc" id="cardModeChordsDesc">Match a chord name with its sound.</span>
                         </button>
-                        <button class="opt-btn" data-mode="same_chords" id="cardModeSameChords">
+                        <button class="opt-btn" data-mode="same_chords" id="cardModeSameChords" style="display:none;">
                             <span class="opt-btn-title" id="cardModeSameChordsTitle">🎵 🎵 Note + note</span>
                             <span class="opt-btn-desc" id="cardModeSameChordsDesc">Match two sounds of the same chord.</span>
                         </button>
@@ -1329,7 +1329,7 @@
                 card_mode_images_desc: "Match two related images.",
                 card_mode_image_word_desc: "Match a picture with a word.",
                 card_mode_words_desc: "Match words that mean the same.",
-                card_mode_chords_desc: "Match a chord name with its sound.",
+                card_mode_chords_desc: "Match chord sounds with their names.",
                 card_mode_same_chords_desc: "Match two sounds of the same chord.",
                 chord_audio_single: "Single chord",
                 chord_audio_progression: "Chord progression",
@@ -1489,7 +1489,7 @@
                 card_mode_images_desc: "Etsi kaksi toisiinsa sopivaa kuvaa.",
                 card_mode_image_word_desc: "Yhdistä kuva ja sana.",
                 card_mode_words_desc: "Yhdistä eri kielillä samaa tarkoittavat sanat.",
-                card_mode_chords_desc: "Yhdistä soinnun nimi ja sointu äänenä.",
+                card_mode_chords_desc: "Yhdistä soivat soinnut ja niiden nimet.",
                 card_mode_same_chords_desc: "Etsi kaksi samaa soivaa sointua.",
                 chord_audio_single: "Yksittäinen sointi",
                 chord_audio_progression: "Sointukierto",
@@ -1996,7 +1996,7 @@
             el("cardModeImageWordDesc").textContent = t("card_mode_image_word_desc");
             el("cardModeWordsTitle").textContent = "📝 📝 " + t("card_mode_words");
             el("cardModeWordsDesc").textContent = t("card_mode_words_desc");
-            el("cardModeChordsTitle").textContent = "🎵 🎼 " + t("card_mode_chords");
+            el("cardModeChordsTitle").textContent = "🎵 + nimi " + t("card_mode_chords");
             el("cardModeChordsDesc").textContent = t("card_mode_chords_desc");
             el("cardModeSameChordsTitle").textContent = "🎵 🎵 " + t("card_mode_same_chords");
             el("cardModeSameChordsDesc").textContent = t("card_mode_same_chords_desc");
@@ -3181,7 +3181,7 @@
                 maybeStartPendingSameSettingsRematch();
             });
 
-            const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝", chords: "🎵\u200d🎼", same_chords: "🎵\u200d🎵", gomoku: "⚫⚪" };
+            const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝", chords: "🎵+nimi", same_chords: "🎵+nimi", gomoku: "⚫⚪" };
             const langFlagEmoji = { es: "🇪🇸", sv: "🇸🇪", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", pt: "🇵🇹", en: "🇬🇧", fi: "🇫🇮" };
             const escapeHtml = (value) => String(value || "")
                 .replace(/&/g, "&amp;")
@@ -3250,9 +3250,14 @@
 
             // --- Round options state ---
             let selectedWordSource = "random"; // "manual" | "theme" | "random"
-            let selectedCardMode = ["images", "image_word", "words", "chords", "same_chords", "gomoku"].includes(localStorage.getItem("preferred_card_mode"))
-                ? localStorage.getItem("preferred_card_mode")
-                : "image_word"; // "images" | "image_word" | "words" | "chords" | "same_chords" | "gomoku"
+            let storedCardMode = localStorage.getItem("preferred_card_mode");
+            if (storedCardMode === "same_chords") {
+                storedCardMode = "chords";
+                try { localStorage.setItem("preferred_card_mode", storedCardMode); } catch (e) {}
+            }
+            let selectedCardMode = ["images", "image_word", "words", "chords", "gomoku"].includes(storedCardMode)
+                ? storedCardMode
+                : "image_word"; // "images" | "image_word" | "words" | "chords" | "gomoku"
             let selectedLang = "es";
             let selectedWordFilterMode = ["clear", "broad"].includes(localStorage.getItem("preferred_word_filter_mode"))
                 ? localStorage.getItem("preferred_word_filter_mode")

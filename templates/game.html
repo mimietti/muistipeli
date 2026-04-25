@@ -1394,8 +1394,6 @@
             const vh = window.innerHeight || document.documentElement.clientHeight || 0;
             const isPortrait = vh >= vw;
             if (isPortrait) return 4;
-            if (vw >= 900 && cardCount >= 16) return 8;
-            if (vw >= 900 && cardCount >= 12) return 6;
             return 4;
         }
 
@@ -1413,7 +1411,9 @@
             const vh = window.innerHeight || document.documentElement.clientHeight || 0;
             const isPortrait = vh >= vw;
             const isTablet = document.body.classList.contains("tablet-fit");
-            const maxCard = columns >= 8 ? 166 : (isTablet && isPortrait ? 190 : 176);
+            const rows = Math.max(1, Math.ceil(cardCount / columns));
+            const heightAwareMax = vh ? Math.floor((vh - (isPortrait ? 210 : 230)) / rows) : 176;
+            const maxCard = Math.max(96, Math.min(isTablet && isPortrait ? 190 : 176, heightAwareMax || 176));
             const maxWidth = Math.round(columns * maxCard + Math.max(0, columns - 1) * gap + padX * 2);
             grid.style.setProperty("--grid-max-width", `${maxWidth}px`);
         }
@@ -1757,21 +1757,28 @@
         }
 
         function playChordPreview(cardData, index) {
-            if (!cardData || cardData.card_type !== "audio") return;
+            const playableChordCard = cardData && (
+                cardData.card_type === "audio" ||
+                (cardData.card_type === "word" && cardData.chord_label)
+            );
+            if (!playableChordCard) return;
             if (!cardData.audio && !(cardData.audio_sequence && cardData.audio_sequence.length)) return;
             stopChordPreview();
             audioRevealLock = true;
             const previewToken = activeChordPreview.token;
+            const shouldNotifyServer = cardData.card_type === "audio";
 
             const markPreviewFinished = () => {
                 if (activeChordPreview.token !== previewToken) return;
                 audioRevealLock = false;
                 updateRevealedHighlights();
-                socket.emit("audio_preview_finished", {
-                    index,
-                    username: myName,
-                    reconnect_token: getReconnectToken()
-                });
+                if (shouldNotifyServer) {
+                    socket.emit("audio_preview_finished", {
+                        index,
+                        username: myName,
+                        reconnect_token: getReconnectToken()
+                    });
+                }
             };
 
             // Chord progression: play sequence of chords one after another
@@ -1829,7 +1836,7 @@
                 safePlayAudio(targetAudio, finishTarget);
             };
 
-            if (!cardData.reference_audio) {
+            if (cardData.card_type === "word" || !cardData.reference_audio) {
                 targetFallbackTimer = setTimeout(finishTarget, 4500);
                 safePlayAudio(targetAudio, finishTarget);
                 return;
@@ -1866,7 +1873,7 @@
             revealedOrder.forEach((index, orderIndex) => {
                 const cardElement = document.getElementById(`card-${index}`);
                 if (!cardElement) return;
-                if (audioRevealLock && cards[index] && cards[index].card_type === "audio") {
+                if (audioRevealLock && cards[index] && (cards[index].card_type === "audio" || (cards[index].card_type === "word" && cards[index].chord_label))) {
                     cardElement.classList.add("revealed-audio-pending");
                 } else if (orderIndex === 0) {
                     cardElement.classList.add("revealed-first");
