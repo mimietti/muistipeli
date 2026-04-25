@@ -1153,13 +1153,6 @@
                     <button class="opt-btn" data-bot-difficulty="hard" id="botDifficultyHard">Hard</button>
                 </div>
             </div>
-            <div class="option-group" id="gomokuSizePicker" style="display:none;">
-                <div class="option-group-label" id="labelGomokuSize">Board size</div>
-                <div class="option-group-btns">
-                    <button class="opt-btn" data-gomoku-size="19" id="gomokuSize19">19×19</button>
-                    <button class="opt-btn" data-gomoku-size="13" id="gomokuSize13">13×13</button>
-                </div>
-            </div>
             <div class="option-group" id="gomokuVisiblePairsPicker" style="display:none;">
                 <div class="option-group-label" id="labelGomokuVisiblePairs">Recognizable move pairs</div>
                 <div class="option-group-btns" id="gomokuVisiblePairsBtns">
@@ -2459,7 +2452,7 @@
                     window.currentWaitingCardMode = selectedCardMode;
                     try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (_) {}
                 }
-                if (payload && payload.gomoku_size && ["13", "19"].includes(String(payload.gomoku_size))) {
+                if (payload && payload.gomoku_size && String(payload.gomoku_size) === "13") {
                     selectedGomokuSize = String(payload.gomoku_size);
                     try { localStorage.setItem("preferred_gomoku_size", selectedGomokuSize); } catch (_) {}
                 }
@@ -2524,9 +2517,6 @@
                 });
                 document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
-                });
-                document.querySelectorAll("#gomokuSize19, #gomokuSize13").forEach((btn) => {
-                    btn.classList.toggle("active", btn.dataset.gomokuSize === selectedGomokuSize);
                 });
                 document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.gomokuVisiblePairs === selectedGomokuVisiblePairs);
@@ -3126,13 +3116,11 @@
             let selectedChordAudioType = ["single", "progression"].includes(localStorage.getItem("preferred_chord_audio_type"))
                 ? localStorage.getItem("preferred_chord_audio_type")
                 : "single";
-            let selectedGomokuSize = ["13", "19"].includes(localStorage.getItem("preferred_gomoku_size"))
-                ? localStorage.getItem("preferred_gomoku_size")
-                : "19";
+            let selectedGomokuSize = "13";
             let selectedGomokuVisiblePairs = ["1","2","3","5","10"].includes(localStorage.getItem("preferred_gomoku_visible_pairs"))
                 ? localStorage.getItem("preferred_gomoku_visible_pairs")
                 : "1";
-            let selectedGomokuCapturePairs = localStorage.getItem("preferred_gomoku_capture_pairs") === "true";
+            let selectedGomokuCapturePairs = localStorage.getItem("preferred_gomoku_capture_pairs") !== "false";
             let selectedBotDifficulty = ["easy", "medium", "hard"].includes(localStorage.getItem("bot_difficulty"))
                 ? localStorage.getItem("bot_difficulty")
                 : "easy";
@@ -3156,7 +3144,7 @@
             function updateGomokuSizeVisibility() {
                 const picker = document.getElementById("gomokuSizePicker");
                 if (!picker) return;
-                picker.style.display = selectedCardMode === "gomoku" ? "block" : "none";
+                picker.style.display = "none";
             }
 
             function updateGomokuVisiblePairsVisibility() {
@@ -3207,7 +3195,7 @@
                     wordSourcePickerEl.style.display = isChordMode ? "none" : "";
                     wordFilterPickerEl.style.display = isChordMode ? "none" : "";
                     botDifficultyPickerEl.style.display = (localStorage.getItem("play_mode") || "") === "bot" ? "block" : "none";
-                    gomokuSizePickerEl.style.display = selectedCardMode === "gomoku" ? "block" : "none";
+                    if (gomokuSizePickerEl) gomokuSizePickerEl.style.display = "none";
                     startRoundBtnEl.style.display = "";
                     return;
                 }
@@ -3217,7 +3205,7 @@
                 cardModePickerEl.style.display = "none";
                 langPickerEl.style.display = prepared ? "none" : (!["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? "block" : "none");
                 botDifficultyPickerEl.style.display = "none";
-                gomokuSizePickerEl.style.display = (prepared || selectedCardMode !== "gomoku") ? "none" : "block";
+                if (gomokuSizePickerEl) gomokuSizePickerEl.style.display = "none";
                 startRoundBtnEl.style.display = prepared ? "none" : "";
             }
 
@@ -3278,9 +3266,6 @@
             document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
             });
-            document.querySelectorAll("#gomokuSize19, #gomokuSize13").forEach((btn) => {
-                btn.classList.toggle("active", btn.dataset.gomokuSize === selectedGomokuSize);
-            });
             document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.gomokuVisiblePairs === selectedGomokuVisiblePairs);
             });
@@ -3322,21 +3307,6 @@
 
             document.querySelectorAll("#botDifficultyEasy, #botDifficultyMedium, #botDifficultyHard").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.botDifficulty === selectedBotDifficulty);
-            });
-
-            document.querySelectorAll("#gomokuSize19, #gomokuSize13").forEach(btn => {
-                btn.addEventListener("click", () => {
-                    selectedGomokuSize = btn.dataset.gomokuSize;
-                    try { localStorage.setItem("preferred_gomoku_size", selectedGomokuSize); } catch (e) {}
-                    document.querySelectorAll("#gomokuSize19, #gomokuSize13").forEach(b => b.classList.toggle("active", b === btn));
-                    socket.emit("preference_changed", {
-                        card_mode: selectedCardMode,
-                        target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
-                        gomoku_size: parseInt(selectedGomokuSize, 10),
-                        gomoku_visible_pairs: parseInt(selectedGomokuVisiblePairs, 10),
-                        gomoku_capture_pairs: selectedGomokuCapturePairs
-                    });
-                });
             });
 
             document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach(btn => {

@@ -213,6 +213,125 @@
                 font-size: 16px;
             }
         }
+        body.tablet-fit .topbar {
+            width: min(960px, calc(100% - 16px));
+            margin: 10px auto 0;
+        }
+        body.tablet-fit .topbar-btn,
+        body.tablet-fit .settings-close-btn {
+            padding: 8px 14px;
+            font-size: 13px;
+        }
+        body.tablet-fit .game-topbar {
+            gap: 10px;
+            width: min(100%, calc(100vw - 12px));
+            margin: 2px auto 4px;
+        }
+        body.tablet-fit #players {
+            font-size: 12px;
+        }
+        body.tablet-fit .players-status-label {
+            margin-bottom: 4px;
+            font-size: 10px;
+        }
+        body.tablet-fit #roundActions {
+            gap: 8px;
+        }
+        body.tablet-fit .round-action-btn {
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+        body.tablet-fit #solo-stats {
+            gap: 12px;
+            font-size: 13px;
+        }
+        body.tablet-fit .solo-stat-value {
+            font-size: 15px;
+        }
+        body.tablet-fit #setup-status {
+            margin-top: 6px !important;
+            font-size: 15px !important;
+        }
+        body.tablet-fit #theme-progress {
+            margin: 6px auto 8px;
+            padding: 0 10px;
+            font-size: 12px;
+        }
+        body.tablet-fit #grid {
+            width: min(calc(100vw - 12px), 760px);
+            gap: 10px;
+            padding: 6px 4px 6px;
+        }
+        body.tablet-fit .card {
+            border-radius: 10px;
+        }
+        body.tablet-fit .card-word-text {
+            padding: 10px;
+        }
+        body.tablet-fit .card-audio-icon {
+            font-size: clamp(36px, 5.2vw, 56px);
+        }
+        body.tablet-fit #image-pair-tracker {
+            margin: 0 auto 8px;
+            padding: 0 10px;
+        }
+        body.tablet-fit #image-pair-tracker-label {
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+        body.tablet-fit .image-pair-chip {
+            padding: 7px 10px;
+            font-size: 13px;
+        }
+        body.tablet-fit #translation-hint {
+            max-width: calc(100vw - 14px);
+            margin: 0 auto 8px;
+            padding: 7px 8px;
+        }
+        body.tablet-fit .translation-col {
+            padding: 6px 8px;
+        }
+        body.tablet-fit .translation-col-value {
+            font-size: 17px;
+        }
+        body.tablet-fit #gomoku-wrap {
+            padding: 4px 6px 8px !important;
+        }
+        body.tablet-fit #gomoku-board {
+            max-width: calc(100vw - 12px);
+            height: auto;
+        }
+        body.tablet-fit #gomoku-rematch-panel {
+            width: min(700px, calc(100% - 14px));
+            margin: 8px auto 10px;
+        }
+        body.tablet-fit .gomoku-rematch-card {
+            padding: 14px 16px;
+        }
+        body.tablet-fit .gomoku-rematch-title {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        body.tablet-fit #results {
+            width: min(720px, calc(100% - 20px));
+            margin: 16px auto 0;
+            padding: 22px 18px 24px;
+            font-size: 20px;
+        }
+        body.tablet-fit .results-heading {
+            font-size: 24px;
+        }
+        body.tablet-fit .results-subheading {
+            font-size: 19px;
+        }
+        body.tablet-fit .results-btn {
+            padding: 10px 15px;
+            font-size: 16px;
+        }
+        body.tablet-fit .footer-credit {
+            margin: 6px 0 10px;
+            font-size: 11px;
+        }
         #theme-progress {
             display: none;
             max-width: 760px;
@@ -1043,6 +1162,8 @@
                 gomoku_you_black: "You play black (●)",
                 gomoku_pairs_shown: "Showing the latest move pair",
                 gomoku_pairs_shown_plural: "Showing last {n} move pairs",
+                gomoku_capture_pairs_on: "Pair capture: on",
+                gomoku_capture_pairs_off: "Pair capture: off",
                 rematch_title: "Play the next round?",
                 rematch_btn: "Play the next round",
                 rematch_exit: "Back to start",
@@ -1140,6 +1261,8 @@
                 gomoku_you_black: "Pelaat mustalla (●)",
                 gomoku_pairs_shown: "Näytetään viimeisin siirtopari",
                 gomoku_pairs_shown_plural: "Näytetään {n} viimeistä siirtoparia",
+                gomoku_capture_pairs_on: "Kahden kaappaus: päällä",
+                gomoku_capture_pairs_off: "Kahden kaappaus: pois",
                 rematch_title: "Pelataanko uusi erä samoilla asetuksilla?",
                 rematch_btn: "Pelaa uusi erä",
                 rematch_exit: "Palaa alkuun",
@@ -1259,7 +1382,25 @@
         function applyPersonalSettings() {
             document.body.dataset.uiStyle = getUiStyle();
             document.body.dataset.uiMotion = getUiMotion();
+            syncTabletFitMode();
             syncSettingsControls();
+        }
+
+        function isTabletFitViewport() {
+            const ua = navigator.userAgent || "";
+            const platform = navigator.platform || "";
+            const maxTouchPoints = navigator.maxTouchPoints || 0;
+            const isIpad = /iPad/i.test(ua) || (platform === "MacIntel" && maxTouchPoints > 1);
+            if (!isIpad) return false;
+            const vw = Math.min(window.innerWidth || 0, window.screen?.width || Infinity);
+            const vh = Math.min(window.innerHeight || 0, window.screen?.height || Infinity);
+            const shortSide = Math.min(vw, vh);
+            const longSide = Math.max(vw, vh);
+            return shortSide >= 744 && longSide <= 1366;
+        }
+
+        function syncTabletFitMode() {
+            document.body.classList.toggle("tablet-fit", isTabletFitViewport());
         }
 
         function getLanguage() {
@@ -2453,29 +2594,29 @@
                 const strokeWidth = options.strokeWidth != null ? options.strokeWidth : 1.5;
                 const extraClass = options.extraClass || "";
                 const win = Boolean(options.win);
-                const baseFill = isWhite ? "#f4f4f0" : "#20211f";
-                const stroke = isWhite ? "#8a8e87" : "#494d47";
-                const coreFill = isWhite ? "#ffffff" : "#323530";
-                const shadowFill = isWhite ? "#c9cdc5" : "#111210";
-                const highlightFill = isWhite ? "#ffffff" : "#666b64";
-                html += `<circle cx="${x + radius * 0.08}" cy="${y + radius * 0.12}" r="${radius * 0.95}" fill="${shadowFill}" opacity="${opacity * (isWhite ? 0.22 : 0.3)}"/>`;
+                const baseFill = isWhite ? "#f2eee5" : "#20231f";
+                const stroke = isWhite ? "#8e9188" : "#454943";
+                const coreFill = isWhite ? "#ffffff" : "#31352f";
+                const shadowFill = isWhite ? "#c3c6bf" : "#121411";
+                const shadeFill = isWhite ? "#d4d8d1" : "#151714";
+                const highlightFill = isWhite ? "#ffffff" : "#7b8179";
+                html += `<ellipse cx="${x + radius * 0.16}" cy="${y + radius * 0.22}" rx="${radius * 0.96}" ry="${radius * 0.72}" fill="${shadowFill}" opacity="${opacity * (isWhite ? 0.22 : 0.32)}"/>`;
                 html += `<circle cx="${x}" cy="${y}" r="${radius}" fill="${baseFill}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${opacity}" class="gomoku-stone${win ? ' gomoku-win-stone' : ''}${extraClass ? ` ${extraClass}` : ''}"/>`;
-                html += `<circle cx="${x - radius * 0.04}" cy="${y - radius * 0.08}" r="${radius * 0.82}" fill="${coreFill}" opacity="${opacity * (isWhite ? 0.46 : 0.34)}"/>`;
-                html += `<circle cx="${x - radius * 0.34}" cy="${y - radius * 0.36}" r="${radius * 0.34}" fill="${highlightFill}" opacity="${opacity * (isWhite ? 0.22 : 0.18)}"/>`;
+                html += `<circle cx="${x - radius * 0.05}" cy="${y - radius * 0.1}" r="${radius * 0.84}" fill="${coreFill}" opacity="${opacity * (isWhite ? 0.5 : 0.38)}"/>`;
+                html += `<ellipse cx="${x + radius * 0.18}" cy="${y + radius * 0.22}" rx="${radius * 0.62}" ry="${radius * 0.46}" fill="${shadeFill}" opacity="${opacity * (isWhite ? 0.18 : 0.22)}"/>`;
+                html += `<ellipse cx="${x - radius * 0.34}" cy="${y - radius * 0.38}" rx="${radius * 0.34}" ry="${radius * 0.24}" fill="${highlightFill}" opacity="${opacity * (isWhite ? 0.24 : 0.2)}"/>`;
                 return { x, y, isWhite, opacity };
             };
             const renderHiddenMarker = (idx, progress = 1) => {
                 const [x, y] = gomokuXY(idx, size);
                 const eased = Math.max(0, Math.min(1, progress));
-                const baseOpacity = 0.84 * eased;
-                const outerRadius = 11.8 - 0.7 * (1 - eased);
-                const innerRadius = 10.1 - 0.5 * (1 - eased);
-                const shadowRadius = 8.5 - 0.5 * (1 - eased);
-                const highlightRadius = 4.8 - 0.2 * (1 - eased);
-                html += `<circle cx="${x}" cy="${y}" r="${outerRadius}" fill="#6f736d" stroke="#535650" stroke-width="1.35" opacity="${baseOpacity}"/>`;
-                html += `<circle cx="${x}" cy="${y}" r="${innerRadius}" fill="#8d928b" opacity="${0.24 * eased}"/>`;
-                html += `<circle cx="${x + 1.4}" cy="${y + 1.7}" r="${shadowRadius}" fill="#5c5f5a" opacity="${0.18 * eased}"/>`;
-                html += `<circle cx="${x - 3.2}" cy="${y - 3.1}" r="${highlightRadius}" fill="#d3d7cf" opacity="${0.14 * eased}"/>`;
+                const baseOpacity = 0.9 * eased;
+                const radius = 12.1 - 0.45 * (1 - eased);
+                html += `<ellipse cx="${x + radius * 0.16}" cy="${y + radius * 0.22}" rx="${radius * 0.96}" ry="${radius * 0.72}" fill="#414540" opacity="${0.28 * eased}"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="${radius}" fill="#6f746d" stroke="#50554e" stroke-width="1.35" opacity="${baseOpacity}"/>`;
+                html += `<circle cx="${x - radius * 0.04}" cy="${y - radius * 0.08}" r="${radius * 0.84}" fill="#8e948b" opacity="${0.34 * eased}"/>`;
+                html += `<ellipse cx="${x + radius * 0.2}" cy="${y + radius * 0.22}" rx="${radius * 0.6}" ry="${radius * 0.44}" fill="#555a53" opacity="${0.24 * eased}"/>`;
+                html += `<ellipse cx="${x - radius * 0.34}" cy="${y - radius * 0.38}" rx="${radius * 0.34}" ry="${radius * 0.24}" fill="#dce0d8" opacity="${0.2 * eased}"/>`;
             };
             const mixColor = (from, to, progress) => {
                 const t = Math.max(0, Math.min(1, progress));
@@ -2483,15 +2624,75 @@
                 return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
             };
 
+            const boardInset = 12;
+            const boardSize = dim - boardInset * 2;
+            const boardRadius = 11;
+            const woodBands = [
+                { y: boardInset + boardSize * 0.13, drift: -16, width: 22, color: "#9d6028", opacity: 0.18, highlight: "#f5d08e" },
+                { y: boardInset + boardSize * 0.29, drift: 12, width: 18, color: "#8e5423", opacity: 0.14, highlight: "#f2cb85" },
+                { y: boardInset + boardSize * 0.47, drift: -10, width: 24, color: "#b47233", opacity: 0.16, highlight: "#efc179" },
+                { y: boardInset + boardSize * 0.66, drift: 15, width: 19, color: "#8a5120", opacity: 0.15, highlight: "#efc885" },
+                { y: boardInset + boardSize * 0.82, drift: -11, width: 21, color: "#a7652d", opacity: 0.17, highlight: "#f3d39a" },
+            ];
             let html = '';
+            html += `
+                <defs>
+                    <linearGradient id="gomoku-board-base" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#efc97f"/>
+                        <stop offset="32%" stop-color="#dca75d"/>
+                        <stop offset="68%" stop-color="#bf8040"/>
+                        <stop offset="100%" stop-color="#9b612f"/>
+                    </linearGradient>
+                    <linearGradient id="gomoku-board-sheen" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#fff0ca" stop-opacity="0.38"/>
+                        <stop offset="22%" stop-color="#f9ddb0" stop-opacity="0.14"/>
+                        <stop offset="58%" stop-color="#b17136" stop-opacity="0"/>
+                        <stop offset="100%" stop-color="#693f1e" stop-opacity="0.2"/>
+                    </linearGradient>
+                    <radialGradient id="gomoku-board-glow" cx="30%" cy="24%" r="82%">
+                        <stop offset="0%" stop-color="#fff2ca" stop-opacity="0.28"/>
+                        <stop offset="44%" stop-color="#efbc72" stop-opacity="0.08"/>
+                        <stop offset="100%" stop-color="#76471f" stop-opacity="0.24"/>
+                    </radialGradient>
+                    <pattern id="gomoku-board-grain" patternUnits="userSpaceOnUse" width="180" height="180">
+                        <path d="M-20 22 C 26 10, 78 16, 126 26 S 226 44, 308 18" fill="none" stroke="#824a21" stroke-width="1.6" stroke-opacity="0.22"/>
+                        <path d="M-10 46 C 34 34, 92 38, 150 52 S 244 68, 322 42" fill="none" stroke="#f0cd90" stroke-width="1.2" stroke-opacity="0.14"/>
+                        <path d="M-26 74 C 18 60, 80 68, 140 82 S 238 98, 316 72" fill="none" stroke="#6b3d1c" stroke-width="1.4" stroke-opacity="0.18"/>
+                        <path d="M-14 102 C 30 90, 96 96, 154 110 S 248 124, 326 100" fill="none" stroke="#ecc07a" stroke-width="1.1" stroke-opacity="0.14"/>
+                        <path d="M-18 130 C 28 118, 86 124, 146 138 S 242 154, 322 126" fill="none" stroke="#7a4720" stroke-width="1.5" stroke-opacity="0.18"/>
+                        <path d="M-8 156 C 40 144, 102 148, 164 162 S 258 176, 334 152" fill="none" stroke="#f3d8ac" stroke-width="1" stroke-opacity="0.12"/>
+                    </pattern>
+                    <clipPath id="gomoku-board-clip">
+                        <rect x="${boardInset}" y="${boardInset}" width="${boardSize}" height="${boardSize}" rx="${boardRadius}"/>
+                    </clipPath>
+                    <filter id="gomoku-board-shadow" x="-10%" y="-10%" width="120%" height="120%">
+                        <feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#4b2b11" flood-opacity="0.34"/>
+                    </filter>
+                </defs>
+            `;
             // Board background
-            html += `<rect width="${dim}" height="${dim}" fill="#dcb167" rx="4"/>`;
+            html += `<rect x="4" y="4" width="${dim - 8}" height="${dim - 8}" rx="16" fill="#5f3718" stroke="#43240e" stroke-width="1.6" filter="url(#gomoku-board-shadow)"/>`;
+            html += `<rect x="${boardInset}" y="${boardInset}" width="${boardSize}" height="${boardSize}" rx="${boardRadius}" fill="url(#gomoku-board-base)" stroke="#865126" stroke-width="1.3"/>`;
+            html += `<g clip-path="url(#gomoku-board-clip)">`;
+            html += `<rect x="${boardInset}" y="${boardInset}" width="${boardSize}" height="${boardSize}" rx="${boardRadius}" fill="url(#gomoku-board-grain)" opacity="1"/>`;
+            for (const band of woodBands) {
+                const startX = boardInset + 8;
+                const endX = boardInset + boardSize - 8;
+                const control1X = boardInset + boardSize * 0.26;
+                const control2X = boardInset + boardSize * 0.7;
+                html += `<path d="M ${startX} ${band.y} C ${control1X} ${band.y + band.drift}, ${control2X} ${band.y - band.drift * 0.65}, ${endX} ${band.y + band.drift * 0.35}" fill="none" stroke="${band.color}" stroke-width="${band.width}" stroke-opacity="${band.opacity}" stroke-linecap="round"/>`;
+                html += `<path d="M ${startX} ${band.y - band.width * 0.18} C ${control1X} ${band.y + band.drift * 0.55}, ${control2X} ${band.y - band.drift * 0.45}, ${endX} ${band.y + band.drift * 0.18}" fill="none" stroke="${band.highlight}" stroke-width="${Math.max(2.4, band.width * 0.18)}" stroke-opacity="${band.opacity * 0.55}" stroke-linecap="round"/>`;
+            }
+            html += `<rect x="${boardInset}" y="${boardInset}" width="${boardSize}" height="${boardSize}" rx="${boardRadius}" fill="url(#gomoku-board-sheen)"/>`;
+            html += `<rect x="${boardInset}" y="${boardInset}" width="${boardSize}" height="${boardSize}" rx="${boardRadius}" fill="url(#gomoku-board-glow)"/>`;
+            html += `</g>`;
+            html += `<rect x="${boardInset + 1.5}" y="${boardInset + 1.5}" width="${boardSize - 3}" height="${boardSize - 3}" rx="${boardRadius - 1.5}" fill="none" stroke="#f2c982" stroke-width="1.1" opacity="0.35"/>`;
             // Grid lines
             for (let i = 0; i <= size; i++) {
                 const x = GOMOKU_MARGIN + i * GOMOKU_CELL;
                 const y = GOMOKU_MARGIN + i * GOMOKU_CELL;
-                html += `<line x1="${x}" y1="${GOMOKU_MARGIN}" x2="${x}" y2="${GOMOKU_MARGIN + size * GOMOKU_CELL}" stroke="#555" stroke-width="0.8"/>`;
-                html += `<line x1="${GOMOKU_MARGIN}" y1="${y}" x2="${GOMOKU_MARGIN + size * GOMOKU_CELL}" y2="${y}" stroke="#555" stroke-width="0.8"/>`;
+                html += `<line x1="${x}" y1="${GOMOKU_MARGIN}" x2="${x}" y2="${GOMOKU_MARGIN + size * GOMOKU_CELL}" stroke="#5c3517" stroke-width="0.92" stroke-opacity="0.82"/>`;
+                html += `<line x1="${GOMOKU_MARGIN}" y1="${y}" x2="${GOMOKU_MARGIN + size * GOMOKU_CELL}" y2="${y}" stroke="#5c3517" stroke-width="0.92" stroke-opacity="0.82"/>`;
             }
             // Star points aligned to the visible cell centers.
             const stars = gomokuStarPoints(size);
@@ -2499,7 +2700,7 @@
                 for (const sc of stars) {
                     const sx = GOMOKU_MARGIN + sc * GOMOKU_CELL + GOMOKU_CELL / 2;
                     const sy = GOMOKU_MARGIN + sr * GOMOKU_CELL + GOMOKU_CELL / 2;
-                    html += `<circle cx="${sx}" cy="${sy}" r="3" fill="#444"/>`;
+                    html += `<circle cx="${sx}" cy="${sy}" r="3" fill="#4f2d14" opacity="0.94"/>`;
                 }
             }
             // Clickable cells (invisible overlay)
@@ -2812,7 +3013,6 @@
         function showGomokuRematchPanel(data) {
             const panel = document.getElementById("gomoku-rematch-panel");
             if (!panel) return;
-            const points = data.points || {};
             const wins = data.round_win || {};
             const ties = Number(data.round_ties || 0);
             const winner = data.winner || "";
@@ -2820,13 +3020,6 @@
             panel.innerHTML = `
                 <div class="gomoku-rematch-card">
                     <div class="gomoku-rematch-title">${isDraw ? t("draw_label") : t("game_over", { winner })}</div>
-                    <div class="gomoku-rematch-label">${t("points")}</div>
-                    ${Object.entries(points).map(([name, pts]) => `
-                        <div class="gomoku-rematch-score">
-                            <span>${name}</span>
-                            <span>${pts} ${t("pairs_suffix")}</span>
-                        </div>
-                    `).join("")}
                 </div>
                 <div class="gomoku-rematch-card">
                     <div class="gomoku-rematch-label">${t("round_wins")}</div>
@@ -3667,7 +3860,8 @@
                 const key = vp === 1 ? "gomoku_pairs_shown" : "gomoku_pairs_shown_plural";
                 const label = document.createElement("div");
                 label.className = "players-status-label";
-                label.textContent = t(key, { n: vp });
+                const captureKey = gomokuState.capturePairsEnabled ? "gomoku_capture_pairs_on" : "gomoku_capture_pairs_off";
+                label.textContent = `${t(key, { n: vp })} · ${t(captureKey)}`;
                 playersDiv.appendChild(label);
             }
 

@@ -130,13 +130,13 @@ BOT_MEMORY_USE_PROBABILITY = {
     "medium": 0.55,
     "hard": 0.9,
 }
-GOMOKU_SIZE = 19
+GOMOKU_SIZE = 13
 GOMOKU_WIN = 5
-GOMOKU_ALLOWED_SIZES = {13, 19}
+GOMOKU_ALLOWED_SIZES = {13}
 GOMOKU_VISIBLE_PAIRS_DEFAULT = 1
 GOMOKU_VISIBLE_PAIRS_MIN = 1
 GOMOKU_VISIBLE_PAIRS_MAX = 10
-GOMOKU_CAPTURE_PAIRS_DEFAULT = False
+GOMOKU_CAPTURE_PAIRS_DEFAULT = True
 DEFAULT_ROOM_ID = "default"
 MAX_PLAYERS = 2
 
@@ -210,7 +210,7 @@ class RoomState:
     gomoku_black_history: list = field(default_factory=list)  # last N black positions (most recent last)
     gomoku_white_player: str = ""
     gomoku_black_player: str = ""
-    gomoku_size: int = 19
+    gomoku_size: int = GOMOKU_SIZE
     gomoku_visible_pairs: int = GOMOKU_VISIBLE_PAIRS_DEFAULT
     gomoku_capture_pairs: bool = GOMOKU_CAPTURE_PAIRS_DEFAULT
 
