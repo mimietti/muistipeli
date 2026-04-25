@@ -1739,6 +1739,15 @@
         }
 
         function stopChordPreview() {
+            const hadActivePreview = Boolean(activeChordPreview.reference || activeChordPreview.target || audioRevealLock);
+            if (hadActivePreview) {
+                console.debug("[CHORD_PREVIEW]", "stop", {
+                    token: activeChordPreview.token,
+                    hasReference: Boolean(activeChordPreview.reference),
+                    hasTarget: Boolean(activeChordPreview.target),
+                    audioRevealLock
+                });
+            }
             audioRevealLock = false;
             if (activeChordPreview.pauseTimer) {
                 clearTimeout(activeChordPreview.pauseTimer);
@@ -1756,6 +1765,13 @@
             activeChordPreview.token += 1;
         }
 
+        function logChordPreview(event, data = {}) {
+            console.debug("[CHORD_PREVIEW]", event, {
+                at: Math.round(performance.now()),
+                ...data
+            });
+        }
+
         function playChordPreview(cardData, index) {
             const playableChordCard = cardData && (
                 cardData.card_type === "audio" ||
@@ -1767,9 +1783,29 @@
             audioRevealLock = true;
             const previewToken = activeChordPreview.token;
             const shouldNotifyServer = cardData.card_type === "audio" || Boolean(cardData.chord_label);
+            logChordPreview("start", {
+                index,
+                token: previewToken,
+                cardType: cardData.card_type,
+                pairId: cardData.pair_id,
+                label: cardData.chord_label || cardData.display_word || cardData.word,
+                hasReference: Boolean(cardData.reference_audio),
+                hasAudio: Boolean(cardData.audio),
+                sequenceLength: cardData.audio_sequence ? cardData.audio_sequence.length : 0,
+                shouldNotifyServer
+            });
 
-            const markPreviewFinished = () => {
-                if (activeChordPreview.token !== previewToken) return;
+            const markPreviewFinished = (reason = "finished") => {
+                if (activeChordPreview.token !== previewToken) {
+                    logChordPreview("finish_skipped_stale_token", {
+                        index,
+                        token: previewToken,
+                        currentToken: activeChordPreview.token,
+                        reason
+                    });
+                    return;
+                }
+                logChordPreview("finish", { index, token: previewToken, reason, shouldNotifyServer });
                 audioRevealLock = false;
                 updateRevealedHighlights();
                 if (shouldNotifyServer) {
@@ -1783,51 +1819,101 @@
 
             const playReferenceThen = (startTarget) => {
                 if (!cardData.reference_audio) {
+                    logChordPreview("reference_missing_start_target", { index, token: previewToken });
                     startTarget();
                     return;
                 }
                 const referenceAudio = createGameAudio(cardData.reference_audio);
                 activeChordPreview.reference = referenceAudio;
-                const startTargetAudio = () => {
-                    if (activeChordPreview.token !== previewToken) return;
+                logChordPreview("reference_start", { index, token: previewToken, src: cardData.reference_audio });
+                const startTargetAudio = (reason = "reference_done", error = null) => {
+                    if (activeChordPreview.token !== previewToken) {
+                        logChordPreview("reference_done_stale_token", {
+                            index,
+                            token: previewToken,
+                            currentToken: activeChordPreview.token,
+                            reason
+                        });
+                        return;
+                    }
+                    logChordPreview("reference_done_start_target", {
+                        index,
+                        token: previewToken,
+                        reason,
+                        error: error ? String(error && (error.message || error.name || error)) : ""
+                    });
                     clearTimeout(refFallbackTimer);
                     activeChordPreview.reference = null;
                     startTarget();
                 };
                 let refFallbackTimer = setTimeout(() => {
-                    if (activeChordPreview.token === previewToken) startTargetAudio();
+                    if (activeChordPreview.token === previewToken) startTargetAudio("reference_initial_fallback");
                 }, 4500);
                 referenceAudio.onloadedmetadata = () => {
                     clearTimeout(refFallbackTimer);
+                    logChordPreview("reference_metadata", {
+                        index,
+                        token: previewToken,
+                        duration: referenceAudio.duration || null
+                    });
                     refFallbackTimer = setTimeout(() => {
-                        if (activeChordPreview.token === previewToken) startTargetAudio();
+                        if (activeChordPreview.token === previewToken) startTargetAudio("reference_duration_fallback");
                     }, Math.round((referenceAudio.duration || 5) * 1000) + 500);
                 };
-                referenceAudio.onended = startTargetAudio;
-                referenceAudio.onerror = startTargetAudio;
-                safePlayAudio(referenceAudio, startTargetAudio);
+                referenceAudio.onended = () => startTargetAudio("reference_ended");
+                referenceAudio.onerror = () => startTargetAudio("reference_error");
+                referenceAudio.onplaying = () => logChordPreview("reference_playing", { index, token: previewToken });
+                safePlayAudio(referenceAudio, (error) => startTargetAudio("reference_safePlay_failure", error));
             };
 
             // Chord progression: play sequence of chords one after another
             if (cardData.audio_sequence && cardData.audio_sequence.length) {
                 const chordMs = Math.round((parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5")) * 1000);
                 const playNext = (pos) => {
-                    if (activeChordPreview.token !== previewToken) return;
-                    if (pos >= cardData.audio_sequence.length) { markPreviewFinished(); return; }
+                    if (activeChordPreview.token !== previewToken) {
+                        logChordPreview("sequence_skip_stale_token", {
+                            index,
+                            token: previewToken,
+                            currentToken: activeChordPreview.token,
+                            pos
+                        });
+                        return;
+                    }
+                    if (pos >= cardData.audio_sequence.length) { markPreviewFinished("sequence_complete"); return; }
                     const audio = createGameAudio(cardData.audio_sequence[pos]);
                     activeChordPreview.target = audio;
+                    logChordPreview("sequence_target_start", { index, token: previewToken, pos, src: cardData.audio_sequence[pos] });
                     let advanced = false;
-                    const advance = () => {
-                        if (advanced || activeChordPreview.token !== previewToken) return;
+                    const advance = (reason = "sequence_target_done", error = null) => {
+                        if (advanced || activeChordPreview.token !== previewToken) {
+                            if (activeChordPreview.token !== previewToken) {
+                                logChordPreview("sequence_target_done_stale_token", {
+                                    index,
+                                    token: previewToken,
+                                    currentToken: activeChordPreview.token,
+                                    pos,
+                                    reason
+                                });
+                            }
+                            return;
+                        }
                         advanced = true;
                         clearTimeout(fallbackTimer);
                         activeChordPreview.target = null;
+                        logChordPreview("sequence_target_done", {
+                            index,
+                            token: previewToken,
+                            pos,
+                            reason,
+                            error: error ? String(error && (error.message || error.name || error)) : ""
+                        });
                         playNext(pos + 1);
                     };
-                    const fallbackTimer = setTimeout(advance, chordMs + 500);
-                    audio.onended = advance;
-                    audio.onerror = advance;
-                    safePlayAudio(audio, advance);
+                    const fallbackTimer = setTimeout(() => advance("sequence_target_fallback"), chordMs + 500);
+                    audio.onended = () => advance("sequence_target_ended");
+                    audio.onerror = () => advance("sequence_target_error");
+                    audio.onplaying = () => logChordPreview("sequence_target_playing", { index, token: previewToken, pos });
+                    safePlayAudio(audio, (error) => advance("sequence_target_safePlay_failure", error));
                 };
                 playReferenceThen(() => playNext(0));
                 return;
@@ -1837,29 +1923,60 @@
             const targetAudio = createGameAudio(cardData.audio);
             activeChordPreview.target = targetAudio;
             let targetFallbackTimer = null;
-            const finishTarget = () => {
+            const finishTarget = (reason = "single_target_done", error = null) => {
                 clearTimeout(targetFallbackTimer);
                 if (activeChordPreview.token === previewToken) {
                     activeChordPreview.target = null;
-                    markPreviewFinished();
+                    logChordPreview("single_target_done", {
+                        index,
+                        token: previewToken,
+                        reason,
+                        error: error ? String(error && (error.message || error.name || error)) : ""
+                    });
+                    markPreviewFinished(reason);
+                } else {
+                    logChordPreview("single_target_done_stale_token", {
+                        index,
+                        token: previewToken,
+                        currentToken: activeChordPreview.token,
+                        reason
+                    });
                 }
             };
             targetAudio.onloadedmetadata = () => {
                 if (targetFallbackTimer !== null) {
                     clearTimeout(targetFallbackTimer);
-                    targetFallbackTimer = setTimeout(finishTarget, Math.round((targetAudio.duration || 5) * 1000) + 500);
+                    logChordPreview("single_target_metadata", {
+                        index,
+                        token: previewToken,
+                        duration: targetAudio.duration || null
+                    });
+                    targetFallbackTimer = setTimeout(
+                        () => finishTarget("single_target_duration_fallback"),
+                        Math.round((targetAudio.duration || 5) * 1000) + 500
+                    );
                 }
             };
-            targetAudio.onended = finishTarget;
-            targetAudio.onerror = finishTarget;
+            targetAudio.onended = () => finishTarget("single_target_ended");
+            targetAudio.onerror = () => finishTarget("single_target_error");
+            targetAudio.onplaying = () => logChordPreview("single_target_playing", { index, token: previewToken });
 
             let targetStarted = false;
             const startTargetAudio = () => {
-                if (targetStarted || activeChordPreview.token !== previewToken) return;
+                if (targetStarted || activeChordPreview.token !== previewToken) {
+                    logChordPreview("single_target_start_skipped", {
+                        index,
+                        token: previewToken,
+                        currentToken: activeChordPreview.token,
+                        targetStarted
+                    });
+                    return;
+                }
                 targetStarted = true;
                 activeChordPreview.reference = null;
-                targetFallbackTimer = setTimeout(finishTarget, 4500);
-                safePlayAudio(targetAudio, finishTarget);
+                targetFallbackTimer = setTimeout(() => finishTarget("single_target_initial_fallback"), 4500);
+                logChordPreview("single_target_start", { index, token: previewToken, src: cardData.audio });
+                safePlayAudio(targetAudio, (error) => finishTarget("single_target_safePlay_failure", error));
             };
 
             playReferenceThen(startTargetAudio);
@@ -3795,26 +3912,12 @@
                     console.log(`[DEBUG] Klikattiin korttia: ${index}`);
                     const cardData = cards[index];
                     // Re-play already-revealed audio card without affecting game state
-                    if (revealedOrder.includes(index) && cardData && cardData.card_type === "audio" && !matched.has(index) && !audioRevealLock && (isSoloMode || currentTurn === myName)) {
-                        if (cardData.audio_sequence && cardData.audio_sequence.length) {
-                            const chordMs = Math.round((parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5")) * 1000);
-                            const replayToken = ++activeChordPreview.token;
-                            const replayNext = (pos) => {
-                                if (activeChordPreview.token !== replayToken) return;
-                                if (pos >= cardData.audio_sequence.length) return;
-                                const ra = createGameAudio(cardData.audio_sequence[pos]);
-                                activeChordPreview.target = ra;
-                                let adv = false;
-                                const advance = () => { if (!adv && activeChordPreview.token === replayToken) { adv = true; clearTimeout(ft); replayNext(pos + 1); } };
-                                const ft = setTimeout(advance, chordMs + 500);
-                                ra.onended = advance; ra.onerror = advance;
-                                safePlayAudio(ra, advance);
-                            };
-                            replayNext(0);
-                        } else {
-                            const replay = createGameAudio(cardData.audio);
-                            safePlayAudio(replay);
-                        }
+                    const replayableChordCard = cardData && (
+                        cardData.card_type === "audio" ||
+                        (cardData.card_type === "word" && cardData.chord_label)
+                    );
+                    if (isSoloMode && revealedOrder.includes(index) && replayableChordCard && !matched.has(index) && !audioRevealLock) {
+                        playChordPreview(cardData, index);
                         return;
                     }
                     if ((isSoloMode || myName === currentTurn) && !matched.has(index) && !audioRevealLock) {
