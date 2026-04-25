@@ -2464,8 +2464,8 @@
                 for (let i = 0; i < maxLen; i++) {
                     // i=0 is oldest, i=maxLen-1 is newest
                     const age = maxLen - 1 - i;  // 0 = newest, increases for older
-                    // opacity: newest=1.0, oldest fades to 0.25
-                    const opacity = maxLen <= 1 ? 1 : Math.round((1 - age * 0.75 / (maxLen - 1)) * 100) / 100;
+                    // opacity: newest=0.85, oldest=0.25
+                    const opacity = maxLen <= 1 ? 0.85 : Math.round((0.25 + 0.6 * (1 - age / (maxLen - 1))) * 100) / 100;
                     if (i < wh.length) {
                         const widx = wh[i];
                         const [x, y] = gomokuXY(widx, size);
