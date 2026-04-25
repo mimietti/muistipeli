@@ -1500,7 +1500,7 @@
                 label_image_filter_mode: "Sanasto",
                 label_bot_difficulty: "Botin vaikeusaste",
                 label_gomoku_size: "Laudan koko",
-                label_gomoku_visible_pairs: "Näkyvät siirtoparet",
+                label_gomoku_visible_pairs: "Näkyvät siirtoparit",
                 label_gomoku_capture_pairs: "Kahden kaappaus",
                 bot_difficulty_summary: "Vaikeusaste: {difficulty}",
                 word_filter_clear: "Selkeät",
@@ -2586,7 +2586,7 @@
                         document.getElementById("startOptions").style.display = queueRoundPrepared ? "none" : "block";
                     }
                     if (queueRoundPrepared) {
-                        showQueueStatus(t("queue_round_ready"), "", true, false, t("queue_edit_settings"));
+                        showQueueStatus(t("queue_round_ready"), "", true, false, t("queue_edit_settings"), true);
                     } else {
                         hideQueueStatus();
                     }
@@ -2643,10 +2643,11 @@
                 playModeSelectEl.style.display = "none";
             }
 
-            function showQueueStatus(text, modeHint, allowBot = false, showSpinner = true, buttonLabel = null) {
+            function showQueueStatus(text, modeHint, allowBot = false, showSpinner = true, buttonLabel = null, highlight = false) {
                 queueStatusEl.style.display = "block";
                 playModeSelectEl.style.display = "none";
                 queueTextEl.textContent = text || t("queue_searching");
+                queueTextEl.style.color = highlight ? "#7cf58a" : "";
                 let hintEl = document.getElementById("queueModeHint");
                 if (!hintEl) {
                     hintEl = document.createElement("div");

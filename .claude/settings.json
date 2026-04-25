@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C c:/Users/micha/muistipeli commit -m ':*)",
+      "Bash(git -C \"c:/Users/micha/muistipeli\" add templates/waiting_room.html)",
+      "Bash(git -C \"c:/Users/micha/muistipeli\" add app.py templates/leaderboard.html templates/waiting_room.html)",
+      "Bash(git -C \"c:/Users/micha/muistipeli\" add templates/leaderboard.html)",
+      "Bash(grep -v \"unmatched\\\\|//.*matched\")",
+      "Bash(grep -v \"<!--\\\\|//\")",
+      "Bash(python -c \"import app\")",
+      "Bash(python -m py_compile app.py)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(grep -E \"\\\\.\\(py|html|js\\)$\")",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}

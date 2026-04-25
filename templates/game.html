@@ -753,6 +753,17 @@
         .gomoku-click { fill: rgba(0, 0, 0, 0.001); pointer-events: all; }
         .gomoku-stone { transition: opacity 0.2s; }
         .gomoku-win-stone { filter: drop-shadow(0 0 6px gold); }
+        @keyframes stone-expire {
+            0%   { opacity: 0.35; transform: scale(1); }
+            35%  { opacity: 0.65; transform: scale(1.5); }
+            100% { opacity: 0;    transform: scale(0.5); }
+        }
+        .stone-expiring {
+            animation: stone-expire 380ms ease-out forwards;
+            transform-box: fill-box;
+            transform-origin: center;
+            pointer-events: none;
+        }
         #gomoku-rematch-panel {
             display: none;
             width: min(720px, calc(100% - 18px));
@@ -806,6 +817,10 @@
         .gomoku-rematch-vote.is-ready {
             background: rgba(124, 245, 138, 0.08);
             border: 1px solid rgba(124, 245, 138, 0.2);
+        }
+        .gomoku-rematch-vote.is-ready span:last-child {
+            color: #7cf58a;
+            font-weight: 700;
         }
         .gomoku-rematch-status-msg {
             font-size: 13px;
@@ -1020,9 +1035,7 @@
                 theme_missing: "Theme is missing.",
                 theme_not_enough: 'Not enough usable words were found for theme "{theme}". Try another theme.',
                 pixabay_config_error: "Pixabay setup is invalid. Check PIXABAY_API_KEY in Render and .env.",
-                gomoku_occupied: "That spot was taken — your turn is forfeited.",
-                gomoku_occupied_opponent: "{player} tried an occupied cell — your turn!",
-                gomoku_own_stone: "You placed on your own stone.",
+                gomoku_cell_taken: "That spot is already taken.",
                 tracker_preview_notify: "Opponent listened to: {label}",
                 gomoku_not_your_turn: "It's not your turn yet.",
                 gomoku_not_ready: "The board is not ready for a move yet.",
@@ -1117,9 +1130,7 @@
                 theme_missing: "Teema puuttuu.",
                 theme_not_enough: 'Teemasta "{theme}" ei löytynyt tarpeeksi käyttökelpoisia sanoja. Kokeile toista teemaa.',
                 pixabay_config_error: "Pixabayn asetukset ovat virheelliset. Tarkista PIXABAY_API_KEY Renderistä ja .env-tiedostosta.",
-                gomoku_occupied: "Paikka oli jo varattu — menetit vuorosi.",
-                gomoku_occupied_opponent: "{player} yritti varattuun paikkaan — sinun siirtosi!",
-                gomoku_own_stone: "Asetit oman nappulasi päälle.",
+                gomoku_cell_taken: "Paikka on jo varattu.",
                 tracker_preview_notify: "Vastustaja kuunteli: {label}",
                 gomoku_not_your_turn: "Ei ole vielä sinun vuorosi.",
                 gomoku_not_ready: "Lauta ei ole vielä valmis siirrolle.",
@@ -2501,6 +2512,11 @@
                     html += `<line x1="${x+6}" y1="${y-6}" x2="${x-6}" y2="${y+6}" stroke="#e85" stroke-width="2.5" stroke-linecap="round"/>`;
                 }
             }
+            for (const { idx, color } of (g.expiringStones || [])) {
+                const [x, y] = gomokuXY(idx, size);
+                const isW = color === "white";
+                html += `<circle cx="${x}" cy="${y}" r="13" fill="${isW ? 'white' : '#1a1a1a'}" stroke="${isW ? '#888' : '#444'}" stroke-width="1.5" class="stone-expiring"/>`;
+            }
             svg.innerHTML = html;
             svg.onclick = (evt) => {
                 if (!gomokuState) {
@@ -2700,6 +2716,7 @@
                 lastPlacedIdx: -1,
                 lastPlacedColor: null,
                 capturedFlash: null,
+                expiringStones: [],
                 winLine: null,
                 revealBoard: Boolean(data.reveal_board),
                 board: data.board || {},
@@ -2719,12 +2736,33 @@
         socket.on("gomoku_update", (data) => {
             if (!gomokuState) return;
             console.log("[DEBUG] gomoku_update", data);
+            const capturedSet = new Set(data.captured || []);
+            const vp = gomokuState.visiblePairs || 1;
+            const newExpiring = [];
+            if (Array.isArray(data.white_history) && gomokuState.whiteHistory.length >= vp) {
+                const dropped = gomokuState.whiteHistory[0];
+                if (dropped != null && !data.white_history.includes(dropped) && !capturedSet.has(dropped))
+                    newExpiring.push({ idx: dropped, color: "white" });
+            }
+            if (Array.isArray(data.black_history) && gomokuState.blackHistory.length >= vp) {
+                const dropped = gomokuState.blackHistory[0];
+                if (dropped != null && !data.black_history.includes(dropped) && !capturedSet.has(dropped))
+                    newExpiring.push({ idx: dropped, color: "black" });
+            }
+            if (newExpiring.length > 0) {
+                gomokuState.expiringStones = [...(gomokuState.expiringStones || []), ...newExpiring];
+                setTimeout(() => {
+                    if (!gomokuState) return;
+                    gomokuState.expiringStones = (gomokuState.expiringStones || []).filter(
+                        s => !newExpiring.some(e => e.idx === s.idx && e.color === s.color)
+                    );
+                    drawGomokuBoard();
+                }, 400);
+            }
             if (Array.isArray(data.white_history)) gomokuState.whiteHistory = data.white_history;
             if (Array.isArray(data.black_history)) gomokuState.blackHistory = data.black_history;
-            if (!data.own_stone) {
-                gomokuState.lastPlacedIdx = data.placed_idx;
-                gomokuState.lastPlacedColor = data.color;
-            }
+            gomokuState.lastPlacedIdx = data.placed_idx;
+            gomokuState.lastPlacedColor = data.color;
             if (data.captured && data.captured.length > 0) {
                 gomokuState.capturedFlash = {
                     indices: data.captured,
@@ -2750,22 +2788,10 @@
             drawGomokuBoard();
             requestAnimationFrame(() => centerGomokuView(true));
             updatePlayers();
-            if (data.own_stone) {
-                showToast(t("gomoku_own_stone"));
-            }
         });
 
-        socket.on("gomoku_occupied", (data) => {
-            if (!gomokuState) return;
-            console.log("[DEBUG] gomoku_occupied", data);
-            gomokuState.currentTurn = data.next_turn;
-            currentTurn = data.next_turn;
-            updatePlayers();
-            if (data.penalty_player === myName) {
-                showToast(t("gomoku_occupied"));
-            } else {
-                showToast(t("gomoku_occupied_opponent", { player: data.penalty_player }));
-            }
+        socket.on("gomoku_cell_taken", () => {
+            showToast(t("gomoku_cell_taken"));
         });
 
         socket.on("tracker_preview_notify", (data) => {

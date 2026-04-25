@@ -118,7 +118,7 @@ VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "y
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 DISCONNECT_NOTIFY_DELAY_SECONDS = 10
-APP_VERSION = "Beta v0.11 (2026-04-25)"
+APP_VERSION = "Beta v0.12 (2026-04-25)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -3051,35 +3051,15 @@ def process_gomoku_place(idx, player_info, room, sid=None):
         reject("invalid_index", idx=idx, row=row, col=col, player=player_name)
         return
     my_color = "white" if player_name == room.gomoku_white_player else "black"
-    opp_color = "black" if my_color == "white" else "white"
     existing = room.gomoku_board.get(idx)
     print(
         f"[INFO] Gomoku-siirto käsittelyyn: player={player_name}, color={my_color}, idx={idx}, row={row}, col={col}, "
         f"existing={existing}, white_history={room.gomoku_white_history}, black_history={room.gomoku_black_history}"
     )
-    if existing == opp_color:
-        # Penalty: turn passes
-        room.turn = (room.turn + 1) % len(room.player_order)
-        print(f"[INFO] Gomoku-ruutu oli vastustajan varaama. Vuoro siirtyy pelaajalle {room.player_order[room.turn]}.")
-        emit_to_room("gomoku_occupied", {
-            "penalty_player": player_name,
-            "next_turn": room.player_order[room.turn],
-        }, room_id=room.room_id)
-        schedule_gomoku_bot_turn_if_needed(room)
-        return
-    if existing == my_color:
-        # Own stone: wasted move, turn advances, no board change
-        room.turn = (room.turn + 1) % len(room.player_order)
-        print(f"[INFO] Gomoku-pelaaja osui omaan nappulaansa. Vuoro siirtyy pelaajalle {room.player_order[room.turn]}.")
-        emit_to_room("gomoku_update", {
-            "placed_idx": idx, "color": my_color, "player": player_name,
-            "white_history": list(room.gomoku_white_history),
-            "black_history": list(room.gomoku_black_history),
-            "next_turn": room.player_order[room.turn],
-            "own_stone": True,
-            "win_line": [],
-        }, room_id=room.room_id)
-        schedule_gomoku_bot_turn_if_needed(room)
+    if existing:
+        # Cell already occupied: no turn change, notify only the player who clicked
+        print(f"[INFO] Gomoku-ruutu {idx} on jo varattu. Vuoro pysyy pelaajalla {player_name}.")
+        emit("gomoku_cell_taken")
         return
     # Place stone
     n = max(1, room.gomoku_visible_pairs)
