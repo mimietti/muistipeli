@@ -2458,7 +2458,6 @@
             } else {
                 const wh = g.whiteHistory || [];
                 const bh = g.blackHistory || [];
-                const n = wh.length + bh.length > 0 ? Math.max(wh.length, bh.length) : 1;
                 // Render older stones first so the newest is on top
                 const maxLen = Math.max(wh.length, bh.length);
                 const vp = g.visiblePairs || 1;
