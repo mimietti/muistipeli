@@ -368,7 +368,7 @@ CHORD_REFERENCE_ENTRY = next((entry for entry in CHORD_LIBRARY if entry["label"]
 
 CHORD_PROGRESSIONS_DEF = [
     {"label": "I – V – vi – IV",       "chords": ["C major", "G major", "A minor", "F major"]},
-    {"label": "I – IV – V",            "chords": ["C major", "F major", "G major"]},
+    {"label": "I – IV – V – I",         "chords": ["C major", "F major", "G major", "C major"]},
     {"label": "I – vi – IV – V",       "chords": ["C major", "A minor", "F major", "G major"]},
     {"label": "vi – ii – V7 – I",      "chords": ["A minor", "D minor", "G7", "C major"]},
     {"label": "I – V – vi – iii – IV", "chords": ["C major", "G major", "A minor", "E minor", "F major"]},
