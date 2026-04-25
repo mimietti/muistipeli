@@ -93,13 +93,17 @@
             color: limegreen;
         }
         #grid {
+            --grid-columns: 4;
+            --grid-gap: 12px;
+            --grid-pad-x: 8px;
+            --grid-max-width: 720px;
             display: grid;
-            width: min(calc(100vw - 18px), 720px);
+            width: min(calc(100vw - 18px), var(--grid-max-width));
             margin: 0 auto;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(var(--grid-columns), minmax(0, 1fr));
+            gap: var(--grid-gap);
             justify-content: center;
-            padding: 8px 8px 8px;
+            padding: 8px var(--grid-pad-x) 8px;
             box-sizing: border-box;
         }
         #translation-hint {
@@ -157,8 +161,8 @@
         }
         @media (max-width: 1180px) {
             #grid {
-                width: min(calc(100vw - 16px), 700px);
-                gap: 15px;
+                --grid-gap: 15px;
+                --grid-pad-x: 7px;
                 padding: 12px 7px 10px;
             }
             .card {
@@ -185,8 +189,10 @@
                 margin: 2px auto 6px;
             }
             #grid {
-                width: min(calc(100vw - 8px), 760px);
-                gap: 18px 16px;
+                --grid-gap: 12px;
+                --grid-pad-x: 4px;
+                row-gap: 12px;
+                width: min(calc(100vw - 8px), var(--grid-max-width));
                 padding: 8px 4px 8px;
             }
             .card {
@@ -249,8 +255,9 @@
             font-size: 12px;
         }
         body.tablet-fit #grid {
-            width: min(calc(100vw - 12px), 760px);
-            gap: 10px;
+            --grid-gap: 10px;
+            --grid-pad-x: 4px;
+            width: min(calc(100vw - 8px), var(--grid-max-width));
             padding: 6px 4px 6px;
         }
         body.tablet-fit .card {
@@ -1229,6 +1236,7 @@
 
         function syncTabletFitMode() {
             document.body.classList.toggle("tablet-fit", isTabletFitViewport());
+            syncGridLayout();
         }
 
         function getLanguage() {
@@ -1368,7 +1376,36 @@
         let cards = [];
         let matched = new Set();
         let gomokuState = null;  // {size, whitePlayer, blackPlayer, myColor, currentTurn, whiteHistory, blackHistory, occupiedIndices, visiblePairs, winLine, revealBoard, revealTransition, captureRevealTransition, board}
-        const GOMOKU_EXPIRE_MS = 420;
+
+        function getGridColumnCount(cardCount) {
+            const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+            const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+            const isPortrait = vh >= vw;
+            if (isPortrait) return 4;
+            if (vw >= 900 && cardCount >= 16) return 8;
+            if (vw >= 900 && cardCount >= 12) return 6;
+            return 4;
+        }
+
+        function syncGridLayout() {
+            const grid = document.getElementById("grid");
+            if (!grid) return;
+            const cardCount = Array.isArray(cards) && cards.length ? cards.length : 16;
+            const columns = getGridColumnCount(cardCount);
+            grid.style.setProperty("--grid-columns", String(columns));
+
+            const styles = window.getComputedStyle(grid);
+            const gap = parseFloat(styles.getPropertyValue("--grid-gap")) || parseFloat(styles.columnGap) || 12;
+            const padX = parseFloat(styles.getPropertyValue("--grid-pad-x")) || 8;
+            const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+            const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+            const isPortrait = vh >= vw;
+            const isTablet = document.body.classList.contains("tablet-fit");
+            const maxCard = columns >= 8 ? 166 : (isTablet && isPortrait ? 190 : 176);
+            const maxWidth = Math.round(columns * maxCard + Math.max(0, columns - 1) * gap + padX * 2);
+            grid.style.setProperty("--grid-max-width", `${maxWidth}px`);
+        }
+        const GOMOKU_EXPIRE_MS = 2400;
         const GOMOKU_REVEAL_MS = 620;
         const GOMOKU_CAPTURE_REVEAL_MS = 320;
         let gomokuExpireAnimationFrame = null;
@@ -2580,29 +2617,35 @@
                 const [x, y] = gomokuXY(idx, size);
                 const isW = color === "white";
                 const progress = Math.max(0, Math.min(1, (now - (startedAt || now)) / GOMOKU_EXPIRE_MS));
-                const eased = 1 - Math.pow(1 - progress, 3);
-                const flash = Math.sin(progress * Math.PI);
+                const fadeProgress = Math.min(1, progress / 0.58);
+                const returnProgress = progress <= 0.58 ? 0 : Math.min(1, (progress - 0.58) / 0.42);
+                const exitProgress = progress <= 0.88 ? 0 : Math.min(1, (progress - 0.88) / 0.12);
+                const exitEased = exitProgress * exitProgress;
+                const exitOpacity = 1 - exitEased;
+                const fadeEased = 1 - Math.pow(1 - fadeProgress, 3);
+                const returnEased = returnProgress * returnProgress * (3 - 2 * returnProgress);
+                const flash = Math.sin(Math.min(1, progress / 0.72) * Math.PI);
                 const fill = mixColor(
                     isW ? [255, 255, 255] : [26, 26, 26],
                     [119, 122, 118],
-                    Math.min(1, eased * 1.15)
+                    Math.min(1, 0.35 * fadeEased + 0.75 * returnEased)
                 );
                 const stroke = mixColor(
                     isW ? [136, 136, 136] : [68, 68, 68],
                     [95, 98, 93],
-                    Math.min(1, eased * 1.05)
+                    Math.min(1, 0.3 * fadeEased + 0.8 * returnEased)
                 );
                 const flashFill = isW ? "#f5e8c8" : "#efd8a2";
                 const ringStroke = isW ? "#efe4c8" : "#e8c878";
-                const stoneRadius = 13 * (1 + 0.06 * flash - 0.34 * eased);
-                const stoneOpacity = 1 - 0.82 * eased;
-                const flashRadius = 13 + 2.8 * flash;
-                const flashOpacity = 0.34 * flash * (1 - 0.35 * eased);
-                const ringRadius = 13 + 12 * eased;
-                const ringOpacity = 0.18 + 0.44 * flash - 0.24 * eased;
+                const stoneRadius = 13 * (1 - 0.42 * fadeEased + 0.28 * returnEased);
+                const stoneOpacity = (Math.max(0.04, 1 - 0.96 * fadeEased) + 0.62 * returnEased) * exitOpacity;
+                const flashRadius = 13 + 4.2 * flash + 5.5 * fadeEased;
+                const flashOpacity = 0.32 * flash * (1 - 0.85 * fadeEased) * exitOpacity;
+                const ringRadius = 13 + 18 * fadeEased - 7 * returnEased;
+                const ringOpacity = Math.max(0, 0.16 + 0.38 * flash - 0.38 * fadeEased - 0.14 * returnEased) * exitOpacity;
                 html += `<circle cx="${x}" cy="${y}" r="${flashRadius}" fill="${flashFill}" opacity="${Math.max(0, flashOpacity)}" class="stone-expiring"/>`;
-                html += `<circle cx="${x}" cy="${y}" r="${stoneRadius}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" opacity="${Math.max(0, stoneOpacity)}" class="stone-expiring"/>`;
-                html += `<circle cx="${x}" cy="${y}" r="${ringRadius}" fill="none" stroke="${ringStroke}" stroke-width="${2.4 - 0.9 * eased}" opacity="${Math.max(0, ringOpacity)}" class="stone-expiring"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="${stoneRadius}" fill="${fill}" stroke="${stroke}" stroke-width="${1.1 + 0.5 * returnEased}" opacity="${Math.min(0.72, stoneOpacity)}" class="stone-expiring"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="${ringRadius}" fill="none" stroke="${ringStroke}" stroke-width="${2.6 - 0.8 * returnEased}" opacity="${Math.max(0, ringOpacity)}" class="stone-expiring"/>`;
             }
             svg.innerHTML = html;
             svg.onclick = (evt) => {
@@ -3586,6 +3629,7 @@
             console.log("[DEBUG] Piirretään ruudukko...");
             const grid = document.getElementById("grid");
             grid.innerHTML = "";
+            syncGridLayout();
             updateRoundActionsVisibility();
 
             cards.forEach((card, index) => {
@@ -3690,6 +3734,7 @@
         }
 
         window.addEventListener("resize", () => {
+            syncTabletFitMode();
             document.querySelectorAll(".card-word-text").forEach((textElement) => {
                 fitWordText(textElement, textElement.parentElement);
             });

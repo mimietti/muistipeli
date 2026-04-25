@@ -2459,7 +2459,10 @@
                     const vpStr = String(payload.gomoku_visible_pairs);
                     if (["1","2","3","5","10"].includes(vpStr)) {
                         selectedGomokuVisiblePairs = vpStr;
-                        try { localStorage.setItem("preferred_gomoku_visible_pairs", selectedGomokuVisiblePairs); } catch (_) {}
+                        try {
+                            localStorage.setItem("preferred_gomoku_visible_pairs", selectedGomokuVisiblePairs);
+                            localStorage.setItem("preferred_gomoku_visible_pairs_default_v2", "1");
+                        } catch (_) {}
                     }
                 }
                 if (payload && typeof payload.gomoku_capture_pairs === "boolean") {
@@ -3116,9 +3119,21 @@
                 ? localStorage.getItem("preferred_chord_audio_type")
                 : "single";
             let selectedGomokuSize = "13";
-            let selectedGomokuVisiblePairs = ["1","2","3","5","10"].includes(localStorage.getItem("preferred_gomoku_visible_pairs"))
-                ? localStorage.getItem("preferred_gomoku_visible_pairs")
-                : "5";
+            const gomokuVisiblePairOptions = ["1","2","3","5","10"];
+            const gomokuVisiblePairsDefault = "5";
+            let storedGomokuVisiblePairs = localStorage.getItem("preferred_gomoku_visible_pairs");
+            if (storedGomokuVisiblePairs === "3" && localStorage.getItem("preferred_gomoku_visible_pairs_default_v2") !== "1") {
+                storedGomokuVisiblePairs = gomokuVisiblePairsDefault;
+                try {
+                    localStorage.setItem("preferred_gomoku_visible_pairs", storedGomokuVisiblePairs);
+                    localStorage.setItem("preferred_gomoku_visible_pairs_default_v2", "1");
+                } catch (e) {}
+            } else if (gomokuVisiblePairOptions.includes(storedGomokuVisiblePairs)) {
+                try { localStorage.setItem("preferred_gomoku_visible_pairs_default_v2", "1"); } catch (e) {}
+            }
+            let selectedGomokuVisiblePairs = gomokuVisiblePairOptions.includes(storedGomokuVisiblePairs)
+                ? storedGomokuVisiblePairs
+                : gomokuVisiblePairsDefault;
             let selectedGomokuCapturePairs = localStorage.getItem("preferred_gomoku_capture_pairs") !== "false";
             let selectedBotDifficulty = ["easy", "medium", "hard"].includes(localStorage.getItem("bot_difficulty"))
                 ? localStorage.getItem("bot_difficulty")
@@ -3311,7 +3326,10 @@
             document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach(btn => {
                 btn.addEventListener("click", () => {
                     selectedGomokuVisiblePairs = btn.dataset.gomokuVisiblePairs;
-                    try { localStorage.setItem("preferred_gomoku_visible_pairs", selectedGomokuVisiblePairs); } catch (e) {}
+                    try {
+                        localStorage.setItem("preferred_gomoku_visible_pairs", selectedGomokuVisiblePairs);
+                        localStorage.setItem("preferred_gomoku_visible_pairs_default_v2", "1");
+                    } catch (e) {}
                     document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach(b => b.classList.toggle("active", b === btn));
                     socket.emit("preference_changed", {
                         card_mode: selectedCardMode,
