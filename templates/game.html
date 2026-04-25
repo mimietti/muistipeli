@@ -2470,15 +2470,19 @@
                         const widx = wh[i];
                         const [x, y] = gomokuXY(widx, size);
                         const isWin = g.winLine && g.winLine.includes(widx);
+                        const isLast = widx === g.lastPlacedIdx && g.lastPlacedColor === "white";
                         html += `<circle cx="${x}" cy="${y}" r="13" fill="white" stroke="#888" stroke-width="1.5" opacity="${opacity}" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
                         if (age === 0) html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa" opacity="${opacity}"/>`;
+                        if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#555" stroke-width="1.5" opacity="${opacity}"/>`;
                     }
                     if (i < bh.length) {
                         const bidx = bh[i];
                         const [x, y] = gomokuXY(bidx, size);
                         const isWin = g.winLine && g.winLine.includes(bidx);
+                        const isLast = bidx === g.lastPlacedIdx && g.lastPlacedColor === "black";
                         html += `<circle cx="${x}" cy="${y}" r="13" fill="#1a1a1a" stroke="#444" stroke-width="1.5" opacity="${opacity}" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
                         if (age === 0) html += `<circle cx="${x}" cy="${y}" r="3" fill="#555" opacity="${opacity}"/>`;
+                        if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#aaa" stroke-width="1.5" opacity="${opacity}"/>`;
                     }
                 }
             }
@@ -2678,6 +2682,8 @@
                 blackHistory: Array.isArray(data.black_history) ? data.black_history : [],
                 visiblePairs: data.visible_pairs || 1,
                 capturePairsEnabled: Boolean(data.capture_pairs_enabled),
+                lastPlacedIdx: -1,
+                lastPlacedColor: null,
                 winLine: null,
                 revealBoard: Boolean(data.reveal_board),
                 board: data.board || {},
@@ -2699,6 +2705,10 @@
             console.log("[DEBUG] gomoku_update", data);
             if (Array.isArray(data.white_history)) gomokuState.whiteHistory = data.white_history;
             if (Array.isArray(data.black_history)) gomokuState.blackHistory = data.black_history;
+            if (!data.own_stone) {
+                gomokuState.lastPlacedIdx = data.placed_idx;
+                gomokuState.lastPlacedColor = data.color;
+            }
             gomokuState.currentTurn = data.next_turn;
             if (typeof data.reveal_board !== "undefined") {
                 gomokuState.revealBoard = Boolean(data.reveal_board);
