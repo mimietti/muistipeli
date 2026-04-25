@@ -2677,6 +2677,7 @@
                 whiteHistory: Array.isArray(data.white_history) ? data.white_history : [],
                 blackHistory: Array.isArray(data.black_history) ? data.black_history : [],
                 visiblePairs: data.visible_pairs || 1,
+                capturePairsEnabled: Boolean(data.capture_pairs_enabled),
                 winLine: null,
                 revealBoard: Boolean(data.reveal_board),
                 board: data.board || {},
