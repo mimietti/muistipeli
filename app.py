@@ -2957,14 +2957,17 @@ def choose_gomoku_bot_move(room):
 
 
 def init_gomoku_round(room):
-    """Start a new gomoku round, swapping colors if not first round."""
+    """Start a new gomoku round using the room's round starter as white."""
     room.gomoku_size = room.gomoku_size if room.gomoku_size in GOMOKU_ALLOWED_SIZES else GOMOKU_SIZE
-    if room.gomoku_white_player and room.gomoku_white_player in room.player_order:
-        # Swap colors each round
-        room.gomoku_white_player, room.gomoku_black_player = room.gomoku_black_player, room.gomoku_white_player
-    else:
-        room.gomoku_white_player = room.player_order[0] if room.player_order else ""
-        room.gomoku_black_player = room.player_order[1] if len(room.player_order) > 1 else ""
+    starter_name = room.round_starter if room.round_starter in room.player_order else None
+    if not starter_name:
+        starter_name = get_round_starter_name(room) or (room.player_order[0] if room.player_order else "")
+    room.gomoku_white_player = starter_name
+    room.gomoku_black_player = next(
+        (name for name in room.player_order if name and name != starter_name),
+        ""
+    )
+    room.round_starter = room.gomoku_white_player or starter_name or None
     room.gomoku_board = {}
     room.gomoku_white_history = []
     room.gomoku_black_history = []
@@ -3106,7 +3109,6 @@ def process_gomoku_place(idx, player_info, room, sid=None):
     }, room_id=room.room_id)
     if win_line:
         room.status = "results"
-        room.round_win[player_name] = room.round_win.get(player_name, 0) + 1
 
         def end_gomoku():
             socketio.sleep(2.0)

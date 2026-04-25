@@ -31,6 +31,15 @@
             font-size: 14px;
             line-height: 1.2;
         }
+        .players-status-label {
+            display: block;
+            width: 100%;
+            margin-bottom: 6px;
+            font-size: 11px;
+            letter-spacing: 0.04em;
+            text-align: center;
+            color: #6a7a6a;
+        }
         .player-chip {
             display: inline-flex;
             align-items: center;
@@ -753,17 +762,7 @@
         .gomoku-click { fill: rgba(0, 0, 0, 0.001); pointer-events: all; }
         .gomoku-stone { transition: opacity 0.2s; }
         .gomoku-win-stone { filter: drop-shadow(0 0 6px gold); }
-        @keyframes stone-expire {
-            0%   { opacity: 0.35; transform: scale(1); }
-            35%  { opacity: 0.65; transform: scale(1.5); }
-            100% { opacity: 0;    transform: scale(0.5); }
-        }
-        .stone-expiring {
-            animation: stone-expire 380ms ease-out forwards;
-            transform-box: fill-box;
-            transform-origin: center;
-            pointer-events: none;
-        }
+        .stone-expiring { pointer-events: none; }
         #gomoku-rematch-panel {
             display: none;
             width: min(720px, calc(100% - 18px));
@@ -1042,6 +1041,8 @@
                 gomoku_move_rejected: "The move could not be played.",
                 gomoku_you_white: "You play white (○)",
                 gomoku_you_black: "You play black (●)",
+                gomoku_pairs_shown: "Showing the latest move pair",
+                gomoku_pairs_shown_plural: "Showing last {n} move pairs",
                 rematch_title: "Play the next round?",
                 rematch_btn: "Play the next round",
                 rematch_exit: "Back to start",
@@ -1137,6 +1138,8 @@
                 gomoku_move_rejected: "Siirtoa ei voitu tehdä.",
                 gomoku_you_white: "Pelaat valkoisella (○)",
                 gomoku_you_black: "Pelaat mustalla (●)",
+                gomoku_pairs_shown: "Näytetään viimeisin siirtopari",
+                gomoku_pairs_shown_plural: "Näytetään {n} viimeistä siirtoparia",
                 rematch_title: "Pelataanko uusi erä samoilla asetuksilla?",
                 rematch_btn: "Pelaa uusi erä",
                 rematch_exit: "Palaa alkuun",
@@ -1319,6 +1322,7 @@
             });
             syncSettingsControls();
             renderImagePairTracker();
+            updatePlayers();
         }
 
         document.getElementById("uiLangSelect")?.addEventListener("change", (event) => {
@@ -2515,7 +2519,17 @@
             for (const { idx, color } of (g.expiringStones || [])) {
                 const [x, y] = gomokuXY(idx, size);
                 const isW = color === "white";
-                html += `<circle cx="${x}" cy="${y}" r="13" fill="${isW ? 'white' : '#1a1a1a'}" stroke="${isW ? '#888' : '#444'}" stroke-width="1.5" class="stone-expiring"/>`;
+                const fill = isW ? "white" : "#1a1a1a";
+                const stroke = isW ? "#888" : "#444";
+                const ringStroke = isW ? "#ccc" : "#888";
+                html += `<circle cx="${x}" cy="${y}" r="13" fill="${fill}" stroke="${stroke}" stroke-width="1.5" class="stone-expiring">
+                    <animate attributeName="r" from="13" to="5" dur="0.4s" fill="freeze"/>
+                    <animate attributeName="opacity" from="0.85" to="0" dur="0.4s" fill="freeze"/>
+                </circle>
+                <circle cx="${x}" cy="${y}" r="13" fill="none" stroke="${ringStroke}" stroke-width="2" class="stone-expiring">
+                    <animate attributeName="r" from="13" to="26" dur="0.4s" fill="freeze"/>
+                    <animate attributeName="opacity" from="0.7" to="0" dur="0.4s" fill="freeze"/>
+                </circle>`;
             }
             svg.innerHTML = html;
             svg.onclick = (evt) => {
@@ -2761,6 +2775,9 @@
             }
             if (Array.isArray(data.white_history)) gomokuState.whiteHistory = data.white_history;
             if (Array.isArray(data.black_history)) gomokuState.blackHistory = data.black_history;
+            if (typeof data.visible_pairs === "number" && data.visible_pairs > 0) {
+                gomokuState.visiblePairs = data.visible_pairs;
+            }
             gomokuState.lastPlacedIdx = data.placed_idx;
             gomokuState.lastPlacedColor = data.color;
             if (data.captured && data.captured.length > 0) {
@@ -3423,6 +3440,15 @@
             playersDiv.innerHTML = "";
             const isBotMode = (localStorage.getItem("play_mode") || "") === "bot";
             const isGomokuMode = window.currentCardMode === "gomoku" && gomokuState;
+
+            if (isGomokuMode) {
+                const vp = gomokuState.visiblePairs || 1;
+                const key = vp === 1 ? "gomoku_pairs_shown" : "gomoku_pairs_shown_plural";
+                const label = document.createElement("div");
+                label.className = "players-status-label";
+                label.textContent = t(key, { n: vp });
+                playersDiv.appendChild(label);
+            }
 
             players.forEach(name => {
                 const span = document.createElement("span");
