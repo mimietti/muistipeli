@@ -162,8 +162,8 @@
         {% set random_sections = sections | selectattr("play", "equalto", "random") | list %}
         {% set bot_sections    = sections | selectattr("play", "equalto", "bot")    | list %}
 
-        {% set cm_icons = {"images": "🖼", "image_word": "🖼📝", "words": "📝📝", "chords": "🎵🎼", "same_chords": "🎵🎵", "gomoku": "⚫⚪"} %}
-        {% set cm_keys  = {"images": "mode_images", "image_word": "mode_image_word", "words": "mode_words", "chords": "mode_chords", "same_chords": "mode_same_chords", "gomoku": "mode_gomoku"} %}
+        {% set cm_icons = {"images": "🖼", "image_word": "🖼📝", "words": "📝📝", "chords": "🎵🎼", "gomoku": "⚫⚪"} %}
+        {% set cm_keys  = {"images": "mode_images", "image_word": "mode_image_word", "words": "mode_words", "chords": "mode_chords", "gomoku": "mode_gomoku"} %}
 
         <div class="group-title" id="soloGroupTitle">Solo</div>
         {% if solo_sections %}
@@ -253,6 +253,34 @@
                     {% if sec.target_language %}<span class="lang-tag" data-lang="{{ sec.target_language }}"></span>{% endif %}
                 </div>
                 <div class="board">
+                    {% if sec.score_type is defined and sec.score_type == "gomoku" %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th class="th-name" style="text-align:left;">Player</th>
+                                <th class="th-difficulty">Difficulty</th>
+                                <th class="th-wins">Wins</th>
+                                <th class="th-ties">Ties</th>
+                                <th class="th-rounds">Rounds</th>
+                                <th class="th-settings">Settings</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in sec.rows %}
+                            <tr data-username="{{ row[1] }}" data-difficulty="{{ row[0] }}">
+                                <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+                                <td class="name">{{ row[1] }}</td>
+                                <td class="dim difficulty-label" data-difficulty="{{ row[0] }}">{{ row[0] }}</td>
+                                <td class="total">{{ row[2] }}</td>
+                                <td class="dim">{{ row[3] }}</td>
+                                <td class="dim">{{ row[4] }}</td>
+                                <td class="dim">{{ row[5] }}x{{ row[5] }} · {{ row[6] }} · <span class="capture-setting" data-capture="{{ 'on' if row[7] else 'off' }}">{{ 'on' if row[7] else 'off' }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
                     <table>
                         <thead>
                             <tr>
@@ -277,6 +305,7 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -316,6 +345,38 @@
             </div>
         </div>
 
+        {% if gomoku_multi_top %}
+        <div class="group-title" id="gomokuMultiGroupTitle" style="margin-top:28px;">Memory Gomoku</div>
+        <div class="section" data-play="multi" data-mode="gomoku">
+            <div class="board">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th class="th-name" style="text-align:left;">Player</th>
+                            <th class="th-wins">Wins</th>
+                            <th class="th-ties">Ties</th>
+                            <th class="th-rounds">Rounds</th>
+                            <th class="th-settings">Settings</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in gomoku_multi_top %}
+                        <tr data-username="{{ row[0] }}">
+                            <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+                            <td class="name">{{ row[0] }}</td>
+                            <td class="total">{{ row[1] }}</td>
+                            <td class="dim">{{ row[2] }}</td>
+                            <td class="dim">{{ row[3] }}</td>
+                            <td class="dim">{{ row[4] }}x{{ row[4] }} · {{ row[5] }} · <span class="capture-setting" data-capture="{{ 'on' if row[6] else 'off' }}">{{ 'on' if row[6] else 'off' }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
         {% endif %}
 
         <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:22px;">
@@ -330,9 +391,10 @@
             en: {
                 title: "Leaderboard", subtitle: "Solo — top 10, sorted by total time",
                 th_name: "Player", th_time: "Time", th_mistakes: "Mistakes", th_total: "Total",
-                th_difficulty: "Difficulty",
+                th_difficulty: "Difficulty", th_settings: "Settings",
+                capture_on: "captures", capture_off: "no captures",
                 difficulty_easy: "Easy", difficulty_medium: "Medium", difficulty_hard: "Hard",
-                mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word", mode_chords: "Chords", mode_same_chords: "Note + note", mode_gomoku: "Memory Gomoku",
+                mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word", mode_chords: "Chords", mode_gomoku: "Memory Gomoku",
                 noDb: "Leaderboard not available.", newGame: "▶ New game", back: "← Back to start",
                 solo_group: "Solo", random_group: "Random", bot_group: "vs Bot", th_pairs: "Pairs",
                 multi_group: "Multiplayer", th_wins: "Wins", th_ties: "Ties", th_rounds: "Rounds"
@@ -341,9 +403,10 @@
                 title: "Tulostaulu", subtitle: "Solo — 10 nopeinta, järjestetty kokonaisajan mukaan",
                 best_title: "Parhaat tulokset", best_subtitle: "Top 3 per pelityyppi",
                 th_name: "Pelaaja", th_time: "Aika", th_mistakes: "Virheet", th_total: "Yhteensä",
-                th_difficulty: "Vaikeustaso",
+                th_difficulty: "Vaikeustaso", th_settings: "Asetukset",
+                capture_on: "kaappaus", capture_off: "ei kaappausta",
                 difficulty_easy: "Helppo", difficulty_medium: "Keskitaso", difficulty_hard: "Vaikea",
-                mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana", mode_chords: "Soinnut", mode_same_chords: "Nuotti + nuotti", mode_gomoku: "Muistinolla",
+                mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana", mode_chords: "Soinnut", mode_gomoku: "Muistinolla",
                 noDb: "Tulostaulu ei käytössä.", newGame: "▶ Uusi peli", back: "← Takaisin alkuun",
                 solo_group: "Solo", random_group: "Satunnaiset", bot_group: "vs Botti", th_pairs: "Pareja",
                 multi_group: "Moninpeli", th_wins: "Voitot", th_ties: "Tasapelit", th_rounds: "Erät",
@@ -354,7 +417,7 @@
                 best_title: "Bästa resultaten", best_subtitle: "Topp 3 per spelläge",
                 th_name: "Spelare", th_time: "Tid", th_mistakes: "Misstag", th_total: "Totalt",
                 th_difficulty: "Svårighetsgrad",
-                mode_images: "Bilder", mode_image_word: "Bild + ord", mode_words: "Ord + ord", mode_chords: "Ackord", mode_same_chords: "Not + not", mode_gomoku: "Minnesgomoku",
+                mode_images: "Bilder", mode_image_word: "Bild + ord", mode_words: "Ord + ord", mode_chords: "Ackord", mode_gomoku: "Minnesgomoku",
                 noDb: "Topplistan är inte tillgänglig.", newGame: "▶ Nytt spel", back: "← Tillbaka till start",
                 solo_group: "Solo", random_group: "Slumpmässigt", bot_group: "mot Bot", th_pairs: "Par",
                 multi_group: "Flera spelare", th_wins: "Vinster", th_ties: "Oavgjorda", th_rounds: "Omgångar", show_all: "Visa alla →"
@@ -364,7 +427,7 @@
                 best_title: "Beste Ergebnisse", best_subtitle: "Top 3 pro Spieltyp",
                 th_name: "Spieler", th_time: "Zeit", th_mistakes: "Fehler", th_total: "Gesamt",
                 th_difficulty: "Schwierigkeit",
-                mode_images: "Bilder", mode_image_word: "Bild + Wort", mode_words: "Wort + Wort", mode_chords: "Akkorde", mode_same_chords: "Note + Note", mode_gomoku: "Gedächtnis-Gomoku",
+                mode_images: "Bilder", mode_image_word: "Bild + Wort", mode_words: "Wort + Wort", mode_chords: "Akkorde", mode_gomoku: "Gedächtnis-Gomoku",
                 noDb: "Bestenliste nicht verfügbar.", newGame: "▶ Neues Spiel", back: "← Zurück zum Start",
                 solo_group: "Solo", random_group: "Zufall", bot_group: "gegen Bot", th_pairs: "Paare",
                 multi_group: "Mehrspieler", th_wins: "Siege", th_ties: "Unentschieden", th_rounds: "Runden", show_all: "Alle anzeigen →"
@@ -374,7 +437,7 @@
                 best_title: "Meilleurs résultats", best_subtitle: "Top 3 par type de jeu",
                 th_name: "Joueur", th_time: "Temps", th_mistakes: "Erreurs", th_total: "Total",
                 th_difficulty: "Difficulté",
-                mode_images: "Images", mode_image_word: "Image + mot", mode_words: "Mot + mot", mode_chords: "Accords", mode_same_chords: "Note + note", mode_gomoku: "Gomoku mémoire",
+                mode_images: "Images", mode_image_word: "Image + mot", mode_words: "Mot + mot", mode_chords: "Accords", mode_gomoku: "Gomoku mémoire",
                 noDb: "Classement indisponible.", newGame: "▶ Nouvelle partie", back: "← Retour au début",
                 solo_group: "Solo", random_group: "Aléatoire", bot_group: "vs Bot", th_pairs: "Paires",
                 multi_group: "Multijoueur", th_wins: "Victoires", th_ties: "Égalités", th_rounds: "Manches", show_all: "Tout afficher →"
@@ -384,7 +447,7 @@
                 best_title: "Mejores resultados", best_subtitle: "Top 3 por tipo de juego",
                 th_name: "Jugador", th_time: "Tiempo", th_mistakes: "Errores", th_total: "Total",
                 th_difficulty: "Dificultad",
-                mode_images: "Imágenes", mode_image_word: "Imagen + palabra", mode_words: "Palabra + palabra", mode_chords: "Acordes", mode_same_chords: "Nota + nota", mode_gomoku: "Gomoku de memoria",
+                mode_images: "Imágenes", mode_image_word: "Imagen + palabra", mode_words: "Palabra + palabra", mode_chords: "Acordes", mode_gomoku: "Gomoku de memoria",
                 noDb: "La clasificación no está disponible.", newGame: "▶ Nueva partida", back: "← Volver al inicio",
                 solo_group: "Solo", random_group: "Aleatorio", bot_group: "vs Bot", th_pairs: "Parejas",
                 multi_group: "Multijugador", th_wins: "Victorias", th_ties: "Empates", th_rounds: "Rondas", show_all: "Mostrar todo →"
@@ -394,7 +457,7 @@
                 best_title: "Migliori risultati", best_subtitle: "Top 3 per tipo di gioco",
                 th_name: "Giocatore", th_time: "Tempo", th_mistakes: "Errori", th_total: "Totale",
                 th_difficulty: "Difficoltà",
-                mode_images: "Immagini", mode_image_word: "Immagine + parola", mode_words: "Parola + parola", mode_chords: "Accordi", mode_same_chords: "Nota + nota", mode_gomoku: "Gomoku memoria",
+                mode_images: "Immagini", mode_image_word: "Immagine + parola", mode_words: "Parola + parola", mode_chords: "Accordi", mode_gomoku: "Gomoku memoria",
                 noDb: "Classifica non disponibile.", newGame: "▶ Nuova partita", back: "← Torna all'inizio",
                 solo_group: "Solo", random_group: "Casuale", bot_group: "vs Bot", th_pairs: "Coppie",
                 multi_group: "Multigiocatore", th_wins: "Vittorie", th_ties: "Pareggi", th_rounds: "Round", show_all: "Mostra tutto →"
@@ -404,7 +467,7 @@
                 best_title: "Melhores resultados", best_subtitle: "Top 3 por tipo de jogo",
                 th_name: "Jogador", th_time: "Tempo", th_mistakes: "Erros", th_total: "Total",
                 th_difficulty: "Dificuldade",
-                mode_images: "Imagens", mode_image_word: "Imagem + palavra", mode_words: "Palavra + palavra", mode_chords: "Acordes", mode_same_chords: "Nota + nota", mode_gomoku: "Gomoku da memória",
+                mode_images: "Imagens", mode_image_word: "Imagem + palavra", mode_words: "Palavra + palavra", mode_chords: "Acordes", mode_gomoku: "Gomoku da memória",
                 noDb: "O ranking não está disponível.", newGame: "▶ Novo jogo", back: "← Voltar ao início",
                 solo_group: "Solo", random_group: "Aleatório", bot_group: "vs Bot", th_pairs: "Pares",
                 multi_group: "Multijogador", th_wins: "Vitórias", th_ties: "Empates", th_rounds: "Rondas", show_all: "Mostrar tudo →"
@@ -475,8 +538,10 @@
             if (el("randomGroupTitle")) el("randomGroupTitle").textContent = t.random_group;
             if (el("botGroupTitle")) el("botGroupTitle").textContent = t.bot_group;
             if (el("multiGroupTitle")) el("multiGroupTitle").textContent = t.multi_group;
+            if (el("gomokuMultiGroupTitle")) el("gomokuMultiGroupTitle").textContent = t.mode_gomoku || tr.en.mode_gomoku;
             document.querySelectorAll(".th-pairs").forEach(e => e.textContent = t.th_pairs);
             document.querySelectorAll(".th-difficulty").forEach(e => e.textContent = DIFFICULTY_HEADER[lang] || DIFFICULTY_HEADER.en);
+            document.querySelectorAll(".th-settings").forEach(e => e.textContent = t.th_settings || tr.en.th_settings);
             document.querySelectorAll(".th-wins").forEach(e => e.textContent = t.th_wins);
             document.querySelectorAll(".th-ties").forEach(e => e.textContent = t.th_ties || "Ties");
             document.querySelectorAll(".th-rounds").forEach(e => e.textContent = t.th_rounds);
@@ -494,6 +559,11 @@
             });
             document.querySelectorAll(".difficulty-label[data-difficulty]").forEach(e => {
                 e.textContent = getDifficultyLabel(e.dataset.difficulty, lang);
+            });
+            document.querySelectorAll(".capture-setting[data-capture]").forEach(e => {
+                e.textContent = e.dataset.capture === "on"
+                    ? (t.capture_on || tr.en.capture_on)
+                    : (t.capture_off || tr.en.capture_off);
             });
         }
 
@@ -525,10 +595,12 @@
                         sec.style.display = (sec === targetSection) ? "" : "none";
                     });
                     // Hide group titles that don't belong to the visible play mode
-                    const titleMap = { solo: "soloGroupTitle", random: "randomGroupTitle", bot: "botGroupTitle", multi: "multiGroupTitle" };
+                    const titleMap = { solo: "soloGroupTitle", random: "randomGroupTitle", bot: "botGroupTitle", multi: "multiGroupTitle", gomokuMulti: "gomokuMultiGroupTitle" };
                     Object.entries(titleMap).forEach(([play, id]) => {
                         const el = document.getElementById(id);
-                        if (el) el.style.display = (play === visiblePlay) ? "" : "none";
+                        if (!el) return;
+                        const isGomokuMulti = visiblePlay === "multi" && targetSection.dataset.mode === "gomoku";
+                        el.style.display = (play === visiblePlay && !isGomokuMulti) || (play === "gomokuMulti" && isGomokuMulti) ? "" : "none";
                     });
                     setTimeout(() => targetSection.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
                 } else if (targetSection) {

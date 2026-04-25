@@ -1781,6 +1781,33 @@
                 }
             };
 
+            const playReferenceThen = (startTarget) => {
+                if (!cardData.reference_audio) {
+                    startTarget();
+                    return;
+                }
+                const referenceAudio = createGameAudio(cardData.reference_audio);
+                activeChordPreview.reference = referenceAudio;
+                const startTargetAudio = () => {
+                    if (activeChordPreview.token !== previewToken) return;
+                    clearTimeout(refFallbackTimer);
+                    activeChordPreview.reference = null;
+                    startTarget();
+                };
+                let refFallbackTimer = setTimeout(() => {
+                    if (activeChordPreview.token === previewToken) startTargetAudio();
+                }, 4500);
+                referenceAudio.onloadedmetadata = () => {
+                    clearTimeout(refFallbackTimer);
+                    refFallbackTimer = setTimeout(() => {
+                        if (activeChordPreview.token === previewToken) startTargetAudio();
+                    }, Math.round((referenceAudio.duration || 5) * 1000) + 500);
+                };
+                referenceAudio.onended = startTargetAudio;
+                referenceAudio.onerror = startTargetAudio;
+                safePlayAudio(referenceAudio, startTargetAudio);
+            };
+
             // Chord progression: play sequence of chords one after another
             if (cardData.audio_sequence && cardData.audio_sequence.length) {
                 const chordMs = Math.round((parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5")) * 1000);
@@ -1802,7 +1829,7 @@
                     audio.onerror = advance;
                     safePlayAudio(audio, advance);
                 };
-                playNext(0);
+                playReferenceThen(() => playNext(0));
                 return;
             }
 
@@ -1830,40 +1857,12 @@
             const startTargetAudio = () => {
                 if (targetStarted || activeChordPreview.token !== previewToken) return;
                 targetStarted = true;
-                clearTimeout(refFallbackTimer);
                 activeChordPreview.reference = null;
                 targetFallbackTimer = setTimeout(finishTarget, 4500);
                 safePlayAudio(targetAudio, finishTarget);
             };
 
-            if (cardData.card_type === "word" || !cardData.reference_audio) {
-                targetFallbackTimer = setTimeout(finishTarget, 4500);
-                safePlayAudio(targetAudio, finishTarget);
-                return;
-            }
-
-            const referenceAudio = createGameAudio(cardData.reference_audio);
-            activeChordPreview.reference = referenceAudio;
-
-            let refFallbackTimer = setTimeout(() => {
-                if (activeChordPreview.token === previewToken) startTargetAudio();
-            }, 4500);
-            referenceAudio.onloadedmetadata = () => {
-                clearTimeout(refFallbackTimer);
-                refFallbackTimer = setTimeout(() => {
-                    if (activeChordPreview.token === previewToken) startTargetAudio();
-                }, Math.round((referenceAudio.duration || 5) * 1000) + 500);
-            };
-            referenceAudio.onended = () => {
-                if (activeChordPreview.token !== previewToken) return;
-                startTargetAudio();
-            };
-            referenceAudio.onerror = () => {
-                if (activeChordPreview.token === previewToken) startTargetAudio();
-            };
-            safePlayAudio(referenceAudio, () => {
-                if (activeChordPreview.token === previewToken) startTargetAudio();
-            });
+            playReferenceThen(startTargetAudio);
         }
 
         function updateRevealedHighlights() {
@@ -1988,6 +1987,31 @@
         function playTrackerPreview(cardData) {
             if (!cardData || cardData.card_type !== "audio") return;
             if (activeTrackerPreview) { try { activeTrackerPreview.pause(); } catch (_) {} activeTrackerPreview = null; }
+            const playReferenceThen = (startTarget) => {
+                if (!cardData.reference_audio) {
+                    startTarget();
+                    return;
+                }
+                const referenceAudio = createGameAudio(cardData.reference_audio);
+                activeTrackerPreview = referenceAudio;
+                let refDone = false;
+                let refFallback = null;
+                const startAfterReference = () => {
+                    if (refDone) return;
+                    refDone = true;
+                    clearTimeout(refFallback);
+                    activeTrackerPreview = null;
+                    startTarget();
+                };
+                refFallback = setTimeout(startAfterReference, 4500);
+                referenceAudio.onloadedmetadata = () => {
+                    clearTimeout(refFallback);
+                    setTimeout(startAfterReference, Math.round((referenceAudio.duration || 5) * 1000) + 500);
+                };
+                referenceAudio.onended = startAfterReference;
+                referenceAudio.onerror = startAfterReference;
+                safePlayAudio(referenceAudio, startAfterReference);
+            };
             if (cardData.audio_sequence && cardData.audio_sequence.length) {
                 const chordMs = Math.round((parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5")) * 1000);
                 let stopped = false;
@@ -2007,12 +2031,14 @@
                     audio.onerror = advance;
                     safePlayAudio(audio, advance);
                 };
-                playNext(0);
+                playReferenceThen(() => playNext(0));
             } else if (cardData.audio) {
-                const audio = createGameAudio(cardData.audio);
-                activeTrackerPreview = audio;
-                audio.onended = () => { activeTrackerPreview = null; };
-                safePlayAudio(audio, () => { activeTrackerPreview = null; });
+                playReferenceThen(() => {
+                    const audio = createGameAudio(cardData.audio);
+                    activeTrackerPreview = audio;
+                    audio.onended = () => { activeTrackerPreview = null; };
+                    safePlayAudio(audio, () => { activeTrackerPreview = null; });
+                });
             }
         }
 
@@ -2033,7 +2059,7 @@
             }
             const isChordMode = window.currentCardMode === "chords" || window.currentCardMode === "same_chords";
             const isMyTurn = isSoloMode || currentTurn === myName;
-            const canPreview = isChordMode && isMyTurn && !trackerPreviewUsedThisTurn;
+            const canPreview = isChordMode && isMyTurn && (isSoloMode || !trackerPreviewUsedThisTurn);
             const chips = entries.map((entry) => {
                 const found = entry.indices.length > 0 && entry.indices.every((index) => matched.has(index));
                 const clickable = canPreview && !found;
@@ -2046,13 +2072,13 @@
                 item.textContent = nashvilleChipLabel(entry);
                 if (clickable) {
                     item.addEventListener("click", () => {
-                        if (trackerPreviewUsedThisTurn) return;
+                        if (!isSoloMode && trackerPreviewUsedThisTurn) return;
                         const audioCard = entry.indices.map(i => cards[i]).find(c => c && c.card_type === "audio");
                         if (!audioCard) return;
-                        trackerPreviewUsedThisTurn = true;
+                        if (!isSoloMode) trackerPreviewUsedThisTurn = true;
                         renderImagePairTracker();
                         playTrackerPreview(audioCard);
-                        socket.emit("tracker_preview", { label: nashvilleChipLabel(entry) });
+                        if (!isSoloMode) socket.emit("tracker_preview", { label: nashvilleChipLabel(entry) });
                     });
                 }
                 if (found && !scheduledPairRemovalKeys.has(entry.key)) {

@@ -75,6 +75,15 @@ def _init_db():
                 cur.execute("""
                     ALTER TABLE results ADD COLUMN IF NOT EXISTS round_result TEXT
                 """)
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS gomoku_size INT
+                """)
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS gomoku_visible_pairs INT
+                """)
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS gomoku_capture_pairs BOOLEAN
+                """)
         print("[DB] Tietokanta alustettu.")
     except Exception as e:
         print(f"[DB] Alustusvirhe: {e}")
@@ -85,7 +94,7 @@ _init_db()
 
 SOLO_PENALTY_PER_MISTAKE = 3  # seconds
 
-def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None, target_language=None, bot_difficulty=None, round_result=None):
+def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None, target_language=None, bot_difficulty=None, round_result=None, gomoku_size=None, gomoku_visible_pairs=None, gomoku_capture_pairs=None):
     total_time = None
     if time_secs is not None and mistakes is not None:
         total_time = time_secs + mistakes * SOLO_PENALTY_PER_MISTAKE
@@ -96,9 +105,9 @@ def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mis
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty, round_result)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty, round_result)
+                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty, round_result, gomoku_size, gomoku_visible_pairs, gomoku_capture_pairs)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty, round_result, gomoku_size, gomoku_visible_pairs, gomoku_capture_pairs)
                 )
     except Exception as e:
         print(f"[DB] Tallennusvirhe: {e}")
@@ -1905,7 +1914,8 @@ def append_chord_progression_pair_to_grid(prog, room, pair_index=None):
     audio_sequence = prog.get("audio_sequence") or []
     if not label or not audio_sequence:
         return False
-    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence}
+    reference_audio_url = (CHORD_REFERENCE_ENTRY or {}).get("url") or (audio_sequence[0] if audio_sequence else None)
+    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence, "reference_audio": reference_audio_url}
     room.grid_data.append({"pair_id": pair_id, "card_type": "word", "text": label, **common})
     room.grid_data.append({"pair_id": pair_id, "card_type": "audio", **common})
     return True
@@ -1920,7 +1930,8 @@ def append_same_chord_progression_pair_to_grid(prog, room, pair_index=None):
     audio_sequence = prog.get("audio_sequence") or []
     if not label or not audio_sequence:
         return False
-    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence, "pair_id": pair_id, "card_type": "audio"}
+    reference_audio_url = (CHORD_REFERENCE_ENTRY or {}).get("url") or (audio_sequence[0] if audio_sequence else None)
+    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence, "reference_audio": reference_audio_url, "pair_id": pair_id, "card_type": "audio"}
     room.grid_data.append(dict(common))
     room.grid_data.append(dict(common))
     return True
@@ -2111,6 +2122,13 @@ def conclude_round(winner_label, room, surrendered_by=None):
     if not surrendered_by:
         card_mode = room.card_mode or "image_word"
         target_lang = room.target_language if card_mode != "images" else None
+        gomoku_settings = {}
+        if card_mode == "gomoku":
+            gomoku_settings = {
+                "gomoku_size": room.gomoku_size or GOMOKU_SIZE,
+                "gomoku_visible_pairs": room.gomoku_visible_pairs or GOMOKU_VISIBLE_PAIRS_DEFAULT,
+                "gomoku_capture_pairs": bool(room.gomoku_capture_pairs),
+            }
         if is_solo(room) and room.player_order:
             save_result(
                 username=room.player_order[0],
@@ -2120,13 +2138,15 @@ def conclude_round(winner_label, room, surrendered_by=None):
                 time_secs=solo_time,
                 mistakes=room.solo_mistakes,
                 card_mode=card_mode,
-                target_language=target_lang
+                target_language=target_lang,
+                **gomoku_settings
             )
         else:
             for name in room.player_order:
                 if is_bot_player(name, room):
                     continue  # don't save bot's own result
                 if has_bot:
+                    round_result = "tie" if winner_label in {"Tasapeli", "Tie"} else ("win" if name == winner_label else "loss")
                     save_result(
                         username=name,
                         play_mode="bot",
@@ -2136,7 +2156,10 @@ def conclude_round(winner_label, room, surrendered_by=None):
                         mistakes=room.solo_mistakes,
                         card_mode=card_mode,
                         target_language=target_lang,
-                        bot_difficulty=room.bot_difficulty
+                        bot_difficulty=room.bot_difficulty,
+                        round_result=round_result,
+                        round_won=1 if round_result == "win" else 0,
+                        **gomoku_settings
                     )
                 else:
                     round_won = 1 if name == winner_label else 0
@@ -2149,7 +2172,8 @@ def conclude_round(winner_label, room, surrendered_by=None):
                         round_won=round_won,
                         card_mode=card_mode,
                         target_language=target_lang,
-                        round_result=round_result
+                        round_result=round_result,
+                        **gomoku_settings
                     )
 
     if winner_label in {"Tasapeli", "Tie"}:
@@ -3159,6 +3183,7 @@ def leaderboard():
     # sections: list of {play, card_mode, target_language, rows}
     sections = []
     multi_top = []
+    gomoku_multi_top = []
     if conn:
         try:
             with conn.cursor() as cur:
@@ -3169,6 +3194,7 @@ def leaderboard():
                                username, time_secs, mistakes, total_time
                         FROM results
                         WHERE play_mode = 'solo' AND game_mode != 'random' AND total_time IS NOT NULL
+                          AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku')
                           AND username != %s
                         ORDER BY card_mode, tl, total_time ASC""",
                      (bot_name,)),
@@ -3178,6 +3204,7 @@ def leaderboard():
                                username, pairs_found, mistakes, time_secs
                         FROM results
                         WHERE play_mode = 'bot' AND pairs_found IS NOT NULL
+                          AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku')
                           AND username != %s
                         ORDER BY card_mode, tl,
                                  CASE COALESCE(bot_difficulty, 'easy')
@@ -3194,6 +3221,7 @@ def leaderboard():
                                username, time_secs, mistakes, total_time
                         FROM results
                         WHERE game_mode = 'random' AND play_mode != 'bot' AND total_time IS NOT NULL
+                          AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku')
                           AND username != %s
                         ORDER BY card_mode, tl, total_time ASC""",
                      (bot_name,)),
@@ -3211,7 +3239,7 @@ def leaderboard():
                         if len(grouped[key]) < 10:
                             grouped[key].append(row[2:])  # drop grouping prefix
                     # define canonical order
-                    cm_order = ["images", "image_word", "words", "chords", "same_chords", "gomoku"]
+                    cm_order = ["images", "image_word", "words", "chords", "gomoku"]
                     seen = set()
                     for cm in cm_order:
                         for key in sorted(grouped.keys()):
@@ -3224,6 +3252,49 @@ def leaderboard():
                                     "rows": grouped[key]
                                 })
                 cur.execute("""
+                    SELECT 'gomoku' AS card_mode,
+                           '' AS tl,
+                           COALESCE(bot_difficulty, 'easy') AS bd,
+                           username,
+                           SUM(CASE
+                                 WHEN COALESCE(round_result, CASE WHEN round_won = 1 THEN 'win' ELSE 'loss' END) = 'win'
+                                 THEN 1 ELSE 0
+                               END) AS wins,
+                           SUM(CASE WHEN round_result = 'tie' THEN 1 ELSE 0 END) AS ties,
+                           COUNT(*) AS rounds,
+                           COALESCE(gomoku_size, %s) AS gs,
+                           COALESCE(gomoku_visible_pairs, %s) AS gvp,
+                           COALESCE(gomoku_capture_pairs, %s) AS gcp
+                    FROM results
+                    WHERE play_mode = 'bot' AND card_mode = 'gomoku'
+                      AND (round_result IS NOT NULL OR round_won IS NOT NULL)
+                      AND username != %s
+                    GROUP BY COALESCE(bot_difficulty, 'easy'), username,
+                             COALESCE(gomoku_size, %s),
+                             COALESCE(gomoku_visible_pairs, %s),
+                             COALESCE(gomoku_capture_pairs, %s)
+                    ORDER BY CASE bd
+                               WHEN 'hard' THEN 0
+                               WHEN 'medium' THEN 1
+                               ELSE 2
+                             END ASC,
+                             wins DESC, ties DESC, rounds ASC, username ASC
+                    LIMIT 10
+                """, (
+                    GOMOKU_SIZE, GOMOKU_VISIBLE_PAIRS_DEFAULT, GOMOKU_CAPTURE_PAIRS_DEFAULT,
+                    bot_name,
+                    GOMOKU_SIZE, GOMOKU_VISIBLE_PAIRS_DEFAULT, GOMOKU_CAPTURE_PAIRS_DEFAULT
+                ))
+                gomoku_bot_rows = cur.fetchall()
+                if gomoku_bot_rows:
+                    sections.append({
+                        "play": "bot",
+                        "card_mode": "gomoku",
+                        "target_language": "",
+                        "score_type": "gomoku",
+                        "rows": [row[2:] for row in gomoku_bot_rows]
+                    })
+                cur.execute("""
                     SELECT username,
                            SUM(CASE
                                  WHEN COALESCE(round_result, CASE WHEN round_won = 1 THEN 'win' ELSE 'loss' END) = 'win'
@@ -3233,12 +3304,40 @@ def leaderboard():
                            COUNT(*) AS rounds
                     FROM results
                     WHERE play_mode = 'multiplayer' AND round_won IS NOT NULL
+                      AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku')
                       AND username != %s
                     GROUP BY username
                     ORDER BY wins DESC, ties DESC, rounds ASC
                     LIMIT 10
                 """, (bot_name,))
                 multi_top = cur.fetchall()
+                cur.execute("""
+                    SELECT username,
+                           SUM(CASE
+                                 WHEN COALESCE(round_result, CASE WHEN round_won = 1 THEN 'win' ELSE 'loss' END) = 'win'
+                                 THEN 1 ELSE 0
+                               END) AS wins,
+                           SUM(CASE WHEN round_result = 'tie' THEN 1 ELSE 0 END) AS ties,
+                           COUNT(*) AS rounds,
+                           COALESCE(gomoku_size, %s) AS gs,
+                           COALESCE(gomoku_visible_pairs, %s) AS gvp,
+                           COALESCE(gomoku_capture_pairs, %s) AS gcp
+                    FROM results
+                    WHERE play_mode = 'multiplayer' AND round_won IS NOT NULL
+                      AND card_mode = 'gomoku'
+                      AND username != %s
+                    GROUP BY username,
+                             COALESCE(gomoku_size, %s),
+                             COALESCE(gomoku_visible_pairs, %s),
+                             COALESCE(gomoku_capture_pairs, %s)
+                    ORDER BY wins DESC, ties DESC, rounds ASC, username ASC
+                    LIMIT 10
+                """, (
+                    GOMOKU_SIZE, GOMOKU_VISIBLE_PAIRS_DEFAULT, GOMOKU_CAPTURE_PAIRS_DEFAULT,
+                    bot_name,
+                    GOMOKU_SIZE, GOMOKU_VISIBLE_PAIRS_DEFAULT, GOMOKU_CAPTURE_PAIRS_DEFAULT
+                ))
+                gomoku_multi_top = cur.fetchall()
         except Exception as e:
             print(f"[DB] Leaderboard query error: {e}")
         finally:
@@ -3247,6 +3346,7 @@ def leaderboard():
     return render_template("leaderboard.html",
                            sections=sections,
                            multi_top=multi_top,
+                           gomoku_multi_top=gomoku_multi_top,
                            db_available=db_available,
                            SOLO_PENALTY=SOLO_PENALTY_PER_MISTAKE)
 
