@@ -2878,6 +2878,7 @@ def choose_gomoku_bot_move(room):
     center = (size // 2) * size + size // 2
     if not occupied:
         return center
+    capture_pairs = room.gomoku_capture_pairs
     # 1. Win in 1
     for idx in empty:
         perceived[idx] = bot_color
@@ -2893,7 +2894,35 @@ def choose_gomoku_bot_move(room):
             if difficulty != "easy" or random.random() < 0.6:
                 return idx
         del perceived[idx]
-    # 3. Best scoring move near existing stones
+    # 3. Capture 2 opponent stones (capture pairs mode)
+    if capture_pairs:
+        capture_prob = {"easy": 0.25, "medium": 0.65, "hard": 1.0}.get(difficulty, 0.65)
+        if random.random() < capture_prob:
+            best_cap, best_cap_count = -1, 0
+            for idx in empty:
+                perceived[idx] = bot_color
+                caps = gomoku_apply_captures(perceived, idx, bot_color, size=size)
+                del perceived[idx]
+                if len(caps) > best_cap_count:
+                    best_cap_count = len(caps)
+                    best_cap = idx
+            if best_cap >= 0:
+                return best_cap
+    # 4. Block opponent capture threat (capture pairs mode)
+    if capture_pairs:
+        block_prob = {"easy": 0.15, "medium": 0.50, "hard": 1.0}.get(difficulty, 0.50)
+        if random.random() < block_prob:
+            best_block, best_block_count = -1, 0
+            for idx in empty:
+                perceived[idx] = opp_color
+                caps = gomoku_apply_captures(perceived, idx, opp_color, size=size)
+                del perceived[idx]
+                if len(caps) > best_block_count:
+                    best_block_count = len(caps)
+                    best_block = idx
+            if best_block >= 0:
+                return best_block
+    # 5. Best scoring move near existing stones
     best_score = -1
     best_candidates = []
     scored_candidates = []
@@ -2902,11 +2931,12 @@ def choose_gomoku_bot_move(room):
     for idx in candidates:
         perceived[idx] = bot_color
         my_score = _gomoku_count_line(perceived, idx, bot_color, size=size)
+        cap_bonus = len(gomoku_apply_captures(perceived, idx, bot_color, size=size)) * 3 if capture_pairs else 0
         del perceived[idx]
         perceived[idx] = opp_color
         opp_score = _gomoku_count_line(perceived, idx, opp_color, size=size)
         del perceived[idx]
-        score = my_score * 2 + opp_score
+        score = my_score * 2 + opp_score + cap_bonus
         distance_penalty = abs((idx // size) - (size // 2)) + abs((idx % size) - (size // 2))
         weighted_score = score * 100 - distance_penalty
         scored_candidates.append((weighted_score, idx))
