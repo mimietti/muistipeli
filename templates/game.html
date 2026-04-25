@@ -293,10 +293,11 @@
             font-size: 17px;
         }
         body.tablet-fit #gomoku-wrap {
-            padding: 4px 6px 8px !important;
+            padding: 2px 4px 6px !important;
         }
         body.tablet-fit #gomoku-board {
-            max-width: calc(100vw - 12px);
+            width: var(--gomoku-board-css-size, calc(100vw - 8px));
+            max-width: none;
             height: auto;
         }
         body.tablet-fit #gomoku-rematch-panel {
@@ -763,8 +764,19 @@
             transition: none !important;
             scroll-behavior: auto !important;
         }
-        #gomoku-wrap { user-select: none; }
-        #gomoku-board { display: block; margin: 0 auto; cursor: pointer; }
+        #gomoku-wrap {
+            user-select: none;
+            padding: 4px 8px 8px !important;
+            overflow: auto;
+        }
+        #gomoku-board {
+            display: block;
+            width: var(--gomoku-board-css-size, min(96vw, calc(100vh - 112px)));
+            max-width: none;
+            height: auto;
+            margin: 0 auto;
+            cursor: pointer;
+        }
         .gomoku-click { fill: rgba(0, 0, 0, 0.001); pointer-events: all; }
         .gomoku-stone { transition: opacity 0.2s; }
         .gomoku-win-stone { filter: drop-shadow(0 0 6px gold); }
@@ -2344,6 +2356,21 @@
             return GOMOKU_MARGIN * 2 + size * GOMOKU_CELL;
         }
 
+        function syncGomokuBoardLayout() {
+            const board = document.getElementById("gomoku-board");
+            if (!board) return;
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+            const topbar = document.querySelector(".game-topbar");
+            const footer = document.querySelector(".footer-credit");
+            const topbarHeight = topbar ? topbar.getBoundingClientRect().height : 0;
+            const footerHeight = footer ? footer.getBoundingClientRect().height : 0;
+            const horizontalRoom = Math.max(280, viewportWidth - 8);
+            const verticalRoom = Math.max(280, viewportHeight - topbarHeight - footerHeight - 18);
+            const target = Math.floor(Math.min(horizontalRoom, verticalRoom, 1040));
+            board.style.setProperty("--gomoku-board-css-size", `${target}px`);
+        }
+
         function gomokuXY(idx, size) {
             const row = Math.floor(idx / size);
             const col = idx % size;
@@ -2377,8 +2404,12 @@
             }
 
             const [x, y] = gomokuXY(focusRow * size + focusCol, size);
-            const left = Math.max(0, x - wrap.clientWidth / 2);
-            const top = Math.max(0, y - wrap.clientHeight / 2);
+            const board = document.getElementById("gomoku-board");
+            const logicalDim = gomokuBoardSize(size);
+            const boardRect = board ? board.getBoundingClientRect() : null;
+            const scale = boardRect && logicalDim ? boardRect.width / logicalDim : 1;
+            const left = Math.max(0, x * scale - wrap.clientWidth / 2);
+            const top = Math.max(0, y * scale - wrap.clientHeight / 2);
             wrap.scrollTo({
                 left,
                 top,
@@ -2389,6 +2420,7 @@
         function drawGomokuBoard() {
             const g = gomokuState;
             if (!g) return;
+            syncGomokuBoardLayout();
             const now = (typeof performance !== "undefined" && typeof performance.now === "function")
                 ? performance.now()
                 : Date.now();
@@ -2617,8 +2649,9 @@
                 const [x, y] = gomokuXY(idx, size);
                 const isW = color === "white";
                 const progress = Math.max(0, Math.min(1, (now - (startedAt || now)) / GOMOKU_EXPIRE_MS));
-                const flashPhaseEnd = 0.18;
-                const holdProgress = 0.34;
+                const flashPhaseEnd = 0.12;
+                const blinkPhaseEnd = 0.34;
+                const holdProgress = 0.42;
                 const attentionProgress = Math.min(1, progress / flashPhaseEnd);
                 const morphProgress = progress <= holdProgress ? 0 : (progress - holdProgress) / (1 - holdProgress);
                 const fadeProgress = Math.min(1, morphProgress / 0.56);
@@ -2629,15 +2662,20 @@
                 const fadeEased = 1 - Math.pow(1 - fadeProgress, 3);
                 const returnEased = returnProgress * returnProgress * (3 - 2 * returnProgress);
                 const flash = Math.sin(attentionProgress * Math.PI);
+                const blinkProgress = progress <= flashPhaseEnd
+                    ? 0
+                    : Math.min(1, (progress - flashPhaseEnd) / (blinkPhaseEnd - flashPhaseEnd));
+                const blinkWave = blinkProgress >= 1 ? 0 : Math.sin(blinkProgress * Math.PI * 5);
+                const blinkGreyMix = Math.max(0, blinkWave) * (1 - blinkProgress * 0.25);
                 const fill = mixColor(
                     isW ? [255, 255, 255] : [26, 26, 26],
                     [119, 122, 118],
-                    Math.min(1, 0.35 * fadeEased + 0.75 * returnEased)
+                    Math.min(1, blinkGreyMix * 0.82 + 0.35 * fadeEased + 0.75 * returnEased)
                 );
                 const stroke = mixColor(
                     isW ? [136, 136, 136] : [68, 68, 68],
                     [95, 98, 93],
-                    Math.min(1, 0.3 * fadeEased + 0.8 * returnEased)
+                    Math.min(1, blinkGreyMix * 0.76 + 0.3 * fadeEased + 0.8 * returnEased)
                 );
                 const flashFill = isW ? "#f5e8c8" : "#efd8a2";
                 const ringStroke = isW ? "#efe4c8" : "#e8c878";
@@ -3739,6 +3777,7 @@
 
         window.addEventListener("resize", () => {
             syncTabletFitMode();
+            syncGomokuBoardLayout();
             document.querySelectorAll(".card-word-text").forEach((textElement) => {
                 fitWordText(textElement, textElement.parentElement);
             });
