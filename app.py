@@ -2498,9 +2498,14 @@ def process_card_click(index, resolved_sid, clicker, room):
     room.revealed_cards.append(index)
     emit_to_room("reveal_card", {"index": index, "card": room.grid_data[index]}, room_id=room.room_id)
     remember_card_for_bot(room, index)
-    if room.grid_data[index].get("card_type") == "audio":
-        if room.grid_data[index].get("audio_sequence"):
-            n = len(room.grid_data[index]["audio_sequence"])
+    clicked_card = room.grid_data[index]
+    has_playable_chord_audio = (
+        clicked_card.get("card_type") == "audio"
+        or (clicked_card.get("chord_label") and (clicked_card.get("audio") or clicked_card.get("audio_sequence")))
+    )
+    if has_playable_chord_audio:
+        if clicked_card.get("audio_sequence"):
+            n = len(clicked_card["audio_sequence"])
             lock_duration = n * (room.chord_tempo_seconds + 0.5) + 0.5
         else:
             lock_duration = CHORD_PREVIEW_LOCK_SECONDS

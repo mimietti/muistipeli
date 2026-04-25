@@ -1766,7 +1766,7 @@
             stopChordPreview();
             audioRevealLock = true;
             const previewToken = activeChordPreview.token;
-            const shouldNotifyServer = cardData.card_type === "audio";
+            const shouldNotifyServer = cardData.card_type === "audio" || Boolean(cardData.chord_label);
 
             const markPreviewFinished = () => {
                 if (activeChordPreview.token !== previewToken) return;
