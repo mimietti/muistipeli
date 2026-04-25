@@ -1451,7 +1451,13 @@
 
         let cards = [];
         let matched = new Set();
-        let gomokuState = null;  // {size, whitePlayer, blackPlayer, myColor, currentTurn, whiteHistory, blackHistory, visiblePairs, winLine, revealBoard, board}
+        let gomokuState = null;  // {size, whitePlayer, blackPlayer, myColor, currentTurn, whiteHistory, blackHistory, occupiedIndices, visiblePairs, winLine, revealBoard, revealTransition, captureRevealTransition, board}
+        const GOMOKU_EXPIRE_MS = 420;
+        const GOMOKU_REVEAL_MS = 620;
+        const GOMOKU_CAPTURE_REVEAL_MS = 320;
+        let gomokuExpireAnimationFrame = null;
+        let gomokuRevealAnimationFrame = null;
+        let gomokuCaptureRevealAnimationFrame = null;
         let imagePairTrackerEntries = [];
         let removedPairKeys = new Set();
         let scheduledPairRemovalKeys = new Set();
@@ -2430,12 +2436,38 @@
         function drawGomokuBoard() {
             const g = gomokuState;
             if (!g) return;
+            const now = (typeof performance !== "undefined" && typeof performance.now === "function")
+                ? performance.now()
+                : Date.now();
             const size = g.size;
             const dim = gomokuBoardSize(size);
             const svg = document.getElementById("gomoku-board");
             svg.setAttribute("width", dim);
             svg.setAttribute("height", dim);
             svg.setAttribute("viewBox", `0 0 ${dim} ${dim}`);
+            const renderStone = (idx, color, options = {}) => {
+                const [x, y] = gomokuXY(idx, size);
+                const isWhite = color === "white";
+                const radius = options.radius != null ? options.radius : 13;
+                const opacity = options.opacity != null ? options.opacity : 1;
+                const strokeWidth = options.strokeWidth != null ? options.strokeWidth : 1.5;
+                const extraClass = options.extraClass || "";
+                const win = Boolean(options.win);
+                const fill = isWhite ? "white" : "#1a1a1a";
+                const stroke = isWhite ? "#888" : "#444";
+                html += `<circle cx="${x}" cy="${y}" r="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${opacity}" class="gomoku-stone${win ? ' gomoku-win-stone' : ''}${extraClass ? ` ${extraClass}` : ''}"/>`;
+                return { x, y, isWhite, opacity };
+            };
+            const renderHiddenMarker = (idx, progress = 1) => {
+                const [x, y] = gomokuXY(idx, size);
+                const eased = Math.max(0, Math.min(1, progress));
+                const baseOpacity = 0.78 * eased;
+                const outerRadius = 11.6 - 0.9 * (1 - eased);
+                const midRadius = 8.7 - 0.7 * (1 - eased);
+                html += `<circle cx="${x}" cy="${y}" r="${outerRadius}" fill="#777a76" stroke="#5f625d" stroke-width="1.2" opacity="${baseOpacity}"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="${midRadius}" fill="#8d918b" opacity="${0.2 * eased}"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="2.2" fill="#cfd4cc" opacity="${0.18 * eased}"/>`;
+            };
 
             let html = '';
             // Board background
@@ -2462,17 +2494,39 @@
                 html += `<rect x="${x - GOMOKU_CELL / 2}" y="${y - GOMOKU_CELL / 2}" width="${GOMOKU_CELL}" height="${GOMOKU_CELL}" data-idx="${i}" class="gomoku-click"/>`;
             }
             // Stones — during play only the latest stone of each color is visible; after a win reveal the whole board.
-            if (g.revealBoard && g.board) {
+            if (g.revealTransition && g.board) {
+                const transition = g.revealTransition;
+                const progress = Math.max(0, Math.min(1, (now - transition.startedAt) / GOMOKU_REVEAL_MS));
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const hiddenSet = new Set(transition.hiddenIndices || []);
                 Object.entries(g.board).forEach(([cellIdx, color]) => {
                     const numericIdx = Number(cellIdx);
-                    const [x, y] = gomokuXY(numericIdx, size);
-                    const isWhite = color === "white";
                     const isWin = g.winLine && g.winLine.includes(numericIdx);
-                    html += `<circle cx="${x}" cy="${y}" r="13" fill="${isWhite ? 'white' : '#1a1a1a'}" stroke="${isWhite ? '#888' : '#444'}" stroke-width="1.5" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                    if (!hiddenSet.has(numericIdx)) {
+                        renderStone(numericIdx, color, { win: isWin });
+                        return;
+                    }
+                    renderHiddenMarker(numericIdx, 1 - eased);
+                    renderStone(numericIdx, color, {
+                        win: isWin,
+                        radius: 11.2 + 1.8 * eased,
+                        opacity: 0.12 + 0.88 * eased,
+                    });
+                });
+            } else if (g.revealBoard && g.board) {
+                Object.entries(g.board).forEach(([cellIdx, color]) => {
+                    const numericIdx = Number(cellIdx);
+                    const isWin = g.winLine && g.winLine.includes(numericIdx);
+                    renderStone(numericIdx, color, { win: isWin });
                 });
             } else {
                 const wh = g.whiteHistory || [];
                 const bh = g.blackHistory || [];
+                const visibleIndices = new Set([...wh, ...bh]);
+                const hiddenOccupied = (g.occupiedIndices || []).filter((idx) => !visibleIndices.has(idx));
+                for (const hiddenIdx of hiddenOccupied) {
+                    renderHiddenMarker(hiddenIdx);
+                }
                 // Render older stones first so the newest is on top
                 const maxLen = Math.max(wh.length, bh.length);
                 const vp = g.visiblePairs || 1;
@@ -2487,20 +2541,20 @@
                     if (i < wh.length) {
                         const opW = stoneOpacity(i, wh.length);
                         const widx = wh[i];
-                        const [x, y] = gomokuXY(widx, size);
                         const isWin = g.winLine && g.winLine.includes(widx);
                         const isLast = widx === g.lastPlacedIdx && g.lastPlacedColor === "white";
-                        html += `<circle cx="${x}" cy="${y}" r="13" fill="white" stroke="#888" stroke-width="1.5" opacity="${opW}" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                        const stone = renderStone(widx, "white", { win: isWin, opacity: opW });
+                        const { x, y } = stone;
                         if (i === wh.length - 1) html += `<circle cx="${x}" cy="${y}" r="3" fill="#aaa" opacity="${opW}"/>`;
                         if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#555" stroke-width="1.5" opacity="${opW}"/>`;
                     }
                     if (i < bh.length) {
                         const opB = stoneOpacity(i, bh.length);
                         const bidx = bh[i];
-                        const [x, y] = gomokuXY(bidx, size);
                         const isWin = g.winLine && g.winLine.includes(bidx);
                         const isLast = bidx === g.lastPlacedIdx && g.lastPlacedColor === "black";
-                        html += `<circle cx="${x}" cy="${y}" r="13" fill="#1a1a1a" stroke="#444" stroke-width="1.5" opacity="${opB}" class="gomoku-stone${isWin ? ' gomoku-win-stone' : ''}"/>`;
+                        const stone = renderStone(bidx, "black", { win: isWin, opacity: opB });
+                        const { x, y } = stone;
                         if (i === bh.length - 1) html += `<circle cx="${x}" cy="${y}" r="3" fill="#555" opacity="${opB}"/>`;
                         if (isLast) html += `<rect x="${x-5}" y="${y-5}" width="10" height="10" fill="none" stroke="#aaa" stroke-width="1.5" opacity="${opB}"/>`;
                     }
@@ -2508,7 +2562,9 @@
             }
             if (g.capturedFlash) {
                 const isWhiteFlash = g.capturedFlash.color === "white";
+                const hiddenCapturedSet = new Set(((g.captureRevealTransition || {}).stones || []).map((stone) => stone.idx));
                 for (const ci of g.capturedFlash.indices) {
+                    if (hiddenCapturedSet.has(ci)) continue;
                     const [x, y] = gomokuXY(ci, size);
                     html += `<circle cx="${x}" cy="${y}" r="13" fill="${isWhiteFlash ? 'white' : '#1a1a1a'}" stroke="${isWhiteFlash ? '#888' : '#444'}" stroke-width="1.5" class="gomoku-stone"/>`;
                     html += `<circle cx="${x}" cy="${y}" r="16" fill="none" stroke="#e85" stroke-width="2.5"/>`;
@@ -2516,20 +2572,32 @@
                     html += `<line x1="${x+6}" y1="${y-6}" x2="${x-6}" y2="${y+6}" stroke="#e85" stroke-width="2.5" stroke-linecap="round"/>`;
                 }
             }
-            for (const { idx, color } of (g.expiringStones || [])) {
+            if (g.captureRevealTransition) {
+                const progress = Math.max(0, Math.min(1, (now - g.captureRevealTransition.startedAt) / GOMOKU_CAPTURE_REVEAL_MS));
+                const eased = 1 - Math.pow(1 - progress, 3);
+                for (const stone of (g.captureRevealTransition.stones || [])) {
+                    renderHiddenMarker(stone.idx, 1 - eased);
+                    renderStone(stone.idx, stone.color, {
+                        radius: 11.2 + 1.8 * eased,
+                        opacity: 0.12 + 0.88 * eased,
+                    });
+                }
+            }
+            for (const stone of (g.expiringStones || [])) {
+                const { idx, color, startedAt } = stone;
                 const [x, y] = gomokuXY(idx, size);
                 const isW = color === "white";
                 const fill = isW ? "white" : "#1a1a1a";
                 const stroke = isW ? "#888" : "#444";
-                const ringStroke = isW ? "#ccc" : "#888";
-                html += `<circle cx="${x}" cy="${y}" r="13" fill="${fill}" stroke="${stroke}" stroke-width="1.5" class="stone-expiring">
-                    <animate attributeName="r" from="13" to="5" dur="0.4s" fill="freeze"/>
-                    <animate attributeName="opacity" from="0.85" to="0" dur="0.4s" fill="freeze"/>
-                </circle>
-                <circle cx="${x}" cy="${y}" r="13" fill="none" stroke="${ringStroke}" stroke-width="2" class="stone-expiring">
-                    <animate attributeName="r" from="13" to="26" dur="0.4s" fill="freeze"/>
-                    <animate attributeName="opacity" from="0.7" to="0" dur="0.4s" fill="freeze"/>
-                </circle>`;
+                const ringStroke = isW ? "#d8d1c4" : "#8d8477";
+                const progress = Math.max(0, Math.min(1, (now - (startedAt || now)) / GOMOKU_EXPIRE_MS));
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const stoneRadius = 13 * (1 - 0.28 * eased);
+                const stoneOpacity = 0.9 * (1 - eased);
+                const ringRadius = 13 + 8 * eased;
+                const ringOpacity = 0.28 * (1 - eased);
+                html += `<circle cx="${x}" cy="${y}" r="${stoneRadius}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" opacity="${stoneOpacity}" class="stone-expiring"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="${ringRadius}" fill="none" stroke="${ringStroke}" stroke-width="${1.6 - 0.5 * eased}" opacity="${ringOpacity}" class="stone-expiring"/>`;
             }
             svg.innerHTML = html;
             svg.onclick = (evt) => {
@@ -2573,6 +2641,98 @@
                 console.log("[DEBUG] Emitting gomoku_place", { index: idx, row, col });
                 socket.emit("gomoku_place", { index: idx });
             };
+        }
+
+        function stopGomokuExpireAnimation() {
+            if (gomokuExpireAnimationFrame !== null) {
+                cancelAnimationFrame(gomokuExpireAnimationFrame);
+                gomokuExpireAnimationFrame = null;
+            }
+        }
+
+        function stopGomokuRevealAnimation() {
+            if (gomokuRevealAnimationFrame !== null) {
+                cancelAnimationFrame(gomokuRevealAnimationFrame);
+                gomokuRevealAnimationFrame = null;
+            }
+        }
+
+        function stopGomokuCaptureRevealAnimation() {
+            if (gomokuCaptureRevealAnimationFrame !== null) {
+                cancelAnimationFrame(gomokuCaptureRevealAnimationFrame);
+                gomokuCaptureRevealAnimationFrame = null;
+            }
+        }
+
+        function scheduleGomokuExpireAnimation() {
+            if (gomokuExpireAnimationFrame !== null) return;
+            const tick = () => {
+                gomokuExpireAnimationFrame = null;
+                if (!gomokuState) return;
+                const now = (typeof performance !== "undefined" && typeof performance.now === "function")
+                    ? performance.now()
+                    : Date.now();
+                gomokuState.expiringStones = (gomokuState.expiringStones || []).filter((stone) => {
+                    const startedAt = typeof stone.startedAt === "number" ? stone.startedAt : now;
+                    return (now - startedAt) < GOMOKU_EXPIRE_MS;
+                });
+                drawGomokuBoard();
+                if ((gomokuState.expiringStones || []).length > 0) {
+                    gomokuExpireAnimationFrame = requestAnimationFrame(tick);
+                }
+            };
+            gomokuExpireAnimationFrame = requestAnimationFrame(tick);
+        }
+
+        function scheduleGomokuRevealAnimation() {
+            if (gomokuRevealAnimationFrame !== null) return;
+            const tick = () => {
+                gomokuRevealAnimationFrame = null;
+                if (!gomokuState || !gomokuState.revealTransition) return;
+                const now = (typeof performance !== "undefined" && typeof performance.now === "function")
+                    ? performance.now()
+                    : Date.now();
+                if ((now - gomokuState.revealTransition.startedAt) >= GOMOKU_REVEAL_MS) {
+                    gomokuState.revealTransition = null;
+                    gomokuState.revealBoard = true;
+                    drawGomokuBoard();
+                    return;
+                }
+                drawGomokuBoard();
+                gomokuRevealAnimationFrame = requestAnimationFrame(tick);
+            };
+            gomokuRevealAnimationFrame = requestAnimationFrame(tick);
+        }
+
+        function scheduleGomokuCaptureRevealAnimation() {
+            if (gomokuCaptureRevealAnimationFrame !== null) return;
+            const tick = () => {
+                gomokuCaptureRevealAnimationFrame = null;
+                if (!gomokuState || !gomokuState.captureRevealTransition) return;
+                const now = (typeof performance !== "undefined" && typeof performance.now === "function")
+                    ? performance.now()
+                    : Date.now();
+                if ((now - gomokuState.captureRevealTransition.startedAt) >= GOMOKU_CAPTURE_REVEAL_MS) {
+                    const revealedCaptured = (gomokuState.captureRevealTransition.stones || []).map((stone) => ({
+                        idx: stone.idx,
+                        color: stone.color,
+                        startedAt: now,
+                    }));
+                    gomokuState.captureRevealTransition = null;
+                    gomokuState.expiringStones = [
+                        ...(gomokuState.expiringStones || []).filter(
+                            (stone) => !revealedCaptured.some((capturedStone) => capturedStone.idx === stone.idx && capturedStone.color === stone.color)
+                        ),
+                        ...revealedCaptured
+                    ];
+                    scheduleGomokuExpireAnimation();
+                    drawGomokuBoard();
+                    return;
+                }
+                drawGomokuBoard();
+                gomokuCaptureRevealAnimationFrame = requestAnimationFrame(tick);
+            };
+            gomokuCaptureRevealAnimationFrame = requestAnimationFrame(tick);
         }
 
         function showToast(msg, autoHideMs = 3000) {
@@ -2710,6 +2870,9 @@
 
         socket.on("init_gomoku", (data) => {
             console.log("[DEBUG] init_gomoku", data);
+            stopGomokuExpireAnimation();
+            stopGomokuRevealAnimation();
+            stopGomokuCaptureRevealAnimation();
             resetGomokuRematchPanel();
             document.getElementById("grid").style.display = "none";
             document.getElementById("image-pair-tracker").style.display = "none";
@@ -2725,12 +2888,15 @@
                 currentTurn: data.turn,
                 whiteHistory: Array.isArray(data.white_history) ? data.white_history : [],
                 blackHistory: Array.isArray(data.black_history) ? data.black_history : [],
+                occupiedIndices: Array.isArray(data.occupied_indices) ? data.occupied_indices : [],
                 visiblePairs: data.visible_pairs || 1,
                 capturePairsEnabled: Boolean(data.capture_pairs_enabled),
                 lastPlacedIdx: -1,
                 lastPlacedColor: null,
                 capturedFlash: null,
                 expiringStones: [],
+                revealTransition: null,
+                captureRevealTransition: null,
                 winLine: null,
                 revealBoard: Boolean(data.reveal_board),
                 board: data.board || {},
@@ -2751,30 +2917,37 @@
             if (!gomokuState) return;
             console.log("[DEBUG] gomoku_update", data);
             const capturedSet = new Set(data.captured || []);
+            const now = (typeof performance !== "undefined" && typeof performance.now === "function")
+                ? performance.now()
+                : Date.now();
+            const previousVisibleIndices = new Set([
+                ...(gomokuState.whiteHistory || []),
+                ...(gomokuState.blackHistory || [])
+            ]);
             const vp = gomokuState.visiblePairs || 1;
             const newExpiring = [];
             if (Array.isArray(data.white_history) && gomokuState.whiteHistory.length >= vp) {
                 const dropped = gomokuState.whiteHistory[0];
                 if (dropped != null && !data.white_history.includes(dropped) && !capturedSet.has(dropped))
-                    newExpiring.push({ idx: dropped, color: "white" });
+                    newExpiring.push({ idx: dropped, color: "white", startedAt: now });
             }
             if (Array.isArray(data.black_history) && gomokuState.blackHistory.length >= vp) {
                 const dropped = gomokuState.blackHistory[0];
                 if (dropped != null && !data.black_history.includes(dropped) && !capturedSet.has(dropped))
-                    newExpiring.push({ idx: dropped, color: "black" });
+                    newExpiring.push({ idx: dropped, color: "black", startedAt: now });
             }
             if (newExpiring.length > 0) {
-                gomokuState.expiringStones = [...(gomokuState.expiringStones || []), ...newExpiring];
-                setTimeout(() => {
-                    if (!gomokuState) return;
-                    gomokuState.expiringStones = (gomokuState.expiringStones || []).filter(
-                        s => !newExpiring.some(e => e.idx === s.idx && e.color === s.color)
-                    );
-                    drawGomokuBoard();
-                }, 400);
+                gomokuState.expiringStones = [
+                    ...(gomokuState.expiringStones || []).filter(
+                        (stone) => !newExpiring.some((nextStone) => nextStone.idx === stone.idx && nextStone.color === stone.color)
+                    ),
+                    ...newExpiring
+                ];
+                scheduleGomokuExpireAnimation();
             }
             if (Array.isArray(data.white_history)) gomokuState.whiteHistory = data.white_history;
             if (Array.isArray(data.black_history)) gomokuState.blackHistory = data.black_history;
+            if (Array.isArray(data.occupied_indices)) gomokuState.occupiedIndices = data.occupied_indices;
             if (typeof data.visible_pairs === "number" && data.visible_pairs > 0) {
                 gomokuState.visiblePairs = data.visible_pairs;
             }
@@ -2792,14 +2965,45 @@
                 gomokuState.capturedFlash = null;
             }
             gomokuState.currentTurn = data.next_turn;
-            if (typeof data.reveal_board !== "undefined") {
-                gomokuState.revealBoard = Boolean(data.reveal_board);
-            }
             if (data.board) {
                 gomokuState.board = data.board;
             }
             if (data.win_line && data.win_line.length > 0) {
                 gomokuState.winLine = data.win_line;
+            }
+            const hiddenCaptured = (data.captured || [])
+                .filter((idx) => !previousVisibleIndices.has(idx))
+                .map((idx) => ({
+                    idx,
+                    color: data.color === "white" ? "black" : "white",
+                }));
+            if (hiddenCaptured.length > 0) {
+                stopGomokuCaptureRevealAnimation();
+                gomokuState.captureRevealTransition = { startedAt: now, stones: hiddenCaptured };
+                scheduleGomokuCaptureRevealAnimation();
+            }
+            const shouldRevealBoard = Boolean(data.reveal_board);
+            if (shouldRevealBoard && data.board) {
+                const visibleIndices = new Set([
+                    ...(gomokuState.whiteHistory || []),
+                    ...(gomokuState.blackHistory || [])
+                ]);
+                const hiddenIndices = (gomokuState.occupiedIndices || []).filter((idx) => !visibleIndices.has(idx));
+                if (hiddenIndices.length > 0) {
+                    stopGomokuRevealAnimation();
+                    gomokuState.revealBoard = false;
+                    gomokuState.revealTransition = {
+                        startedAt: now,
+                        hiddenIndices,
+                    };
+                    scheduleGomokuRevealAnimation();
+                } else {
+                    gomokuState.revealTransition = null;
+                    gomokuState.revealBoard = true;
+                }
+            } else if (typeof data.reveal_board !== "undefined") {
+                gomokuState.revealTransition = null;
+                gomokuState.revealBoard = Boolean(data.reveal_board);
             }
             currentTurn = data.next_turn;
             drawGomokuBoard();
