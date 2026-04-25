@@ -2486,6 +2486,16 @@
                     }
                 }
             }
+            if (g.capturedFlash) {
+                const isWhiteFlash = g.capturedFlash.color === "white";
+                for (const ci of g.capturedFlash.indices) {
+                    const [x, y] = gomokuXY(ci, size);
+                    html += `<circle cx="${x}" cy="${y}" r="13" fill="${isWhiteFlash ? 'white' : '#1a1a1a'}" stroke="${isWhiteFlash ? '#888' : '#444'}" stroke-width="1.5" class="gomoku-stone"/>`;
+                    html += `<circle cx="${x}" cy="${y}" r="16" fill="none" stroke="#e85" stroke-width="2.5"/>`;
+                    html += `<line x1="${x-6}" y1="${y-6}" x2="${x+6}" y2="${y+6}" stroke="#e85" stroke-width="2.5" stroke-linecap="round"/>`;
+                    html += `<line x1="${x+6}" y1="${y-6}" x2="${x-6}" y2="${y+6}" stroke="#e85" stroke-width="2.5" stroke-linecap="round"/>`;
+                }
+            }
             svg.innerHTML = html;
             svg.onclick = (evt) => {
                 if (!gomokuState) {
@@ -2684,6 +2694,7 @@
                 capturePairsEnabled: Boolean(data.capture_pairs_enabled),
                 lastPlacedIdx: -1,
                 lastPlacedColor: null,
+                capturedFlash: null,
                 winLine: null,
                 revealBoard: Boolean(data.reveal_board),
                 board: data.board || {},
@@ -2708,6 +2719,17 @@
             if (!data.own_stone) {
                 gomokuState.lastPlacedIdx = data.placed_idx;
                 gomokuState.lastPlacedColor = data.color;
+            }
+            if (data.captured && data.captured.length > 0) {
+                gomokuState.capturedFlash = {
+                    indices: data.captured,
+                    color: data.color === "white" ? "black" : "white",
+                };
+                setTimeout(() => {
+                    if (gomokuState) { gomokuState.capturedFlash = null; drawGomokuBoard(); }
+                }, 380);
+            } else {
+                gomokuState.capturedFlash = null;
             }
             gomokuState.currentTurn = data.next_turn;
             if (typeof data.reveal_board !== "undefined") {
