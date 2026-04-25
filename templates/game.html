@@ -213,15 +213,6 @@
                 font-size: 16px;
             }
         }
-        body.tablet-fit .topbar {
-            width: min(960px, calc(100% - 16px));
-            margin: 10px auto 0;
-        }
-        body.tablet-fit .topbar-btn,
-        body.tablet-fit .settings-close-btn {
-            padding: 8px 14px;
-            font-size: 13px;
-        }
         body.tablet-fit .game-topbar {
             gap: 10px;
             width: min(100%, calc(100vw - 12px));
@@ -700,8 +691,7 @@
         .translation-col,
         #translation-hint,
         .image-pair-chip,
-        #results,
-        .settings-panel {
+        #results {
             background: var(--panel-bg);
             border-color: var(--panel-border);
         }
@@ -710,8 +700,7 @@
         .results-heading {
             color: var(--heading-color);
         }
-        .image-pair-chip.found,
-        .settings-chip.active {
+        .image-pair-chip.found {
             background: var(--accent-soft);
             border-color: rgba(255,255,255,0.14);
             color: var(--accent);
@@ -738,11 +727,7 @@
             box-shadow: 0 0 0 4px var(--error-ring), 0 0 18px rgba(255, 102, 102, 0.28);
         }
         .round-action-btn.exit,
-        .results-btn.end,
-        .settings-close-btn,
-        .settings-chip,
-        .settings-select,
-        .topbar-btn {
+        .results-btn.end {
             background: var(--control-bg);
             color: var(--control-text);
             border: 1px solid var(--control-border);
@@ -763,111 +748,6 @@
         }
         .solo-stat-value {
             color: var(--text-main);
-        }
-        .topbar {
-            display: flex;
-            justify-content: flex-end;
-            width: min(960px, calc(100% - 24px));
-            margin: 16px auto 0;
-        }
-        .topbar-btn,
-        .settings-close-btn {
-            border-radius: 999px;
-            padding: 10px 16px;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-        .settings-modal {
-            position: fixed;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.16s ease;
-            z-index: 1000;
-        }
-        .settings-modal.is-open {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        .settings-backdrop {
-            position: absolute;
-            inset: 0;
-            background: rgba(4, 8, 10, 0.62);
-            backdrop-filter: blur(8px);
-        }
-        .settings-panel {
-            position: relative;
-            width: min(560px, calc(100vw - 28px));
-            padding: 24px;
-            border-radius: 24px;
-            box-shadow: 0 24px 60px rgba(0,0,0,0.36);
-            text-align: left;
-        }
-        .settings-panel-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 16px;
-            margin-bottom: 18px;
-        }
-        #settingsEyebrow {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-soft);
-            margin-bottom: 6px;
-        }
-        #settingsTitle {
-            margin: 0;
-            font-size: 30px;
-            color: var(--heading-color);
-        }
-        #settingsSubtitle {
-            margin: 8px 0 0;
-            color: var(--text-muted);
-            line-height: 1.5;
-        }
-        .settings-group {
-            margin-top: 18px;
-        }
-        .settings-group-label {
-            display: block;
-            margin-bottom: 10px;
-            color: var(--text-soft);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-        .settings-choice-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .settings-chip {
-            border-radius: 999px;
-            padding: 10px 14px;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-        .settings-select {
-            width: 100%;
-            max-width: 260px;
-            border-radius: 12px;
-            padding: 10px 14px;
-            font-size: 15px;
-        }
-        .settings-select option {
-            background: #1a1a1a;
-            color: #fff;
-        }
-        body.settings-open {
-            overflow: hidden;
         }
         body[data-ui-motion="reduced"] *,
         body[data-ui-motion="reduced"] *::before,
@@ -978,58 +858,6 @@
     </style>
 </head>
 <body>
-    <div class="topbar">
-        <button id="settingsBtn" class="topbar-btn" type="button">Settings</button>
-    </div>
-    <div id="settingsModal" class="settings-modal" aria-hidden="true">
-        <div class="settings-backdrop" data-close-settings></div>
-        <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-            <div class="settings-panel-head">
-                <div>
-                    <div id="settingsEyebrow">Personal settings</div>
-                    <h2 id="settingsTitle">Settings</h2>
-                    <p id="settingsSubtitle"></p>
-                </div>
-                <button id="settingsCloseBtn" class="settings-close-btn" type="button">Close</button>
-            </div>
-            <div class="settings-group">
-                <label class="settings-group-label" id="settingsLanguageLabel" for="uiLangSelect">Interface language</label>
-                <select id="uiLangSelect" class="settings-select">
-                    <option value="fi">Suomi</option>
-                    <option value="en">English</option>
-                    <option value="sv">Svenska</option>
-                    <option value="de">Deutsch</option>
-                    <option value="fr">Français</option>
-                    <option value="es">Español</option>
-                    <option value="it">Italiano</option>
-                    <option value="pt">Português</option>
-                </select>
-            </div>
-            <div class="settings-group">
-                <div class="settings-group-label" id="settingsUiStyleLabel">UI style</div>
-                <div class="settings-choice-grid">
-                    <button type="button" class="settings-chip" data-ui-style-choice="classic">Classic</button>
-                    <button type="button" class="settings-chip" data-ui-style-choice="cozy">Cozy</button>
-                    <button type="button" class="settings-chip" data-ui-style-choice="cabinet">Cabinet</button>
-                    <button type="button" class="settings-chip" data-ui-style-choice="minimal">Minimal</button>
-                </div>
-            </div>
-            <div class="settings-group">
-                <div class="settings-group-label" id="settingsMotionLabel">Motion</div>
-                <div class="settings-choice-grid">
-                    <button type="button" class="settings-chip" data-ui-motion-choice="normal">Normal</button>
-                    <button type="button" class="settings-chip" data-ui-motion-choice="reduced">Reduced</button>
-                </div>
-            </div>
-            <div class="settings-group">
-                <div class="settings-group-label" id="settingsTrackerVisibilityLabel">Word list</div>
-                <div class="settings-choice-grid">
-                    <button type="button" class="settings-chip" data-tracker-visibility-choice="show">Show target words</button>
-                    <button type="button" class="settings-chip" data-tracker-visibility-choice="hide">Don't show target words</button>
-                </div>
-            </div>
-        </div>
-    </div>
     <h1 id="pageTitle">Memory Game</h1>
     <div class="game-topbar">
         <div id="solo-stats">
@@ -1443,63 +1271,10 @@
             document.getElementById("themeProgressLabel").textContent = t("ready_label");
             document.getElementById("surrenderRoundBtn").textContent = isSoloMode ? t("cancel_game") : t("surrender_round");
             document.getElementById("exitGameBtn").textContent = t("exit_game");
-            document.getElementById("settingsBtn").textContent = t("settings_button");
-            document.getElementById("settingsEyebrow").textContent = t("settings_eyebrow");
-            document.getElementById("settingsTitle").textContent = t("settings_title");
-            document.getElementById("settingsSubtitle").textContent = t("settings_subtitle");
-            document.getElementById("settingsCloseBtn").textContent = t("settings_close");
-            document.getElementById("settingsLanguageLabel").textContent = t("settings_language");
-            document.getElementById("settingsUiStyleLabel").textContent = t("settings_ui_style");
-            document.getElementById("settingsMotionLabel").textContent = t("settings_motion");
-            document.getElementById("settingsTrackerVisibilityLabel").textContent = t("settings_tracker_visibility");
-            document.querySelectorAll("[data-ui-style-choice]").forEach((btn) => {
-                btn.textContent = t(`ui_style_${btn.dataset.uiStyleChoice}`);
-            });
-            document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
-                btn.textContent = t(`settings_motion_${btn.dataset.uiMotionChoice}`);
-            });
-            document.querySelectorAll("[data-tracker-visibility-choice]").forEach((btn) => {
-                btn.textContent = t(`settings_tracker_${btn.dataset.trackerVisibilityChoice}`);
-            });
             syncSettingsControls();
             renderImagePairTracker();
             updatePlayers();
         }
-
-        document.getElementById("uiLangSelect")?.addEventListener("change", (event) => {
-            localStorage.setItem("ui_language", event.target.value);
-            applyTranslations();
-        });
-        document.querySelectorAll("[data-ui-style-choice]").forEach((btn) => {
-            btn.addEventListener("click", () => setUiStyle(btn.dataset.uiStyleChoice));
-        });
-        document.querySelectorAll("[data-ui-motion-choice]").forEach((btn) => {
-            btn.addEventListener("click", () => setUiMotion(btn.dataset.uiMotionChoice));
-        });
-        document.querySelectorAll("[data-tracker-visibility-choice]").forEach((btn) => {
-            btn.addEventListener("click", () => setTrackerVisibility(btn.dataset.trackerVisibilityChoice));
-        });
-        function openSettings() {
-            const modal = document.getElementById("settingsModal");
-            if (!modal) return;
-            modal.classList.add("is-open");
-            modal.setAttribute("aria-hidden", "false");
-            document.body.classList.add("settings-open");
-            syncSettingsControls();
-        }
-        function closeSettings() {
-            const modal = document.getElementById("settingsModal");
-            if (!modal) return;
-            modal.classList.remove("is-open");
-            modal.setAttribute("aria-hidden", "true");
-            document.body.classList.remove("settings-open");
-        }
-        document.getElementById("settingsBtn")?.addEventListener("click", openSettings);
-        document.getElementById("settingsCloseBtn")?.addEventListener("click", closeSettings);
-        document.querySelectorAll("[data-close-settings]").forEach((el) => el.addEventListener("click", closeSettings));
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape") closeSettings();
-        });
 
         function safeUUID() {
             if (self.crypto && typeof self.crypto.randomUUID === "function") {
