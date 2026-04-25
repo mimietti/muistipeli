@@ -3108,7 +3108,7 @@
                 whiteHistory: Array.isArray(data.white_history) ? data.white_history : [],
                 blackHistory: Array.isArray(data.black_history) ? data.black_history : [],
                 occupiedIndices: Array.isArray(data.occupied_indices) ? data.occupied_indices : [],
-                visiblePairs: data.visible_pairs || 1,
+                visiblePairs: data.visible_pairs || 5,
                 capturePairsEnabled: Boolean(data.capture_pairs_enabled),
                 lastPlacedIdx: -1,
                 lastPlacedColor: null,
@@ -3143,7 +3143,7 @@
                 ...(gomokuState.whiteHistory || []),
                 ...(gomokuState.blackHistory || [])
             ]);
-            const vp = gomokuState.visiblePairs || 1;
+            const vp = gomokuState.visiblePairs || 5;
             const newExpiring = [];
             if (Array.isArray(data.white_history) && gomokuState.whiteHistory.length >= vp) {
                 const dropped = gomokuState.whiteHistory[0];
@@ -3865,7 +3865,7 @@
             const isGomokuMode = window.currentCardMode === "gomoku" && gomokuState;
 
             if (isGomokuMode) {
-                const vp = gomokuState.visiblePairs || 1;
+                const vp = gomokuState.visiblePairs || 5;
                 const key = vp === 1 ? "gomoku_pairs_shown" : "gomoku_pairs_shown_plural";
                 const label = document.createElement("div");
                 label.className = "players-status-label";
