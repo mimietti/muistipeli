@@ -370,7 +370,7 @@ CHORD_PROGRESSIONS_DEF = [
     {"label": "I – V – vi – IV",       "chords": ["C major", "G major", "A minor", "F major"]},
     {"label": "I – IV – V",            "chords": ["C major", "F major", "G major"]},
     {"label": "I – vi – IV – V",       "chords": ["C major", "A minor", "F major", "G major"]},
-    {"label": "ii – V7 – I",           "chords": ["D minor", "G7", "C major"]},
+    {"label": "vi – ii – V7 – I",      "chords": ["A minor", "D minor", "G7", "C major"]},
     {"label": "I – V – vi – iii – IV", "chords": ["C major", "G major", "A minor", "E minor", "F major"]},
     {"label": "i – VII – VI – VII",    "chords": ["A minor", "G major", "F major", "G major"]},
     {"label": "i – VI – III – VII",    "chords": ["A minor", "F major", "C major", "G major"]},
