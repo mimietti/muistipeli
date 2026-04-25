@@ -1405,7 +1405,7 @@
             const maxWidth = Math.round(columns * maxCard + Math.max(0, columns - 1) * gap + padX * 2);
             grid.style.setProperty("--grid-max-width", `${maxWidth}px`);
         }
-        const GOMOKU_EXPIRE_MS = 2400;
+        const GOMOKU_EXPIRE_MS = 3200;
         const GOMOKU_REVEAL_MS = 620;
         const GOMOKU_CAPTURE_REVEAL_MS = 320;
         let gomokuExpireAnimationFrame = null;
@@ -2617,14 +2617,18 @@
                 const [x, y] = gomokuXY(idx, size);
                 const isW = color === "white";
                 const progress = Math.max(0, Math.min(1, (now - (startedAt || now)) / GOMOKU_EXPIRE_MS));
-                const fadeProgress = Math.min(1, progress / 0.58);
-                const returnProgress = progress <= 0.58 ? 0 : Math.min(1, (progress - 0.58) / 0.42);
-                const exitProgress = progress <= 0.88 ? 0 : Math.min(1, (progress - 0.88) / 0.12);
+                const flashPhaseEnd = 0.18;
+                const holdProgress = 0.34;
+                const attentionProgress = Math.min(1, progress / flashPhaseEnd);
+                const morphProgress = progress <= holdProgress ? 0 : (progress - holdProgress) / (1 - holdProgress);
+                const fadeProgress = Math.min(1, morphProgress / 0.56);
+                const returnProgress = morphProgress <= 0.56 ? 0 : Math.min(1, (morphProgress - 0.56) / 0.44);
+                const exitProgress = progress <= 0.9 ? 0 : Math.min(1, (progress - 0.9) / 0.1);
                 const exitEased = exitProgress * exitProgress;
                 const exitOpacity = 1 - exitEased;
                 const fadeEased = 1 - Math.pow(1 - fadeProgress, 3);
                 const returnEased = returnProgress * returnProgress * (3 - 2 * returnProgress);
-                const flash = Math.sin(Math.min(1, progress / 0.72) * Math.PI);
+                const flash = Math.sin(attentionProgress * Math.PI);
                 const fill = mixColor(
                     isW ? [255, 255, 255] : [26, 26, 26],
                     [119, 122, 118],
@@ -2637,14 +2641,14 @@
                 );
                 const flashFill = isW ? "#f5e8c8" : "#efd8a2";
                 const ringStroke = isW ? "#efe4c8" : "#e8c878";
-                const stoneRadius = 13 * (1 - 0.42 * fadeEased + 0.28 * returnEased);
+                const stoneRadius = 13 * (1 + 0.05 * flash - 0.42 * fadeEased + 0.28 * returnEased);
                 const stoneOpacity = (Math.max(0.04, 1 - 0.96 * fadeEased) + 0.62 * returnEased) * exitOpacity;
-                const flashRadius = 13 + 4.2 * flash + 5.5 * fadeEased;
-                const flashOpacity = 0.32 * flash * (1 - 0.85 * fadeEased) * exitOpacity;
-                const ringRadius = 13 + 18 * fadeEased - 7 * returnEased;
-                const ringOpacity = Math.max(0, 0.16 + 0.38 * flash - 0.38 * fadeEased - 0.14 * returnEased) * exitOpacity;
+                const flashRadius = 13 + 6.5 * flash + 5.5 * fadeEased;
+                const flashOpacity = 0.36 * flash * exitOpacity;
+                const ringRadius = 13 + 11 * attentionProgress + 18 * fadeEased - 7 * returnEased;
+                const ringOpacity = Math.max(0, 0.14 + 0.46 * flash - 0.42 * attentionProgress - 0.38 * fadeEased - 0.14 * returnEased) * exitOpacity;
                 html += `<circle cx="${x}" cy="${y}" r="${flashRadius}" fill="${flashFill}" opacity="${Math.max(0, flashOpacity)}" class="stone-expiring"/>`;
-                html += `<circle cx="${x}" cy="${y}" r="${stoneRadius}" fill="${fill}" stroke="${stroke}" stroke-width="${1.1 + 0.5 * returnEased}" opacity="${Math.min(0.72, stoneOpacity)}" class="stone-expiring"/>`;
+                html += `<circle cx="${x}" cy="${y}" r="${stoneRadius}" fill="${fill}" stroke="${stroke}" stroke-width="${1.1 + 0.5 * returnEased}" opacity="${Math.min(1, stoneOpacity)}" class="stone-expiring"/>`;
                 html += `<circle cx="${x}" cy="${y}" r="${ringRadius}" fill="none" stroke="${ringStroke}" stroke-width="${2.6 - 0.8 * returnEased}" opacity="${Math.max(0, ringOpacity)}" class="stone-expiring"/>`;
             }
             svg.innerHTML = html;
