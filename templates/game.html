@@ -909,19 +909,57 @@
         }
         .major-minor-choices {
             display: flex;
-            gap: 12px;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            margin-top: 14px;
+        }
+        .major-minor-errors {
+            display: flex;
+            gap: 10px;
             justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 10px;
+        }
+        .major-minor-error-dot {
+            font-size: 22px;
+            line-height: 1;
+            opacity: 0.25;
+        }
+        .major-minor-error-dot.filled {
+            opacity: 1;
+        }
+        .major-minor-progress {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+        .major-minor-progress-item {
+            padding: 6px 16px;
+            border-radius: 999px;
+            font-size: 15px;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .major-minor-progress-item.filled {
+            background: rgba(255,255,255,0.14);
+            color: #fff;
+        }
+        .major-minor-progress-item.empty {
+            background: rgba(255,255,255,0.04);
+            color: rgba(255,255,255,0.28);
+        }
+        .major-minor-tap-row {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
         }
         .major-minor-choice {
             min-width: 132px;
             border: 1px solid rgba(255,255,255,0.14);
             border-radius: 999px;
-            padding: 12px 18px;
+            padding: 14px 28px;
             background: rgba(255,255,255,0.07);
             color: #f5f5ec;
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 800;
             cursor: pointer;
         }
@@ -1711,24 +1749,61 @@
             const choicesEl = document.getElementById("majorMinorChoices");
             if (!choicesEl || !majorMinorState) return;
             choicesEl.replaceChildren();
-            (majorMinorState.choices || []).forEach((choice) => {
-                const btn = document.createElement("button");
-                btn.type = "button";
-                btn.className = "major-minor-choice";
-                btn.textContent = formatMajorMinorAnswer(choice);
-                btn.disabled = Boolean(majorMinorState.answering);
-                btn.addEventListener("click", () => {
-                    if (!majorMinorState || majorMinorState.answering) return;
-                    majorMinorState.answering = true;
-                    renderMajorMinorChoices();
-                    socket.emit("major_minor_answer", {
-                        reconnect_token: getReconnectToken(),
-                        username: myName,
-                        answer: choice
+            const { currentInput = [], sequenceLength = 1, answering = false, errors = 0 } = majorMinorState;
+
+            // Error indicators
+            const errorsRow = document.createElement("div");
+            errorsRow.className = "major-minor-errors";
+            for (let i = 0; i < 3; i++) {
+                const dot = document.createElement("span");
+                dot.className = "major-minor-error-dot" + (i < errors ? " filled" : "");
+                dot.textContent = "❌";
+                errorsRow.appendChild(dot);
+            }
+            choicesEl.appendChild(errorsRow);
+
+            // Sequence progress
+            const progressRow = document.createElement("div");
+            progressRow.className = "major-minor-progress";
+            for (let i = 0; i < sequenceLength; i++) {
+                const pill = document.createElement("span");
+                const isFilled = i < currentInput.length;
+                pill.className = "major-minor-progress-item " + (isFilled ? "filled" : "empty");
+                pill.textContent = isFilled
+                    ? (currentInput[i] === "major" ? t("major_minor_major") : t("major_minor_minor"))
+                    : "?";
+                progressRow.appendChild(pill);
+            }
+            choicesEl.appendChild(progressRow);
+
+            // Tap buttons
+            if (!answering && currentInput.length < sequenceLength) {
+                const tapRow = document.createElement("div");
+                tapRow.className = "major-minor-tap-row";
+                ["major", "minor"].forEach(quality => {
+                    const btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className = "major-minor-choice";
+                    btn.textContent = quality === "major" ? t("major_minor_major") : t("major_minor_minor");
+                    btn.addEventListener("click", () => {
+                        if (!majorMinorState || majorMinorState.answering || majorMinorState.currentInput.length >= majorMinorState.sequenceLength) return;
+                        majorMinorState.currentInput.push(quality);
+                        if (majorMinorState.currentInput.length >= majorMinorState.sequenceLength) {
+                            majorMinorState.answering = true;
+                            renderMajorMinorChoices();
+                            socket.emit("major_minor_answer", {
+                                reconnect_token: getReconnectToken(),
+                                username: myName,
+                                answer: majorMinorState.currentInput.join("-")
+                            });
+                        } else {
+                            renderMajorMinorChoices();
+                        }
                     });
+                    tapRow.appendChild(btn);
                 });
-                choicesEl.appendChild(btn);
-            });
+                choicesEl.appendChild(tapRow);
+            }
         }
 
         function showMajorMinorPanel(data = {}) {
@@ -1737,9 +1812,10 @@
             cards = [];
             majorMinorState = {
                 score: Number(data.score || 0),
+                errors: Number(data.errors || 0),
                 sequenceLength: Number(data.sequence_length || 1),
                 audioSequence: [],
-                choices: [],
+                currentInput: [],
                 answering: false
             };
             gameOverShown = false;
@@ -3460,9 +3536,10 @@
             majorMinorState = {
                 ...majorMinorState,
                 score: Number((data && data.score) || majorMinorState.score || 0),
+                errors: Number((data && data.errors != null) ? data.errors : (majorMinorState.errors || 0)),
                 sequenceLength: Number((data && data.sequence_length) || majorMinorState.sequenceLength || 1),
                 audioSequence: Array.isArray(data && data.audio_sequence) ? data.audio_sequence : [],
-                choices: Array.isArray(data && data.choices) ? data.choices : [],
+                currentInput: [],
                 answering: false
             };
             document.getElementById("majorMinorScore").textContent = String(majorMinorState.score);
@@ -3475,6 +3552,7 @@
         socket.on("major_minor_answer_result", (data) => {
             if (!majorMinorState) showMajorMinorPanel(data || {});
             majorMinorState.score = Number((data && data.score) || 0);
+            majorMinorState.errors = Number((data && data.errors != null) ? data.errors : (majorMinorState.errors || 0));
             majorMinorState.answering = true;
             document.getElementById("majorMinorScore").textContent = String(majorMinorState.score);
             const labels = Array.isArray(data && data.played_labels) ? data.played_labels.join(" – ") : "";

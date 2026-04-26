@@ -227,6 +227,7 @@ class RoomState:
     gomoku_capture_pairs: bool = GOMOKU_CAPTURE_PAIRS_DEFAULT
     major_minor_length: int = 1
     major_minor_score: int = 0
+    major_minor_errors: int = 0
     major_minor_answer: str = ""
     major_minor_question: dict = field(default_factory=dict)
 
@@ -2170,9 +2171,9 @@ def emit_major_minor_question(room):
     room.major_minor_question = {"qualities": list(qualities), "labels": debug_labels, "audio_sequence": sequence}
     emit_to_room("major_minor_question", {
         "score": room.major_minor_score,
+        "errors": room.major_minor_errors,
         "sequence_length": length,
         "audio_sequence": sequence,
-        "choices": ["-".join(item) for item in (MAJOR_MINOR_SEQUENCE_OPTIONS if length == 3 else [("major",), ("minor",)])],
     }, room_id=room.room_id)
     return True
 
@@ -2188,6 +2189,7 @@ def launch_major_minor_round(room):
     room.player_order = [v["username"] for v in get_effective_players_ordered(room)]
     room.player_points = {name: 0 for name in room.player_order}
     room.major_minor_score = 0
+    room.major_minor_errors = 0
     room.major_minor_answer = ""
     room.major_minor_question = {}
     room.solo_start_time = time.time()
@@ -4349,6 +4351,7 @@ def handle_major_minor_answer(data=None):
         emit("major_minor_answer_result", {
             "correct": True,
             "score": room.major_minor_score,
+            "errors": room.major_minor_errors,
             "correct_answer": room.major_minor_answer,
             "correct_label": correct_label,
             "played_labels": labels,
@@ -4357,21 +4360,28 @@ def handle_major_minor_answer(data=None):
         socketio.sleep(0.7)
         emit_major_minor_question(room)
         return
-    save_major_minor_result(room, result="loss")
-    room.status = "results"
+    room.major_minor_errors += 1
     emit("major_minor_answer_result", {
         "correct": False,
         "score": room.major_minor_score,
+        "errors": room.major_minor_errors,
         "correct_answer": room.major_minor_answer,
         "correct_label": correct_label,
         "played_labels": labels,
         "sequence_length": room.major_minor_length,
     })
-    emit_to_room("major_minor_game_over", {
-        "score": room.major_minor_score,
-        "reason": "wrong",
-        "sequence_length": room.major_minor_length,
-    }, room_id=room.room_id)
+    if room.major_minor_errors >= 3:
+        save_major_minor_result(room, result="loss")
+        room.status = "results"
+        emit_to_room("major_minor_game_over", {
+            "score": room.major_minor_score,
+            "errors": room.major_minor_errors,
+            "reason": "wrong",
+            "sequence_length": room.major_minor_length,
+        }, room_id=room.room_id)
+    else:
+        socketio.sleep(0.7)
+        emit_major_minor_question(room)
 
 
 @socketio.on("surrender_round")
