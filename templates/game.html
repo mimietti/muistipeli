@@ -973,7 +973,6 @@
             cursor: default;
         }
         .major-minor-feedback {
-            min-height: 64px;
             margin-top: 18px;
             color: #f5f5ec;
             font-size: 18px;
@@ -1864,7 +1863,7 @@
                 if (histEl) histEl.innerHTML = "";
                 return;
             }
-            const { playerInput, correctAnswer, correct, audioSequence } = majorMinorState.lastResult;
+            const { playerInput, correctAnswer, correct, audioSequence, playedLabels } = majorMinorState.lastResult;
             histEl.replaceChildren();
 
             const label = document.createElement("div");
@@ -1872,34 +1871,17 @@
             label.textContent = correct ? t("major_minor_previous_correct") : t("major_minor_previous_wrong");
             histEl.appendChild(label);
 
-            // Player's answers, each pill green if correct position, red if wrong
+            // Show what was played; green = correctly identified, red = wrong
             const pillsRow = document.createElement("div");
             pillsRow.className = "major-minor-history-pills";
-            playerInput.forEach((q, i) => {
+            correctAnswer.forEach((q, i) => {
                 const pill = document.createElement("span");
-                const posCorrect = q === correctAnswer[i];
-                pill.className = "major-minor-history-pill " + (posCorrect ? "correct" : "wrong");
-                pill.textContent = q === "major" ? t("major_minor_major") : t("major_minor_minor");
+                const playerGotIt = playerInput[i] === q;
+                pill.className = "major-minor-history-pill " + (playerGotIt ? "correct" : "wrong");
+                pill.textContent = playedLabels[i] || (q === "major" ? t("major_minor_major") : t("major_minor_minor"));
                 pillsRow.appendChild(pill);
             });
             histEl.appendChild(pillsRow);
-
-            // If any wrong, show the correct sequence below
-            if (!correct) {
-                const correctLabel = document.createElement("div");
-                correctLabel.style.cssText = "font-size:11px;color:rgba(255,255,255,0.3);text-align:center;margin-top:5px;";
-                correctLabel.textContent = t("major_minor_correct_answer");
-                histEl.appendChild(correctLabel);
-                const correctRow = document.createElement("div");
-                correctRow.className = "major-minor-history-correct-row";
-                correctAnswer.forEach(q => {
-                    const pill = document.createElement("span");
-                    pill.className = "major-minor-history-correct-pill";
-                    pill.textContent = q === "major" ? t("major_minor_major") : t("major_minor_minor");
-                    correctRow.appendChild(pill);
-                });
-                histEl.appendChild(correctRow);
-            }
 
             // Make the whole history section clickable to replay the previous sequence
             if (Array.isArray(audioSequence) && audioSequence.length) {
@@ -3681,14 +3663,11 @@
                 playerInput: [...(majorMinorState.currentInput || [])],
                 correctAnswer: (data && data.correct_answer ? data.correct_answer.split("-") : []),
                 correct: Boolean(data && data.correct),
-                audioSequence: [...(majorMinorState.audioSequence || [])]
+                audioSequence: [...(majorMinorState.audioSequence || [])],
+                playedLabels: Array.isArray(data && data.played_labels) ? data.played_labels : []
             };
             document.getElementById("majorMinorScore").textContent = String(majorMinorState.score);
-            const labels = Array.isArray(data && data.played_labels) ? data.played_labels.join(" – ") : "";
-            const answerText = (data && data.correct_label) || formatMajorMinorAnswer(data && data.correct_answer);
-            const resultKey = data && data.correct ? "major_minor_correct" : "major_minor_wrong";
-            const playedLine = labels ? `<span class="major-minor-played">${t("major_minor_played", { labels })}</span>` : "";
-            setMajorMinorFeedback(`${t(resultKey)} ${answerText}${playedLine}`, data && data.correct ? "good" : "bad");
+            setMajorMinorFeedback("");
             renderMajorMinorChoices();
             renderMajorMinorHistory();
         });
