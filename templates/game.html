@@ -987,6 +987,51 @@
             font-size: 15px;
             margin-top: 6px;
         }
+        .major-minor-history {
+            margin-top: 22px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(255,255,255,0.09);
+        }
+        .major-minor-history:empty { display: none; }
+        .major-minor-history-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.32);
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .major-minor-history-pills {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .major-minor-history-pill {
+            padding: 5px 13px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .major-minor-history-pill.correct { background: rgba(140,255,152,0.15); color: #8cff98; border: 1px solid rgba(140,255,152,0.25); }
+        .major-minor-history-pill.wrong   { background: rgba(255,176,167,0.15); color: #ffb0a7; border: 1px solid rgba(255,176,167,0.25); }
+        .major-minor-history-correct-row {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 5px;
+        }
+        .major-minor-history-correct-pill {
+            padding: 3px 11px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.42);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
     </style>
 </head>
 <body>
@@ -1028,6 +1073,7 @@
         <button type="button" class="major-minor-listen" id="majorMinorListenBtn">Play again</button>
         <div class="major-minor-choices" id="majorMinorChoices"></div>
         <div class="major-minor-feedback" id="majorMinorFeedback"></div>
+        <div class="major-minor-history" id="majorMinorHistory"></div>
     </div>
     <div id="chord-tempo-picker" style="display:none; max-width:860px; margin:0 auto 12px; padding:0 14px; box-sizing:border-box;">
         <div style="color:#fff2a8; font-size:13px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:4px;">
@@ -1114,6 +1160,9 @@
                 major_minor_played: "Played: {labels}",
                 major_minor_game_over: "Game over. Score: {score}",
                 major_minor_continue: "Continue to leaderboard",
+                major_minor_previous_correct: "Previous ✓",
+                major_minor_previous_wrong: "Previous ✗",
+                major_minor_correct_answer: "Correct:",
                 opponent_reconnecting: "Waiting for {name} to reconnect…",
                 opponent_returned: "{name} is back.",
                 pair_found_label: "Pair found",
@@ -1223,6 +1272,9 @@
                 major_minor_played: "Soitettiin: {labels}",
                 major_minor_game_over: "Peli päättyi. Tulos: {score}",
                 major_minor_continue: "Jatka tulostaulukkoon",
+                major_minor_previous_correct: "Edellinen ✓",
+                major_minor_previous_wrong: "Edellinen ✗",
+                major_minor_correct_answer: "Oikea:",
                 opponent_reconnecting: "Odotetaan, että {name} yhdistää uudelleen…",
                 opponent_returned: "{name} palasi peliin.",
                 pair_found_label: "Pari löytyi",
@@ -1806,6 +1858,71 @@
             }
         }
 
+        function renderMajorMinorHistory() {
+            const histEl = document.getElementById("majorMinorHistory");
+            if (!histEl || !majorMinorState || !majorMinorState.lastResult) {
+                if (histEl) histEl.innerHTML = "";
+                return;
+            }
+            const { playerInput, correctAnswer, correct, audioSequence } = majorMinorState.lastResult;
+            histEl.replaceChildren();
+
+            const label = document.createElement("div");
+            label.className = "major-minor-history-label";
+            label.textContent = correct ? t("major_minor_previous_correct") : t("major_minor_previous_wrong");
+            histEl.appendChild(label);
+
+            // Player's answers, each pill green if correct position, red if wrong
+            const pillsRow = document.createElement("div");
+            pillsRow.className = "major-minor-history-pills";
+            playerInput.forEach((q, i) => {
+                const pill = document.createElement("span");
+                const posCorrect = q === correctAnswer[i];
+                pill.className = "major-minor-history-pill " + (posCorrect ? "correct" : "wrong");
+                pill.textContent = q === "major" ? t("major_minor_major") : t("major_minor_minor");
+                pillsRow.appendChild(pill);
+            });
+            histEl.appendChild(pillsRow);
+
+            // If any wrong, show the correct sequence below
+            if (!correct) {
+                const correctLabel = document.createElement("div");
+                correctLabel.style.cssText = "font-size:11px;color:rgba(255,255,255,0.3);text-align:center;margin-top:5px;";
+                correctLabel.textContent = t("major_minor_correct_answer");
+                histEl.appendChild(correctLabel);
+                const correctRow = document.createElement("div");
+                correctRow.className = "major-minor-history-correct-row";
+                correctAnswer.forEach(q => {
+                    const pill = document.createElement("span");
+                    pill.className = "major-minor-history-correct-pill";
+                    pill.textContent = q === "major" ? t("major_minor_major") : t("major_minor_minor");
+                    correctRow.appendChild(pill);
+                });
+                histEl.appendChild(correctRow);
+            }
+
+            // Make the whole history section clickable to replay the previous sequence
+            if (Array.isArray(audioSequence) && audioSequence.length) {
+                histEl.style.cursor = "pointer";
+                histEl.title = t("major_minor_listen");
+                histEl.onclick = () => {
+                    const seq = [...audioSequence];
+                    let i = 0;
+                    function playNext() {
+                        if (i >= seq.length) return;
+                        const audio = new Audio(seq[i++]);
+                        audio.play().catch(() => {});
+                        const tempo = parseFloat(localStorage.getItem("chord_progression_tempo") || "2.0");
+                        audio.addEventListener("ended", () => setTimeout(playNext, Math.max(0, (tempo - (audio.duration || 1.5)) * 1000)));
+                    }
+                    playNext();
+                };
+            } else {
+                histEl.style.cursor = "";
+                histEl.onclick = null;
+            }
+        }
+
         function showMajorMinorPanel(data = {}) {
             stopChordPreview();
             gomokuState = null;
@@ -1816,7 +1933,8 @@
                 sequenceLength: Number(data.sequence_length || 1),
                 audioSequence: [],
                 currentInput: [],
-                answering: false
+                answering: false,
+                lastResult: null
             };
             gameOverShown = false;
             isSoloMode = true;
@@ -1832,6 +1950,8 @@
             document.getElementById("majorMinorScore").textContent = String(majorMinorState.score);
             document.getElementById("surrenderRoundBtn").textContent = t("cancel_game");
             setMajorMinorFeedback("");
+            const histEl = document.getElementById("majorMinorHistory");
+            if (histEl) histEl.innerHTML = "";
             hideSetupStatus();
             clearThemeProgress();
             updateRoundActionsVisibility();
@@ -3541,10 +3661,12 @@
                 audioSequence: Array.isArray(data && data.audio_sequence) ? data.audio_sequence : [],
                 currentInput: [],
                 answering: false
+                // lastResult preserved intentionally — history stays visible
             };
             document.getElementById("majorMinorScore").textContent = String(majorMinorState.score);
             setMajorMinorFeedback("");
             renderMajorMinorChoices();
+            renderMajorMinorHistory();
             playMajorMinorSequence();
             updateRoundActionsVisibility();
         });
@@ -3554,6 +3676,13 @@
             majorMinorState.score = Number((data && data.score) || 0);
             majorMinorState.errors = Number((data && data.errors != null) ? data.errors : (majorMinorState.errors || 0));
             majorMinorState.answering = true;
+            // Save result for history display
+            majorMinorState.lastResult = {
+                playerInput: [...(majorMinorState.currentInput || [])],
+                correctAnswer: (data && data.correct_answer ? data.correct_answer.split("-") : []),
+                correct: Boolean(data && data.correct),
+                audioSequence: [...(majorMinorState.audioSequence || [])]
+            };
             document.getElementById("majorMinorScore").textContent = String(majorMinorState.score);
             const labels = Array.isArray(data && data.played_labels) ? data.played_labels.join(" – ") : "";
             const answerText = (data && data.correct_label) || formatMajorMinorAnswer(data && data.correct_answer);
@@ -3561,6 +3690,7 @@
             const playedLine = labels ? `<span class="major-minor-played">${t("major_minor_played", { labels })}</span>` : "";
             setMajorMinorFeedback(`${t(resultKey)} ${answerText}${playedLine}`, data && data.correct ? "good" : "bad");
             renderMajorMinorChoices();
+            renderMajorMinorHistory();
         });
 
         socket.on("major_minor_game_over", (data) => {
