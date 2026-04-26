@@ -377,7 +377,7 @@ CHORD_PROGRESSIONS_DEF = [
     {"label": "vi – ii – V7 – I",   "example": "Autumn Leaves – jazzstandardi","chords": ["A minor", "D minor", "G7", "C major"]},
     {"label": "I – IV – vi – V",    "example": "Let Her Go – Passenger",      "chords": ["C major", "F major", "A minor", "G major"]},
     {"label": "i – VII – VI – V",   "example": "Stairway to Heaven – Led Zeppelin", "chords": ["A minor", "G major", "F major", "E minor"]},
-    {"label": "i – VI – III – VII", "example": "Mad World – Tears for Fears", "chords": ["A minor", "F major", "C major", "G major"]},
+    {"label": "i – VI – III – VII", "example": "Numb – Linkin Park",          "chords": ["A minor", "F major", "C major", "G major"]},
     {"label": "i – III – VII – i",  "example": "Time – Pink Floyd",                 "chords": ["A minor", "C major", "G major", "A minor"]},
 ]
 
