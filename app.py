@@ -378,7 +378,7 @@ CHORD_PROGRESSIONS_DEF = [
     {"label": "I – IV – vi – V",    "example": "Let Her Go – Passenger",      "chords": ["C major", "F major", "A minor", "G major"]},
     {"label": "i – VII – VI – V",   "example": "Stairway to Heaven – Led Zeppelin", "chords": ["A minor", "G major", "F major", "E minor"]},
     {"label": "i – VI – III – VII", "example": "Mad World – Tears for Fears", "chords": ["A minor", "F major", "C major", "G major"]},
-    {"label": "i – III – VII – i",  "example": "In the Air Tonight – Phil Collins", "chords": ["A minor", "C major", "G major", "A minor"]},
+    {"label": "i – III – VII – i",  "example": "Time – Pink Floyd",                 "chords": ["A minor", "C major", "G major", "A minor"]},
 ]
 
 def _build_chord_progressions_with_urls():
