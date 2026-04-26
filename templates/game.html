@@ -947,6 +947,23 @@
             background: rgba(255,255,255,0.04);
             color: rgba(255,255,255,0.28);
         }
+        .major-minor-progress-item.correct {
+            background: rgba(140,255,152,0.2);
+            color: #8cff98;
+            border-color: rgba(140,255,152,0.35);
+        }
+        .major-minor-progress-item.wrong {
+            background: rgba(255,176,167,0.2);
+            color: #ffb0a7;
+            border-color: rgba(255,176,167,0.35);
+        }
+        .major-minor-progress-item.playing {
+            animation: mm-pulse 0.55s ease-in-out infinite alternate;
+        }
+        @keyframes mm-pulse {
+            from { opacity: 0.55; transform: scale(0.97); }
+            to   { opacity: 1;    transform: scale(1.04); }
+        }
         .major-minor-tap-row {
             display: flex;
             gap: 16px;
@@ -1173,6 +1190,7 @@
                 major_minor_previous_wrong: "Previous ✗",
                 major_minor_correct_answer: "Correct:",
                 major_minor_undo: "Undo last tap",
+                major_minor_next: "Next",
                 opponent_reconnecting: "Waiting for {name} to reconnect…",
                 opponent_returned: "{name} is back.",
                 pair_found_label: "Pair found",
@@ -1286,6 +1304,7 @@
                 major_minor_previous_wrong: "Edellinen ✗",
                 major_minor_correct_answer: "Oikea:",
                 major_minor_undo: "Peru viimeisin valinta",
+                major_minor_next: "Seuraava",
                 opponent_reconnecting: "Odotetaan, että {name} yhdistää uudelleen…",
                 opponent_returned: "{name} palasi peliin.",
                 pair_found_label: "Pari löytyi",
@@ -1813,7 +1832,7 @@
             const choicesEl = document.getElementById("majorMinorChoices");
             if (!choicesEl || !majorMinorState) return;
             choicesEl.replaceChildren();
-            const { currentInput = [], sequenceLength = 1, answering = false, errors = 0 } = majorMinorState;
+            const { currentInput = [], sequenceLength = 1, answering = false, errors = 0, playback } = majorMinorState;
 
             // Error indicators
             const errorsRow = document.createElement("div");
@@ -1825,6 +1844,40 @@
                 errorsRow.appendChild(dot);
             }
             choicesEl.appendChild(errorsRow);
+
+            // --- PLAYBACK REVIEW MODE ---
+            if (playback) {
+                const reviewRow = document.createElement("div");
+                reviewRow.className = "major-minor-progress";
+                playback.correctAnswer.forEach((q, i) => {
+                    const pill = document.createElement("span");
+                    const playerGotIt = playback.playerInput[i] === q;
+                    const isPlaying = i === playback.playingIndex;
+                    pill.className = "major-minor-progress-item filled " + (playerGotIt ? "correct" : "wrong") + (isPlaying ? " playing" : "");
+                    pill.textContent = playback.playedLabels[i] || (q === "major" ? t("major_minor_major") : t("major_minor_minor"));
+                    reviewRow.appendChild(pill);
+                });
+                choicesEl.appendChild(reviewRow);
+
+                if (playback.done) {
+                    const nextRow = document.createElement("div");
+                    nextRow.style.cssText = "display:flex;justify-content:center;margin-top:14px;";
+                    const nextBtn = document.createElement("button");
+                    nextBtn.type = "button";
+                    nextBtn.className = "major-minor-listen";
+                    nextBtn.textContent = t("major_minor_next");
+                    nextBtn.addEventListener("click", () => {
+                        if (!majorMinorState) return;
+                        majorMinorState.playback = null;
+                        majorMinorState.currentInput = [];
+                        majorMinorState.answering = false;
+                        socket.emit("major_minor_next", { reconnect_token: getReconnectToken(), username: myName });
+                    });
+                    nextRow.appendChild(nextBtn);
+                    choicesEl.appendChild(nextRow);
+                }
+                return;
+            }
 
             // Sequence progress
             const progressRow = document.createElement("div");
@@ -1898,6 +1951,30 @@
             }
         }
 
+        function startMajorMinorPlayback(correctAnswer, playerInput, playedLabels, audioSequence) {
+            if (!majorMinorState) return;
+            majorMinorState.playback = { correctAnswer, playerInput, playedLabels, audioSequence, playingIndex: -1, done: false };
+            renderMajorMinorChoices();
+            const tempo = parseFloat(localStorage.getItem("chord_progression_tempo") || "2.0");
+            let i = 0;
+            function playNext() {
+                if (!majorMinorState || !majorMinorState.playback) return;
+                if (i >= audioSequence.length) {
+                    majorMinorState.playback.done = true;
+                    renderMajorMinorChoices();
+                    return;
+                }
+                majorMinorState.playback.playingIndex = i;
+                renderMajorMinorChoices();
+                const audio = createGameAudio(audioSequence[i]);
+                i++;
+                const gap = () => setTimeout(playNext, Math.max(160, (tempo - (audio.duration || 1.5)) * 1000));
+                audio.addEventListener("ended", gap);
+                safePlayAudio(audio, () => setTimeout(playNext, 500));
+            }
+            playNext();
+        }
+
         function renderMajorMinorHistory() {
             const histEl = document.getElementById("majorMinorHistory");
             if (!histEl || !majorMinorState || !majorMinorState.lastResult) {
@@ -1959,7 +2036,8 @@
                 currentInput: [],
                 answering: false,
                 pendingSubmit: false,
-                lastResult: null
+                lastResult: null,
+                playback: null
             };
             gameOverShown = false;
             isSoloMode = true;
@@ -3703,17 +3781,21 @@
             majorMinorState.score = Number((data && data.score) || 0);
             majorMinorState.errors = Number((data && data.errors != null) ? data.errors : (majorMinorState.errors || 0));
             majorMinorState.answering = true;
+            const correctAnswer = (data && data.correct_answer ? data.correct_answer.split("-") : []);
+            const playerInput = [...(majorMinorState.currentInput || [])];
+            const playedLabels = Array.isArray(data && data.played_labels) ? data.played_labels : [];
+            const audioSequence = [...(majorMinorState.audioSequence || [])];
+            const isCorrect = Boolean(data && data.correct);
             // Save result for history display
-            majorMinorState.lastResult = {
-                playerInput: [...(majorMinorState.currentInput || [])],
-                correctAnswer: (data && data.correct_answer ? data.correct_answer.split("-") : []),
-                correct: Boolean(data && data.correct),
-                audioSequence: [...(majorMinorState.audioSequence || [])],
-                playedLabels: Array.isArray(data && data.played_labels) ? data.played_labels : []
-            };
+            majorMinorState.lastResult = { playerInput, correctAnswer, correct: isCorrect, audioSequence, playedLabels };
             document.getElementById("majorMinorScore").textContent = String(majorMinorState.score);
             setMajorMinorFeedback("");
-            renderMajorMinorChoices();
+            if (!isCorrect && majorMinorState.errors < 3) {
+                // Play back the sequence chord by chord with per-chord color feedback, then show Next button
+                startMajorMinorPlayback(correctAnswer, playerInput, playedLabels, audioSequence);
+            } else {
+                renderMajorMinorChoices();
+            }
             renderMajorMinorHistory();
         });
 

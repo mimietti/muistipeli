@@ -404,6 +404,8 @@
                             <td class="total">{{ row[1] }}</td>
                             <td class="dim">{{ (row[2] // 60)|string + ":" + "%02d"|format(row[2] % 60) if row[2] is not none else "–" }}</td>
                         </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="empty">–</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

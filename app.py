@@ -3420,7 +3420,6 @@ def leaderboard():
                         FROM results
                         WHERE play_mode = 'solo' AND card_mode = 'major_minor'
                           AND COALESCE(major_minor_length, 1) = %s
-                          AND pairs_found IS NOT NULL
                           AND username != %s
                         ORDER BY pairs_found DESC,
                                  time_secs ASC NULLS LAST,
@@ -3428,15 +3427,14 @@ def leaderboard():
                         LIMIT 10
                     """, (mm_length, bot_name))
                     major_minor_rows = cur.fetchall()
-                    if major_minor_rows:
-                        sections.append({
-                            "play": "solo",
-                            "card_mode": "major_minor",
-                            "target_language": "",
-                            "score_type": "major_minor",
-                            "major_minor_length": mm_length,
-                            "rows": [row[2:] for row in major_minor_rows]
-                        })
+                    sections.append({
+                        "play": "solo",
+                        "card_mode": "major_minor",
+                        "target_language": "",
+                        "score_type": "major_minor",
+                        "major_minor_length": mm_length,
+                        "rows": [row[2:] for row in major_minor_rows]
+                    })
                 cur.execute("""
                     SELECT username,
                            SUM(CASE
@@ -3491,7 +3489,8 @@ def leaderboard():
                            multi_top=multi_top,
                            gomoku_multi_top=gomoku_multi_top,
                            db_available=db_available,
-                           SOLO_PENALTY=SOLO_PENALTY_PER_MISTAKE)
+                           SOLO_PENALTY=SOLO_PENALTY_PER_MISTAKE,
+                           app_version=APP_VERSION)
 
 
 # ---------------------------------------------------------------------------
@@ -4379,9 +4378,18 @@ def handle_major_minor_answer(data=None):
             "reason": "wrong",
             "sequence_length": room.major_minor_length,
         }, room_id=room.room_id)
-    else:
-        socketio.sleep(0.7)
-        emit_major_minor_question(room)
+    # else: client will emit major_minor_next after reviewing the playback
+
+
+@socketio.on("major_minor_next")
+def handle_major_minor_next(data=None):
+    _, player_info = resolve_player_for_event(data)
+    if not player_info:
+        return
+    room = resolve_room_for_event(data, player_info)
+    if room.card_mode != "major_minor" or room.status != "playing":
+        return
+    emit_major_minor_question(room)
 
 
 @socketio.on("surrender_round")
