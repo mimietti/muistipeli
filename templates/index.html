@@ -461,6 +461,11 @@
                     <span class="card-mode-label" id="indexCardModeChordsText">Chords</span>
                     <span class="card-mode-desc" id="indexCardModeChordsDesc">Match a chord name with its sound.</span>
                 </button>
+                <button type="button" class="card-mode-btn" id="indexCardModeMajorMinor" data-mode="major_minor">
+                    <span class="card-mode-icon" aria-hidden="true">♪ ?</span>
+                    <span class="card-mode-label" id="indexCardModeMajorMinorText">Major or minor?</span>
+                    <span class="card-mode-desc" id="indexCardModeMajorMinorDesc">Listen and choose the chord quality.</span>
+                </button>
                 <button type="button" class="card-mode-btn" id="indexCardModeGomoku" data-mode="gomoku">
                     <span class="card-mode-icon" aria-hidden="true">⚫⚪</span>
                     <span class="card-mode-label" id="indexCardModeGomokuText">Memory Gomoku</span>
@@ -520,6 +525,7 @@
                 enter_name_first: "Enter your name first.",
                 reconnect_missing: "Reconnect token missing! Reload the page.",
                 gomoku_no_solo: "Memory Gomoku can only be played against another player or the bot.",
+                major_minor_solo_only: "Major or minor? is a solo game.",
                 connect_error: "Could not connect to the server.",
                 waiting_for_you: "{name} is waiting for you to play.",
                 waiting_other_player: "Waiting for another player...",
@@ -547,6 +553,7 @@
                 enter_name_first: "Syötä nimi ensin.",
                 reconnect_missing: "Reconnect-token puuttuu! Lataa sivu uudelleen.",
                 gomoku_no_solo: "Muistinollaa voi pelata vain toista pelaajaa tai bottia vastaan.",
+                major_minor_solo_only: "Duuri vai molli? on yksinpeli.",
                 connect_error: "Yhteyttä ei saatu palvelimeen.",
                 waiting_for_you: "{name} odottaa sinua pelaamaan.",
                 waiting_other_player: "Odotetaan toista pelaajaa...",
@@ -690,12 +697,14 @@
                 image_word: "Image + word",
                 words: "Word + word",
                 chords: "Chords",
+                major_minor: "Major or minor?",
                 same_chords: "Note + note",
                 gomoku: "Memory Gomoku",
                 images_desc: "Match two related images.",
                 image_word_desc: "Match a picture with a word.",
                 words_desc: "Match words that mean the same.",
                 chords_desc: "Match chord sounds with their names.",
+                major_minor_desc: "Listen and choose major or minor.",
                 same_chords_desc: "Match two sounds of the same chord.",
                 gomoku_desc: "5 in a row — but remember where the stones are."
             },
@@ -705,12 +714,14 @@
                 image_word: "Kuva + sana",
                 words: "Sana + sana",
                 chords: "Soinnut",
+                major_minor: "Duuri vai molli?",
                 same_chords: "Nuotti + nuotti",
                 gomoku: "Muistinolla",
                 images_desc: "Etsi kaksi toisiinsa sopivaa kuvaa.",
                 image_word_desc: "Yhdistä kuva ja sana.",
                 words_desc: "Yhdistä eri kielillä samaa tarkoittavat sanat.",
                 chords_desc: "Yhdistä soivat soinnut ja niiden nimet.",
+                major_minor_desc: "Kuuntele ja valitse, oliko sointu duuri vai molli.",
                 same_chords_desc: "Etsi kaksi samaa soivaa sointua.",
                 gomoku_desc: "Viiden suora — mutta nappuloiden paikat täytyy muistaa."
             },
@@ -733,12 +744,12 @@
                 localStorage.setItem("preferred_card_mode", "chords");
                 return "chords";
             }
-            return ["images", "image_word", "words", "chords", "gomoku"].includes(stored) ? stored : "image_word";
+            return ["images", "image_word", "words", "chords", "major_minor", "gomoku"].includes(stored) ? stored : "image_word";
         }
 
         function setSelectedCardMode(mode) {
             const normalized = mode === "same_chords" ? "chords" : mode;
-            const next = ["images", "image_word", "words", "chords", "gomoku"].includes(normalized) ? normalized : "image_word";
+            const next = ["images", "image_word", "words", "chords", "major_minor", "gomoku"].includes(normalized) ? normalized : "image_word";
             localStorage.setItem("preferred_card_mode", next);
             return next;
         }
@@ -780,11 +791,13 @@
             document.getElementById("indexCardModeImageWordText").textContent = cardTexts.image_word;
             document.getElementById("indexCardModeWordsText").textContent = cardTexts.words;
             document.getElementById("indexCardModeChordsText").textContent = cardTexts.chords || cardModeTranslations.en.chords;
+            document.getElementById("indexCardModeMajorMinorText").textContent = cardTexts.major_minor || cardModeTranslations.en.major_minor;
             document.getElementById("indexCardModeGomokuText").textContent = cardTexts.gomoku || cardModeTranslations.en.gomoku;
             document.getElementById("indexCardModeImagesDesc").textContent = cardTexts.images_desc;
             document.getElementById("indexCardModeImageWordDesc").textContent = cardTexts.image_word_desc;
             document.getElementById("indexCardModeWordsDesc").textContent = cardTexts.words_desc;
             document.getElementById("indexCardModeChordsDesc").textContent = cardTexts.chords_desc || cardModeTranslations.en.chords_desc;
+            document.getElementById("indexCardModeMajorMinorDesc").textContent = cardTexts.major_minor_desc || cardModeTranslations.en.major_minor_desc;
             document.getElementById("indexCardModeGomokuDesc").textContent = cardTexts.gomoku_desc || cardModeTranslations.en.gomoku_desc;
             const joinBtn = document.getElementById("joinBtn");
             const joinBotBtn = document.getElementById("joinBotBtn");
@@ -929,6 +942,10 @@
                 document.getElementById("error").textContent = t("gomoku_no_solo");
                 return;
             }
+            if (mode !== "solo" && getSelectedCardMode() === "major_minor") {
+                document.getElementById("error").textContent = t("major_minor_solo_only");
+                return;
+            }
             const reconnectToken = getReconnectToken();
             if (!reconnectToken) {
                 alert(t("reconnect_missing"));
@@ -999,7 +1016,7 @@
                 return;
             }
             const langFlags = { fi: "🇫🇮", en: "🇬🇧", es: "🇪🇸", sv: "🇸🇪", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", pt: "🇵🇹" };
-            const cardIcons = { images: "🖼🖼", image_word: "🖼📝", words: "📝📝", chords: "🎵+nimi", same_chords: "🎵+nimi", gomoku: "⚫⚪" };
+            const cardIcons = { images: "🖼🖼", image_word: "🖼📝", words: "📝📝", chords: "🎵+nimi", same_chords: "🎵+nimi", major_minor: "♪?", gomoku: "⚫⚪" };
             lobbyStatus.classList.remove("is-empty");
             lobbyStatus.innerHTML = `
                 <div class="home-lobby-panel">
@@ -1011,7 +1028,7 @@
                             chips.push(getQueueWordSourceLabel(room.game_mode || "random"));
                             if (room.pending_theme) chips.push(`"${room.pending_theme}"`);
                             chips.push(`${cardIcons[room.card_mode] || ""} ${getQueueCardModeLabel(room.card_mode || "image_word")}`.trim());
-                            if (room.target_language && !["chords", "same_chords", "gomoku"].includes(room.card_mode)) chips.push(`${langFlags[room.target_language] || ""} ${getQueueLanguageLabel(room.target_language)}`.trim());
+                            if (room.target_language && !["chords", "same_chords", "major_minor", "gomoku"].includes(room.card_mode)) chips.push(`${langFlags[room.target_language] || ""} ${getQueueLanguageLabel(room.target_language)}`.trim());
                             return `<div class="home-lobby-entry">
                                 <div class="home-lobby-main">
                                     <span class="home-lobby-name">${escapeHtml(room.username || "?")}</span>
