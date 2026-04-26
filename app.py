@@ -388,7 +388,7 @@ def _build_chord_progressions_with_urls():
         label = normalize_chord_progression_label(prog.get("label"))
         urls = [url_map.get(c) for c in prog["chords"]]
         if all(urls):
-            result.append({"label": label, "audio_sequence": urls})
+            result.append({"label": label, "example": prog.get("example", ""), "audio_sequence": urls})
         else:
             missing = [c for c in prog["chords"] if not url_map.get(c)]
             print(f"[WARNING] Progression '{label}' missing chords: {missing}")
