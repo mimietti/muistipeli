@@ -2124,6 +2124,22 @@
         function playTrackerPreview(cardData) {
             if (!cardData || cardData.card_type !== "audio") return;
             if (activeTrackerPreview) { try { activeTrackerPreview.pause(); } catch (_) {} activeTrackerPreview = null; }
+
+            if (cardData.chord_example && cardData.audio_sequence && cardData.audio_sequence.length) {
+                currentTranslationHint = null;
+                translationHintGrid.style.gridTemplateColumns = "1fr";
+                const exCell = document.createElement("div");
+                exCell.className = "translation-col";
+                const exValue = document.createElement("div");
+                exValue.className = "translation-col-value";
+                exValue.style.fontStyle = "italic";
+                exValue.textContent = cardData.chord_example;
+                exCell.appendChild(exValue);
+                translationHintGrid.replaceChildren(exCell);
+                translationHintLabel.textContent = "";
+                translationHintContainer.classList.remove("pair-found");
+                translationHintContainer.style.display = "block";
+            }
             const playReferenceThen = (startTarget) => {
                 if (!cardData.reference_audio) {
                     startTarget();
@@ -2153,7 +2169,13 @@
                 const chordMs = Math.round((parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5")) * 1000);
                 let stopped = false;
                 const playNext = (pos) => {
-                    if (stopped || pos >= cardData.audio_sequence.length) return;
+                    if (stopped || pos >= cardData.audio_sequence.length) {
+                        if (cardData.chord_example) {
+                            translationHintContainer.style.display = "none";
+                            translationHintGrid.replaceChildren();
+                        }
+                        return;
+                    }
                     const audio = createGameAudio(cardData.audio_sequence[pos]);
                     activeTrackerPreview = audio;
                     let advanced = false;
