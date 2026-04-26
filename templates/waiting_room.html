@@ -1154,6 +1154,10 @@
                             <span class="opt-btn-title" id="cardModeChordsTitle">🎵 + nimi Chords</span>
                             <span class="opt-btn-desc" id="cardModeChordsDesc">Match a chord name with its sound.</span>
                         </button>
+                        <button class="opt-btn" data-mode="major_minor" id="cardModeMajorMinor">
+                            <span class="opt-btn-title" id="cardModeMajorMinorTitle">♪ ? Major or minor?</span>
+                            <span class="opt-btn-desc" id="cardModeMajorMinorDesc">Listen and choose major or minor.</span>
+                        </button>
                         <button class="opt-btn" data-mode="same_chords" id="cardModeSameChords" style="display:none;">
                             <span class="opt-btn-title" id="cardModeSameChordsTitle">🎵 🎵 Note + note</span>
                             <span class="opt-btn-desc" id="cardModeSameChordsDesc">Match two sounds of the same chord.</span>
@@ -1179,6 +1183,17 @@
                     <div class="option-group-label" id="labelChordTempo">Chord duration: <span id="chordTempoValue">2.5s</span></div>
                     <div style="padding: 4px 8px;">
                         <input type="range" id="chordTempoSlider" min="0.5" max="5.0" step="0.1" value="2.5" style="width:100%;accent-color:#c0a060;">
+                    </div>
+                </div>
+                <div class="option-group" id="majorMinorModePicker" style="display:none;">
+                    <div class="option-group-label" id="labelMajorMinorMode">Mode</div>
+                    <div class="option-group-btns">
+                        <button class="opt-btn active" data-major-minor-mode="single" id="majorMinorSingle">
+                            <span class="opt-btn-title" id="majorMinorSingleTitle">One chord</span>
+                        </button>
+                        <button class="opt-btn" data-major-minor-mode="triple" id="majorMinorTriple">
+                            <span class="opt-btn-title" id="majorMinorTripleTitle">Three in a row</span>
+                        </button>
                     </div>
                 </div>
             <div class="option-group" id="langPicker">
@@ -1307,6 +1322,7 @@
                 intro_text: "Prepare the round settings. Another player can join when the cards are ready.",
                 intro_text_bot: "Choose the round settings for your duel with Memory Bot. The game starts as soon as the cards are prepared.",
                 intro_text_solo: "Prepare the round settings. Find the pairs as quickly and carefully as you can. Missing an already seen pair adds a time penalty.",
+                intro_text_major_minor: "Listen to each chord and tap Major or Minor. You have 3 lives — the game ends after 3 mistakes.",
                 welcome_player: "Welcome, {name}!",
                 spectator_player: "Welcome, {name}!",
                 status_waiting_for_player: "Waiting for another player.",
@@ -1326,16 +1342,21 @@
                 card_mode_image_word: "Image + word",
                 card_mode_words: "Word + word",
                 card_mode_chords: "Chords",
+                card_mode_major_minor: "Major or minor?",
                 card_mode_same_chords: "Note + note",
                 card_mode_images_desc: "Match two related images.",
                 card_mode_image_word_desc: "Match a picture with a word.",
                 card_mode_words_desc: "Match words that mean the same.",
                 card_mode_chords_desc: "Match chord sounds with their names.",
+                card_mode_major_minor_desc: "Listen and choose whether the chord is major or minor.",
                 card_mode_same_chords_desc: "Match two sounds of the same chord.",
                 chord_audio_single: "Single chord",
                 chord_audio_progression: "Chord progression",
                 label_chord_audio_type: "Audio",
                 label_chord_tempo: "Chord duration",
+                label_major_minor_mode: "Mode",
+                major_minor_single: "One chord",
+                major_minor_triple: "Three in a row",
                 setup_failed: "Game setup failed.",
                 disconnect_alert: "Connection to the server was lost. Trying again...",
                 opponent_reconnecting: "Waiting for {name} to reconnect…",
@@ -1434,6 +1455,7 @@
                 queue_play_bot: "🤖 Play against bot",
                 card_mode_images: "Images",
                 card_mode_chords: "Chords",
+                card_mode_major_minor: "Major or minor?",
                 card_mode_same_chords: "Note + note",
                 card_mode_gomoku: "Memory Gomoku",
                 card_mode_gomoku_desc: "5 in a row — but older stones fade into neutral markers.",
@@ -1443,7 +1465,8 @@
                 setup_status_random: "Finding random words...",
                 setup_status_random_creating: "Creating cards...",
                 start_round: "Prepare cards",
-                start_gomoku: "Start game"
+                start_gomoku: "Start game",
+                start_major_minor: "Start game"
             },
             fi: {
                 page_title: "Odotushuone",
@@ -1467,6 +1490,7 @@
                 intro_text: "Tee valinnat valmiiksi. Toinen pelaaja voi liittyä huoneeseen, kun kortit ovat valmiita.",
                 intro_text_bot: "Valitse erän asetukset kaksintaisteluun Muistibotin kanssa. Peli alkaa heti, kun kortit on valmisteltu.",
                 intro_text_solo: "Peli alkaa, kun kortit ovat valmiina. Yritä löytää parit nopeasti mutta huolellisesti. Jo nähdyn parin missaamisesta tulee aikasakko.",
+                intro_text_major_minor: "Kuuntele soinnut ja napauta Duuri tai Molli. Sinulla on 3 elämää – peli päättyy kolmen virheen jälkeen.",
                 welcome_player: "Tervetuloa, {name}!",
                 spectator_player: "Tervetuloa, {name}!",
                 status_waiting_for_player: "Odotetaan toista pelaajaa.",
@@ -1486,16 +1510,21 @@
                 card_mode_image_word: "Kuva + sana",
                 card_mode_words: "Sana + sana",
                 card_mode_chords: "Soinnut",
+                card_mode_major_minor: "Duuri vai molli?",
                 card_mode_same_chords: "Nuotti + nuotti",
                 card_mode_images_desc: "Etsi kaksi toisiinsa sopivaa kuvaa.",
                 card_mode_image_word_desc: "Yhdistä kuva ja sana.",
                 card_mode_words_desc: "Yhdistä eri kielillä samaa tarkoittavat sanat.",
                 card_mode_chords_desc: "Yhdistä soivat soinnut ja niiden nimet.",
+                card_mode_major_minor_desc: "Kuuntele ja valitse, oliko sointu duuri vai molli.",
                 card_mode_same_chords_desc: "Etsi kaksi samaa soivaa sointua.",
                 chord_audio_single: "Yksittäinen sointi",
                 chord_audio_progression: "Sointukierto",
                 label_chord_audio_type: "Ääni",
                 label_chord_tempo: "Soinnun kesto",
+                label_major_minor_mode: "Tila",
+                major_minor_single: "Yksi sointu",
+                major_minor_triple: "Kolme peräkkäin",
                 enter_spanish_theme_prompt: "Anna teema:",
                 setup_failed: "Pelin alustus epäonnistui.",
                 disconnect_alert: "Yhteys katkesi palvelimeen. Yritetään uudelleen...",
@@ -1595,6 +1624,7 @@
                 queue_play_bot: "🤖 Pelaa bottia vastaan",
                 card_mode_images: "Kuvat",
                 card_mode_chords: "Soinnut",
+                card_mode_major_minor: "Duuri vai molli?",
                 card_mode_same_chords: "Nuotti + nuotti",
                 card_mode_gomoku: "Muistinolla",
                 card_mode_gomoku_desc: "Viiden suora — vanhemmat kivet muuttuvat neutraaleiksi, joten paikat täytyy muistaa.",
@@ -1604,7 +1634,8 @@
                 setup_status_random: "Etsitään satunnaisia sanoja...",
                 setup_status_random_creating: "Luodaan kortteja...",
                 start_round: "Valmistele kortit",
-                start_gomoku: "Aloita peli"
+                start_gomoku: "Aloita peli",
+                start_major_minor: "Aloita peli"
             },
             sv: {
                 bot_difficulty_summary: "Svårighetsgrad: {difficulty}",
@@ -1798,7 +1829,9 @@
 
         function getStartRoundButtonText() {
             const cardMode = window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word";
-            return cardMode === "gomoku" ? t("start_gomoku") : t("start_round");
+            if (cardMode === "gomoku") return t("start_gomoku");
+            if (cardMode === "major_minor") return t("start_major_minor");
+            return t("start_round");
         }
 
         function getDifficultyLabel(code, lang = getLanguage()) {
@@ -1808,7 +1841,7 @@
 
         function getQueueWordSourceLabel(mode, cardMode = null) {
             const effectiveMode = cardMode || window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word";
-            if (effectiveMode === "gomoku" || mode === "gomoku") return "";
+            if (effectiveMode === "gomoku" || effectiveMode === "major_minor" || mode === "gomoku" || mode === "major_minor") return "";
             if (effectiveMode === "chords" || effectiveMode === "same_chords" || mode === "chords" || mode === "same_chords") return t("queue_source_chords");
             const imagesOnly = effectiveMode === "images";
             if (mode === "manual") return t(imagesOnly ? "queue_source_manual_images" : "queue_source_manual");
@@ -1819,6 +1852,7 @@
         function getQueueCardModeLabel(mode) {
             if (mode === "images") return t("card_mode_images");
             if (mode === "chords") return t("card_mode_chords");
+            if (mode === "major_minor") return t("card_mode_major_minor");
             if (mode === "same_chords") return t("card_mode_same_chords");
             if (mode === "words") return t("card_mode_words");
             if (mode === "gomoku") return t("card_mode_gomoku");
@@ -1960,7 +1994,8 @@
             const isSoloMode = playMode === "solo";
             const imagesOnly = (window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word") === "images";
             const titleKey = isSoloMode ? "page_title_solo" : (isBotMode ? "page_title_bot" : "page_title");
-            const introKey = isSoloMode ? "intro_text_solo" : (isBotMode ? "intro_text_bot" : "intro_text");
+            const currentMode = window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word";
+            const introKey = (isSoloMode && currentMode === "major_minor") ? "intro_text_major_minor" : isSoloMode ? "intro_text_solo" : (isBotMode ? "intro_text_bot" : "intro_text");
             document.documentElement.lang = getLanguage();
             document.title = t(titleKey);
             // lang-flag-btn buttons now use SVG flags — no text update needed
@@ -1999,6 +2034,8 @@
             el("cardModeWordsDesc").textContent = t("card_mode_words_desc");
             el("cardModeChordsTitle").textContent = "🎵 + nimi " + t("card_mode_chords");
             el("cardModeChordsDesc").textContent = t("card_mode_chords_desc");
+            el("cardModeMajorMinorTitle").textContent = "♪ ? " + t("card_mode_major_minor");
+            el("cardModeMajorMinorDesc").textContent = t("card_mode_major_minor_desc");
             el("cardModeSameChordsTitle").textContent = "🎵 🎵 " + t("card_mode_same_chords");
             el("cardModeSameChordsDesc").textContent = t("card_mode_same_chords_desc");
             el("cardModeGomokuTitle").textContent = "⚫⚪ " + t("card_mode_gomoku");
@@ -2007,6 +2044,9 @@
             el("chordAudioSingleTitle").textContent = "🎵 " + t("chord_audio_single");
             el("chordAudioProgressionTitle").textContent = "🎼 " + t("chord_audio_progression");
             el("labelChordTempo").innerHTML = t("label_chord_tempo") + ': <span id="chordTempoValue">' + (document.getElementById("chordTempoSlider").value) + "s</span>";
+            el("labelMajorMinorMode").textContent = t("label_major_minor_mode");
+            el("majorMinorSingleTitle").textContent = t("major_minor_single");
+            el("majorMinorTripleTitle").textContent = t("major_minor_triple");
             el("wordFilterClear").textContent = t(imagesOnly ? "word_filter_clear_images" : "word_filter_clear");
             el("wordFilterBroad").textContent = t(imagesOnly ? "word_filter_broad_images" : "word_filter_broad");
             el("botDifficultyEasy").textContent = getDifficultyLabel("easy");
@@ -2589,7 +2629,7 @@
                     selectedWordFilterMode = payload.word_filter_mode;
                     try { localStorage.setItem("preferred_word_filter_mode", selectedWordFilterMode); } catch (_) {}
                 }
-                if (payload && payload.card_mode && ["images", "image_word", "words", "chords", "same_chords", "gomoku"].includes(payload.card_mode)) {
+                if (payload && payload.card_mode && ["images", "image_word", "words", "chords", "same_chords", "major_minor", "gomoku"].includes(payload.card_mode)) {
                     selectedCardMode = payload.card_mode;
                     window.currentWaitingCardMode = selectedCardMode;
                     try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (_) {}
@@ -2660,8 +2700,11 @@
                 document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.wordFilterMode === selectedWordFilterMode);
                 });
-                document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((btn) => {
+                document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeMajorMinor, #cardModeSameChords, #cardModeGomoku").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
+                });
+                document.querySelectorAll("#majorMinorSingle, #majorMinorTriple").forEach((btn) => {
+                    btn.classList.toggle("active", btn.dataset.majorMinorMode === selectedMajorMinorMode);
                 });
                 document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach((btn) => {
                     btn.classList.toggle("active", btn.dataset.gomokuVisiblePairs === selectedGomokuVisiblePairs);
@@ -2676,11 +2719,13 @@
                 updateWordFilterVisibility();
                 updateLangPickerVisibility();
                 updateChordAudioTypeVisibility();
+                updateMajorMinorModeVisibility();
                 updateBotDifficultyVisibility();
                 updateGomokuSizeVisibility();
                 updateGomokuVisiblePairsVisibility();
                 updateGomokuCapturePairsVisibility();
                 updateGomokuButtonVisibility();
+                updateMajorMinorButtonVisibility();
                 renderPlayerRole(playersInfo);
                 renderPreparedQueueSummary(payload);
                 renderQueuePreferencePicker(queueSearchActive, queueRoundPrepared);
@@ -2700,7 +2745,8 @@
                             username: myName,
                             reconnect_token: reconnectToken,
                             card_mode: selectedCardMode,
-                            target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : ""
+                            target_language: !["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
+                            major_minor_mode: selectedMajorMinorMode
                         });
                     }
                 }
@@ -2931,7 +2977,8 @@
                     bot_mode: localStorage.getItem("bot_mode") === "1",
                     solo_mode: isSolo,
                     card_mode: selectedCardMode,
-                    target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : ""
+                    target_language: !["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
+                    major_minor_mode: selectedMajorMinorMode
                 };
                 console.log("DEBUG: join-payload:", JSON.stringify(joinPayload));
                 socket.emit("join", joinPayload);
@@ -3182,7 +3229,7 @@
                 maybeStartPendingSameSettingsRematch();
             });
 
-            const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝", chords: "🎵+nimi", same_chords: "🎵+nimi", gomoku: "⚫⚪" };
+            const cardModeIcon = { images: "🖼", image_word: "🖼\u200d📝", words: "📝\u200d📝", chords: "🎵+nimi", same_chords: "🎵+nimi", major_minor: "♪?", gomoku: "⚫⚪" };
             const langFlagEmoji = { es: "🇪🇸", sv: "🇸🇪", de: "🇩🇪", fr: "🇫🇷", it: "🇮🇹", pt: "🇵🇹", en: "🇬🇧", fi: "🇫🇮" };
             const escapeHtml = (value) => String(value || "")
                 .replace(/&/g, "&amp;")
@@ -3256,15 +3303,18 @@
                 storedCardMode = "chords";
                 try { localStorage.setItem("preferred_card_mode", storedCardMode); } catch (e) {}
             }
-            let selectedCardMode = ["images", "image_word", "words", "chords", "gomoku"].includes(storedCardMode)
+            let selectedCardMode = ["images", "image_word", "words", "chords", "major_minor", "gomoku"].includes(storedCardMode)
                 ? storedCardMode
-                : "image_word"; // "images" | "image_word" | "words" | "chords" | "gomoku"
+                : "image_word"; // "images" | "image_word" | "words" | "chords" | "major_minor" | "gomoku"
             let selectedLang = "es";
             let selectedWordFilterMode = ["clear", "broad"].includes(localStorage.getItem("preferred_word_filter_mode"))
                 ? localStorage.getItem("preferred_word_filter_mode")
                 : "clear";
             let selectedChordAudioType = ["single", "progression"].includes(localStorage.getItem("preferred_chord_audio_type"))
                 ? localStorage.getItem("preferred_chord_audio_type")
+                : "single";
+            let selectedMajorMinorMode = ["single", "triple"].includes(localStorage.getItem("preferred_major_minor_mode"))
+                ? localStorage.getItem("preferred_major_minor_mode")
                 : "single";
             let selectedGomokuSize = "13";
             const gomokuVisiblePairOptions = ["1","2","3","5","10"];
@@ -3288,7 +3338,7 @@
                 : "easy";
 
             function updateLangPickerVisibility() {
-                const needsLang = !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode);
+                const needsLang = !["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode);
                 document.getElementById("langPicker").style.display = needsLang ? "block" : "none";
             }
 
@@ -3296,6 +3346,12 @@
                 const show = ["chords", "same_chords"].includes(selectedCardMode);
                 document.getElementById("chordAudioTypePicker").style.display = show ? "block" : "none";
                 document.getElementById("chordTempoPicker").style.display = (show && selectedChordAudioType === "progression") ? "block" : "none";
+            }
+
+            function updateMajorMinorModeVisibility() {
+                const picker = document.getElementById("majorMinorModePicker");
+                if (!picker) return;
+                picker.style.display = selectedCardMode === "major_minor" ? "block" : "none";
             }
 
             function updateBotDifficultyVisibility() {
@@ -3328,7 +3384,7 @@
                 if (isSolo && selectedCardMode === "gomoku") {
                     selectedCardMode = "image_word";
                     try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (_) {}
-                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((modeBtn) => {
+                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeMajorMinor, #cardModeSameChords, #cardModeGomoku").forEach((modeBtn) => {
                         modeBtn.classList.toggle("active", modeBtn.dataset.mode === selectedCardMode);
                     });
                     updateGomokuSizeVisibility();
@@ -3337,8 +3393,22 @@
                 }
             }
 
+            function updateMajorMinorButtonVisibility(skipReset = false) {
+                const isSolo = (localStorage.getItem("play_mode") || "") === "solo";
+                const btn = document.getElementById("cardModeMajorMinor");
+                if (btn) btn.style.display = isSolo ? "" : "none";
+                if (!skipReset && !isSolo && selectedCardMode === "major_minor") {
+                    selectedCardMode = "image_word";
+                    try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (_) {}
+                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeMajorMinor, #cardModeSameChords, #cardModeGomoku").forEach((modeBtn) => {
+                        modeBtn.classList.toggle("active", modeBtn.dataset.mode === selectedCardMode);
+                    });
+                    updateMajorMinorModeVisibility();
+                }
+            }
+
             function updateWordFilterVisibility() {
-                const showWordFilter = !["chords", "same_chords", "gomoku"].includes(selectedCardMode) && (selectedWordSource === "theme" || selectedWordSource === "random");
+                const showWordFilter = !["chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) && (selectedWordSource === "theme" || selectedWordSource === "random");
                 document.getElementById("wordFilterPicker").style.display = showWordFilter ? "block" : "none";
             }
 
@@ -3351,7 +3421,7 @@
                 const botDifficultyPickerEl = document.getElementById("botDifficultyPicker");
                 const gomokuSizePickerEl = document.getElementById("gomokuSizePicker");
                 const startRoundBtnEl = document.getElementById("startRoundBtn");
-                const isChordMode = ["chords", "same_chords", "gomoku"].includes(selectedCardMode);
+                const isChordMode = ["chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode);
                 if (!active) {
                     cardModePickerEl.style.display = "none";
                     wordSourcePickerEl.style.display = isChordMode ? "none" : "";
@@ -3365,7 +3435,7 @@
                 wordSourcePickerEl.style.display = (prepared || isChordMode) ? "none" : "";
                 wordFilterPickerEl.style.display = (prepared || isChordMode) ? "none" : "";
                 cardModePickerEl.style.display = "none";
-                langPickerEl.style.display = prepared ? "none" : (!["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? "block" : "none");
+                langPickerEl.style.display = prepared ? "none" : (!["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) ? "block" : "none");
                 botDifficultyPickerEl.style.display = "none";
                 if (gomokuSizePickerEl) gomokuSizePickerEl.style.display = "none";
                 startRoundBtnEl.style.display = prepared ? "none" : "";
@@ -3379,25 +3449,26 @@
                 });
             });
 
-            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach(btn => {
+            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeMajorMinor, #cardModeSameChords, #cardModeGomoku").forEach(btn => {
                 btn.addEventListener("click", () => {
                     selectedCardMode = btn.dataset.mode;
                     window.currentWaitingCardMode = selectedCardMode;
                     try { localStorage.setItem("preferred_card_mode", selectedCardMode); } catch (e) {}
-                    if (selectedCardMode === "chords" || selectedCardMode === "same_chords" || selectedCardMode === "gomoku") {
+                    if (selectedCardMode === "chords" || selectedCardMode === "same_chords" || selectedCardMode === "major_minor" || selectedCardMode === "gomoku") {
                         selectedWordSource = "random";
                         document.querySelectorAll("#srcManualBtn, #srcThemeBtn, #srcRandomBtn").forEach(b => b.classList.toggle("active", b.id === "srcRandomBtn"));
                     }
-                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach(b => b.classList.toggle("active", b === btn));
+                    document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeMajorMinor, #cardModeSameChords, #cardModeGomoku").forEach(b => b.classList.toggle("active", b === btn));
                     updateLangPickerVisibility();
                     updateWordFilterVisibility();
                     updateChordAudioTypeVisibility();
+                    updateMajorMinorModeVisibility();
                     updateGomokuSizeVisibility();
                     updateGomokuVisiblePairsVisibility();
                     updateGomokuCapturePairsVisibility();
                     renderQueuePreferencePicker(isQueueSearchLobby(window.latestLobbyPayload, window.latestPlayersInfo), Boolean(window.latestLobbyPayload && window.latestLobbyPayload.queue_round_prepared));
                     applyTranslations();
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5"), gomoku_size: parseInt(selectedGomokuSize, 10), gomoku_visible_pairs: parseInt(selectedGomokuVisiblePairs, 10), gomoku_capture_pairs: selectedGomokuCapturePairs });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5"), major_minor_mode: selectedMajorMinorMode, gomoku_size: parseInt(selectedGomokuSize, 10), gomoku_visible_pairs: parseInt(selectedGomokuVisiblePairs, 10), gomoku_capture_pairs: selectedGomokuCapturePairs });
                 });
             });
 
@@ -3407,7 +3478,7 @@
                     try { localStorage.setItem("preferred_chord_audio_type", selectedChordAudioType); } catch (e) {}
                     document.querySelectorAll("#chordAudioSingle, #chordAudioProgression").forEach(b => b.classList.toggle("active", b === btn));
                     updateChordAudioTypeVisibility();
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5") });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5"), major_minor_mode: selectedMajorMinorMode });
                 });
             });
 
@@ -3421,12 +3492,28 @@
                     const v = document.getElementById("chordTempoValue");
                     if (v) v.textContent = slider.value + "s";
                     try { localStorage.setItem("chord_progression_tempo", slider.value); } catch (e) {}
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(slider.value) });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) ? selectedLang : "", chord_audio_type: selectedChordAudioType, chord_tempo: parseFloat(slider.value), major_minor_mode: selectedMajorMinorMode });
                 });
             })();
 
-            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeSameChords, #cardModeGomoku").forEach((btn) => {
+            document.querySelectorAll("#majorMinorSingle, #majorMinorTriple").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    selectedMajorMinorMode = btn.dataset.majorMinorMode;
+                    try { localStorage.setItem("preferred_major_minor_mode", selectedMajorMinorMode); } catch (e) {}
+                    document.querySelectorAll("#majorMinorSingle, #majorMinorTriple").forEach(b => b.classList.toggle("active", b === btn));
+                    socket.emit("preference_changed", {
+                        card_mode: selectedCardMode,
+                        target_language: "",
+                        major_minor_mode: selectedMajorMinorMode
+                    });
+                });
+            });
+
+            document.querySelectorAll("#cardModeImages, #cardModeImageWord, #cardModeWords, #cardModeChords, #cardModeMajorMinor, #cardModeSameChords, #cardModeGomoku").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.mode === selectedCardMode);
+            });
+            document.querySelectorAll("#majorMinorSingle, #majorMinorTriple").forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.majorMinorMode === selectedMajorMinorMode);
             });
             document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach((btn) => {
                 btn.classList.toggle("active", btn.dataset.gomokuVisiblePairs === selectedGomokuVisiblePairs);
@@ -3441,11 +3528,13 @@
             updateWordFilterVisibility();
             updateLangPickerVisibility();
             updateChordAudioTypeVisibility();
+            updateMajorMinorModeVisibility();
             updateBotDifficultyVisibility();
             updateGomokuSizeVisibility();
             updateGomokuVisiblePairsVisibility();
             updateGomokuCapturePairsVisibility();
             updateGomokuButtonVisibility();
+            updateMajorMinorButtonVisibility(true); // skip reset during init; emitJoin() sends correct mode
 
             document.querySelectorAll("#wordFilterClear, #wordFilterBroad").forEach(btn => {
                 btn.addEventListener("click", () => {
@@ -3481,7 +3570,8 @@
                     document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach(b => b.classList.toggle("active", b === btn));
                     socket.emit("preference_changed", {
                         card_mode: selectedCardMode,
-                        target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
+                        target_language: !["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
+                        major_minor_mode: selectedMajorMinorMode,
                         gomoku_size: parseInt(selectedGomokuSize, 10),
                         gomoku_visible_pairs: parseInt(selectedGomokuVisiblePairs, 10),
                         gomoku_capture_pairs: selectedGomokuCapturePairs
@@ -3496,7 +3586,8 @@
                     document.querySelectorAll("#gomokuCaptureOff, #gomokuCaptureOn").forEach(b => b.classList.toggle("active", b === btn));
                     socket.emit("preference_changed", {
                         card_mode: selectedCardMode,
-                        target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
+                        target_language: !["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
+                        major_minor_mode: selectedMajorMinorMode,
                         gomoku_size: parseInt(selectedGomokuSize, 10),
                         gomoku_visible_pairs: parseInt(selectedGomokuVisiblePairs, 10),
                         gomoku_capture_pairs: selectedGomokuCapturePairs
@@ -3508,7 +3599,7 @@
                 btn.addEventListener("click", () => {
                     selectedLang = btn.dataset.lang;
                     document.querySelectorAll(".lang-flag-btn").forEach(b => b.classList.toggle("active", b === btn));
-                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "gomoku"].includes(selectedCardMode) ? selectedLang : "" });
+                    socket.emit("preference_changed", { card_mode: selectedCardMode, target_language: !["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) ? selectedLang : "", major_minor_mode: selectedMajorMinorMode });
                 });
             });
 
@@ -3530,6 +3621,11 @@
                         payload.bot_difficulty = selectedBotDifficulty;
                     }
                     beginRoundPreparation({ mode: "same_chords", phase: "drawing_cards" }, payload);
+                    return;
+                }
+                if (selectedCardMode === "major_minor") {
+                    const payload = { mode: "major_minor", card_mode: "major_minor", ui_language: getLanguage(), major_minor_mode: selectedMajorMinorMode };
+                    beginRoundPreparation({ mode: "major_minor", phase: "drawing_cards" }, payload);
                     return;
                 }
                 if (selectedCardMode === "gomoku") {
@@ -3683,6 +3779,11 @@
             });
             socket.on("init_gomoku", () => {
                 console.log("[DEBUG] Vastaanotettiin 'init_gomoku' odotushuoneessa – siirrytään peliin");
+                renderSetupStatus({ active: false });
+                navigateTo("/game");
+            });
+            socket.on("init_major_minor", () => {
+                console.log("[DEBUG] Vastaanotettiin 'init_major_minor' odotushuoneessa – siirrytään peliin");
                 renderSetupStatus({ active: false });
                 navigateTo("/game");
             });
