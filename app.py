@@ -127,7 +127,7 @@ VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "y
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 DISCONNECT_NOTIFY_DELAY_SECONDS = 10
-APP_VERSION = "Beta v0.12 (2026-04-25)"
+APP_VERSION = "Beta v0.12 (2026-04-26)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -342,7 +342,11 @@ def normalize_chord_progression_label(label):
         return ""
     return re.sub(
         r"\b(vii|iii|vi|iv|ii|v|i)\b",
-        lambda match: ROMAN_NUMERAL_LABELS.get(match.group(1).lower(), match.group(1)),
+        lambda match: (
+            ROMAN_NUMERAL_LABELS.get(match.group(1).lower(), match.group(1)).lower()
+            if match.group(1).islower()
+            else ROMAN_NUMERAL_LABELS.get(match.group(1).lower(), match.group(1))
+        ),
         normalized,
         flags=re.IGNORECASE,
     )
@@ -367,14 +371,14 @@ CHORD_LIBRARY = load_chord_library()
 CHORD_REFERENCE_ENTRY = next((entry for entry in CHORD_LIBRARY if entry["label"] == CHORD_REFERENCE_LABEL), None)
 
 CHORD_PROGRESSIONS_DEF = [
-    {"label": "I – V – vi – IV",       "chords": ["C major", "G major", "A minor", "F major"]},
-    {"label": "I – IV – V – I",         "chords": ["C major", "F major", "G major", "C major"]},
-    {"label": "I – vi – IV – V",       "chords": ["C major", "A minor", "F major", "G major"]},
-    {"label": "vi – ii – V7 – I",      "chords": ["A minor", "D minor", "G7", "C major"]},
-    {"label": "I – V – vi – iii – IV", "chords": ["C major", "G major", "A minor", "E minor", "F major"]},
-    {"label": "i – VII – VI – VII",    "chords": ["A minor", "G major", "F major", "G major"]},
-    {"label": "i – VI – III – VII",    "chords": ["A minor", "F major", "C major", "G major"]},
-    {"label": "I – iii – vi – IV",     "chords": ["C major", "E minor", "A minor", "F major"]},
+    {"label": "I – V – vi – IV",    "example": "Let It Be – Beatles",         "chords": ["C major", "G major", "A minor", "F major"]},
+    {"label": "I – IV – V – I",     "example": "Twist and Shout – Beatles",   "chords": ["C major", "F major", "G major", "C major"]},
+    {"label": "I – vi – IV – V",    "example": "Stand By Me – Ben E. King",   "chords": ["C major", "A minor", "F major", "G major"]},
+    {"label": "vi – ii – V7 – I",   "example": "Autumn Leaves – jazzstandardi","chords": ["A minor", "D minor", "G7", "C major"]},
+    {"label": "I – IV – vi – V",    "example": "Let Her Go – Passenger",      "chords": ["C major", "F major", "A minor", "G major"]},
+    {"label": "i – VII – VI – V",   "example": "Stairway to Heaven – Led Zeppelin", "chords": ["A minor", "G major", "F major", "E minor"]},
+    {"label": "i – VI – III – VII", "example": "Mad World – Tears for Fears", "chords": ["A minor", "F major", "C major", "G major"]},
+    {"label": "i – III – VII – i",  "example": "In the Air Tonight – Phil Collins", "chords": ["A minor", "C major", "G major", "A minor"]},
 ]
 
 def _build_chord_progressions_with_urls():
@@ -1911,10 +1915,11 @@ def append_chord_progression_pair_to_grid(prog, room, pair_index=None):
         return False
     pair_id = (pair_index if pair_index is not None else room.pending_pair) + 1
     label = prog.get("label") or ""
+    example = prog.get("example") or ""
     audio_sequence = prog.get("audio_sequence") or []
     if not label or not audio_sequence:
         return False
-    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence, "reference_audio": None}
+    common = {"word": label, "display_word": label, "chord_label": label, "chord_example": example, "audio_sequence": audio_sequence, "reference_audio": None}
     room.grid_data.append({"pair_id": pair_id, "card_type": "word", "text": label, **common})
     room.grid_data.append({"pair_id": pair_id, "card_type": "audio", **common})
     return True
@@ -1926,10 +1931,11 @@ def append_same_chord_progression_pair_to_grid(prog, room, pair_index=None):
         return False
     pair_id = (pair_index if pair_index is not None else room.pending_pair) + 1
     label = prog.get("label") or ""
+    example = prog.get("example") or ""
     audio_sequence = prog.get("audio_sequence") or []
     if not label or not audio_sequence:
         return False
-    common = {"word": label, "display_word": label, "chord_label": label, "audio_sequence": audio_sequence, "reference_audio": None, "pair_id": pair_id, "card_type": "audio"}
+    common = {"word": label, "display_word": label, "chord_label": label, "chord_example": example, "audio_sequence": audio_sequence, "reference_audio": None, "pair_id": pair_id, "card_type": "audio"}
     room.grid_data.append(dict(common))
     room.grid_data.append(dict(common))
     return True
