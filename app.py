@@ -375,8 +375,8 @@ CHORD_PROGRESSIONS_DEF = [
     {"label": "I – IV – V – I",     "example": "Wild Thing – The Troggs",     "chords": ["C major", "F major", "G major", "C major"]},
     {"label": "I – vi – IV – V",    "example": "Stand By Me – Ben E. King",   "chords": ["C major", "A minor", "F major", "G major"]},
     {"label": "vi – ii – V7 – I",   "example": "Autumn Leaves – jazzstandardi","chords": ["A minor", "D minor", "G7", "C major"]},
-    {"label": "I – IV – vi – V",    "example": "Let Her Go – Passenger",      "chords": ["C major", "F major", "A minor", "G major"]},
-    {"label": "i – VII – VI – V",   "example": "Stairway to Heaven – Led Zeppelin", "chords": ["A minor", "G major", "F major", "E minor"]},
+    {"label": "I – IV – I – V",     "example": "Brown Eyed Girl – Van Morrison", "chords": ["C major", "F major", "C major", "G major"]},
+    {"label": "i – VII – VI – V",   "example": "Sultans of Swing – Dire Straits", "chords": ["A minor", "G major", "F major", "E major"]},
     {"label": "i – VI – III – VII", "example": "Numb – Linkin Park",          "chords": ["A minor", "F major", "C major", "G major"]},
     {"label": "i – III – VII – i",  "example": "Time – Pink Floyd",                 "chords": ["A minor", "C major", "G major", "A minor"]},
 ]
