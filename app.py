@@ -3299,6 +3299,8 @@ def leaderboard():
     sections = []
     multi_top = []
     gomoku_multi_top = []
+    # major_minor sections are always present; rows populated from DB if available
+    mm_rows = {1: [], 3: []}
     if conn:
         try:
             with conn.cursor() as cur:
@@ -3409,32 +3411,6 @@ def leaderboard():
                         "score_type": "gomoku",
                         "rows": [row[2:] for row in gomoku_bot_rows]
                     })
-                for mm_length in (1, 3):
-                    cur.execute("""
-                        SELECT 'major_minor' AS card_mode,
-                               '' AS tl,
-                               username,
-                               pairs_found,
-                               time_secs,
-                               COALESCE(major_minor_length, 1) AS mml
-                        FROM results
-                        WHERE play_mode = 'solo' AND card_mode = 'major_minor'
-                          AND COALESCE(major_minor_length, 1) = %s
-                          AND username != %s
-                        ORDER BY pairs_found DESC,
-                                 time_secs ASC NULLS LAST,
-                                 username ASC
-                        LIMIT 10
-                    """, (mm_length, bot_name))
-                    major_minor_rows = cur.fetchall()
-                    sections.append({
-                        "play": "solo",
-                        "card_mode": "major_minor",
-                        "target_language": "",
-                        "score_type": "major_minor",
-                        "major_minor_length": mm_length,
-                        "rows": [row[2:] for row in major_minor_rows]
-                    })
                 cur.execute("""
                     SELECT username,
                            SUM(CASE
@@ -3482,7 +3458,44 @@ def leaderboard():
         except Exception as e:
             print(f"[DB] Leaderboard query error: {e}")
         finally:
+            # major_minor in a separate connection so a prior query failure doesn't block it
+            conn2 = _get_db()
+            if conn2:
+                try:
+                    with conn2.cursor() as cur2:
+                        bot_name2 = BOT_USERNAME
+                        for mm_length in (1, 3):
+                            cur2.execute("""
+                                SELECT username,
+                                       pairs_found,
+                                       time_secs,
+                                       COALESCE(major_minor_length, 1) AS mml
+                                FROM results
+                                WHERE play_mode = 'solo' AND card_mode = 'major_minor'
+                                  AND COALESCE(major_minor_length, 1) = %s
+                                  AND username != %s
+                                ORDER BY pairs_found DESC,
+                                         time_secs ASC NULLS LAST,
+                                         username ASC
+                                LIMIT 10
+                            """, (mm_length, bot_name2))
+                            mm_rows[mm_length] = list(cur2.fetchall())
+                except Exception as mm_e:
+                    print(f"[DB] major_minor leaderboard query error: {mm_e}")
+                finally:
+                    conn2.close()
             conn.close()
+    # major_minor sections always included (even empty) so the group is always visible
+    if db_available:
+        for mm_length in (1, 3):
+            sections.append({
+                "play": "solo",
+                "card_mode": "major_minor",
+                "target_language": "",
+                "score_type": "major_minor",
+                "major_minor_length": mm_length,
+                "rows": mm_rows[mm_length]
+            })
 
     return render_template("leaderboard.html",
                            sections=sections,
