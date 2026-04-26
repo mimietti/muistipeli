@@ -159,17 +159,18 @@
         <div class="board"><div class="empty" id="noDbText">Leaderboard not available.</div></div>
         {% else %}
 
-        {% set solo_sections   = sections | selectattr("play", "equalto", "solo")   | list %}
+        {% set mm_sections     = sections | selectattr("card_mode", "equalto", "major_minor") | list %}
+        {% set solo_sections   = sections | selectattr("play", "equalto", "solo") | rejectattr("card_mode", "equalto", "major_minor") | list %}
         {% set random_sections = sections | selectattr("play", "equalto", "random") | list %}
         {% set bot_sections    = sections | selectattr("play", "equalto", "bot")    | list %}
 
-        {% set cm_icons = {"images": "🖼", "image_word": "🖼📝", "words": "📝📝", "chords": "🎵🎼", "gomoku": "⚫⚪"} %}
-        {% set cm_keys  = {"images": "mode_images", "image_word": "mode_image_word", "words": "mode_words", "chords": "mode_chords", "gomoku": "mode_gomoku"} %}
+        {% set cm_icons = {"images": "🖼", "image_word": "🖼📝", "words": "📝📝", "chords": "🎵🎼", "major_minor": "♪?", "gomoku": "⚫⚪"} %}
+        {% set cm_keys  = {"images": "mode_images", "image_word": "mode_image_word", "words": "mode_words", "chords": "mode_chords", "major_minor": "mode_major_minor", "gomoku": "mode_gomoku"} %}
 
         <div class="group-title" id="soloGroupTitle">Solo</div>
         {% if solo_sections %}
             {% for sec in solo_sections %}
-            <div class="section" data-play="solo" data-mode="{{ sec.card_mode }}" data-lang="{{ sec.target_language }}">
+            <div class="section" data-play="solo" data-mode="{{ sec.card_mode }}" data-lang="{{ sec.target_language }}" {% if sec.major_minor_length is defined %}data-major-minor-length="{{ sec.major_minor_length }}"{% endif %}>
                 <div class="section-title">
                     {{ cm_icons[sec.card_mode] }}
                     <span class="section-label" data-key="{{ cm_keys[sec.card_mode] }}">{{ cm_keys[sec.card_mode] }}</span>
@@ -378,6 +379,39 @@
         </div>
         {% endif %}
 
+        {% if mm_sections %}
+        <div class="group-title" id="majorMinorGroupTitle" style="margin-top:28px;">♪? Major or minor?</div>
+        {% for sec in mm_sections %}
+        <div class="section" data-play="solo" data-mode="major_minor" data-lang="" {% if sec.major_minor_length is defined %}data-major-minor-length="{{ sec.major_minor_length }}"{% endif %}>
+            <div class="section-title">
+                <span class="section-label" data-key="{{ 'major_minor_triple' if sec.major_minor_length == 3 else 'major_minor_single' }}">{{ sec.major_minor_length }}</span>
+            </div>
+            <div class="board">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th class="th-name" style="text-align:left;">Player</th>
+                            <th class="th-score">Score</th>
+                            <th class="th-time">Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in sec.rows %}
+                        <tr data-username="{{ row[0] }}" data-pairs="{{ row[1] }}" data-major-minor-length="{{ row[3] }}">
+                            <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+                            <td class="name">{{ row[0] }}</td>
+                            <td class="total">{{ row[1] }}</td>
+                            <td class="dim">{{ (row[2] // 60)|string + ":" + "%02d"|format(row[2] % 60) if row[2] is not none else "–" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
         {% endif %}
 
         <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:22px;">
@@ -391,27 +425,32 @@
         const tr = {
             en: {
                 title: "Leaderboard", subtitle: "Solo — top 10, sorted by total time",
-                th_name: "Player", th_time: "Time", th_mistakes: "Mistakes", th_total: "Total",
+                th_name: "Player", th_time: "Time", th_mistakes: "Mistakes", th_total: "Total", th_score: "Score", th_variant: "Variant",
                 th_difficulty: "Difficulty", th_settings: "Settings",
                 capture_on: "captures", capture_off: "no captures",
                 difficulty_easy: "Easy", difficulty_medium: "Medium", difficulty_hard: "Hard",
-                mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word", mode_chords: "Chords", mode_gomoku: "Memory Gomoku",
+                mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word", mode_chords: "Chords", mode_major_minor: "Major or minor?", mode_gomoku: "Memory Gomoku",
+                major_minor_single: "One chord", major_minor_triple: "Three in a row",
+                major_minor_group: "♪? Major or minor?",
                 noDb: "Leaderboard not available.", newGame: "▶ New game", back: "← Back to start",
                 solo_group: "Solo", random_group: "Random", bot_group: "vs Bot", th_pairs: "Pairs",
-                multi_group: "Multiplayer", th_wins: "Wins", th_ties: "Ties", th_rounds: "Rounds"
+                multi_group: "Multiplayer", th_wins: "Wins", th_ties: "Ties", th_rounds: "Rounds",
+                th_score: "Score"
             },
             fi: {
                 title: "Tulostaulu", subtitle: "Solo — 10 nopeinta, järjestetty kokonaisajan mukaan",
                 best_title: "Parhaat tulokset", best_subtitle: "Top 3 per pelityyppi",
-                th_name: "Pelaaja", th_time: "Aika", th_mistakes: "Virheet", th_total: "Yhteensä",
+                th_name: "Pelaaja", th_time: "Aika", th_mistakes: "Virheet", th_total: "Yhteensä", th_score: "Tulos", th_variant: "Tila",
                 th_difficulty: "Vaikeustaso", th_settings: "Asetukset",
                 capture_on: "kaappaus", capture_off: "ei kaappausta",
                 difficulty_easy: "Helppo", difficulty_medium: "Keskitaso", difficulty_hard: "Vaikea",
-                mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana", mode_chords: "Soinnut", mode_gomoku: "Muistinolla",
+                mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana", mode_chords: "Soinnut", mode_major_minor: "Duuri vai molli?", mode_gomoku: "Muistinolla",
+                major_minor_single: "Yksi sointu", major_minor_triple: "Kolme peräkkäin",
+                major_minor_group: "♪? Duuri vai molli?",
                 noDb: "Tulostaulu ei käytössä.", newGame: "▶ Uusi peli", back: "← Takaisin alkuun",
                 solo_group: "Solo", random_group: "Satunnaiset", bot_group: "vs Botti", th_pairs: "Pareja",
                 multi_group: "Moninpeli", th_wins: "Voitot", th_ties: "Tasapelit", th_rounds: "Erät",
-                show_all: "Näytä kaikki →"
+                th_score: "Tulos", show_all: "Näytä kaikki →"
             },
             sv: {
                 title: "Topplista", subtitle: "Solo — topp 10 sorterat efter total tid",
@@ -478,6 +517,8 @@
         // Extend en with missing keys
         tr.en.best_title = "The best of the best";
         tr.en.best_subtitle = "Top 3 per game type";
+        tr.en.th_score = tr.en.th_score || "Score";
+        tr.en.th_variant = tr.en.th_variant || "Variant";
         tr.en.show_all = "Show all →";
 
         const UI_LANGS = ["en","fi","sv","de","fr","es","it","pt"];
@@ -505,6 +546,7 @@
         const highlightLang = params.get("lang") || "";
         const highlightTotal = params.get("total") !== null ? parseInt(params.get("total")) : null;
         const highlightPairs = params.get("pairs") !== null ? parseInt(params.get("pairs")) : null;
+        const highlightMajorMinorLength = params.get("major_minor_length") !== null ? params.get("major_minor_length") : "";
         const showAll = params.get("showall") === "1";
         const isHighlightMode = Boolean(highlightUser) || showAll;
 
@@ -540,7 +582,10 @@
             if (el("botGroupTitle")) el("botGroupTitle").textContent = t.bot_group;
             if (el("multiGroupTitle")) el("multiGroupTitle").textContent = t.multi_group;
             if (el("gomokuMultiGroupTitle")) el("gomokuMultiGroupTitle").textContent = t.mode_gomoku || tr.en.mode_gomoku;
+            if (el("majorMinorGroupTitle")) el("majorMinorGroupTitle").textContent = t.major_minor_group || tr.en.major_minor_group;
             document.querySelectorAll(".th-pairs").forEach(e => e.textContent = t.th_pairs);
+            document.querySelectorAll(".th-score").forEach(e => e.textContent = t.th_score || tr.en.th_score);
+            document.querySelectorAll(".th-variant").forEach(e => e.textContent = t.th_variant || tr.en.th_variant);
             document.querySelectorAll(".th-difficulty").forEach(e => e.textContent = DIFFICULTY_HEADER[lang] || DIFFICULTY_HEADER.en);
             document.querySelectorAll(".th-settings").forEach(e => e.textContent = t.th_settings || tr.en.th_settings);
             document.querySelectorAll(".th-wins").forEach(e => e.textContent = t.th_wins);
@@ -552,7 +597,12 @@
             document.querySelectorAll(".th-mistakes").forEach(e => e.textContent = t.th_mistakes);
             document.querySelectorAll(".th-total").forEach(e => e.textContent = t.th_total);
             document.querySelectorAll(".section-label").forEach(e => {
-                e.textContent = t[e.dataset.key] || e.dataset.key;
+                e.textContent = t[e.dataset.key] || tr.en[e.dataset.key] || e.dataset.key;
+            });
+            document.querySelectorAll(".major-minor-variant[data-length]").forEach(e => {
+                e.textContent = e.dataset.length === "3"
+                    ? (t.major_minor_triple || tr.en.major_minor_triple)
+                    : (t.major_minor_single || tr.en.major_minor_single);
             });
             document.querySelectorAll(".show-all-link").forEach(e => { e.textContent = t.show_all; });
             document.querySelectorAll(".lang-tag[data-lang]").forEach(e => {
@@ -576,17 +626,21 @@
                     // If discriminator params are present, only highlight the exact result
                     const rowTotal = row.dataset.total !== undefined ? parseInt(row.dataset.total) : null;
                     const rowPairs = row.dataset.pairs !== undefined ? parseInt(row.dataset.pairs) : null;
+                    const rowMajorMinorLength = row.dataset.majorMinorLength || "";
                     const matchesTotal = highlightTotal !== null && rowTotal !== null && rowTotal === highlightTotal;
                     const matchesPairs = highlightPairs !== null && rowPairs !== null && rowPairs === highlightPairs;
-                    const hasDiscriminator = highlightTotal !== null || highlightPairs !== null;
-                    if (!hasDiscriminator || matchesTotal || matchesPairs) {
+                    const matchesMajorMinorLength = !highlightMajorMinorLength || rowMajorMinorLength === highlightMajorMinorLength;
+                    const hasDiscriminator = highlightTotal !== null || highlightPairs !== null || Boolean(highlightMajorMinorLength);
+                    if ((!hasDiscriminator || matchesTotal || matchesPairs) && matchesMajorMinorLength) {
                         row.classList.add("my-row");
                     }
                 });
                 // Find the best-matching section
                 const langAttr = highlightLang ? `[data-lang="${highlightLang}"]` : "";
+                const majorMinorAttr = highlightMajorMinorLength ? `[data-major-minor-length="${highlightMajorMinorLength}"]` : "";
                 const targetSection = document.querySelector(
-                    `.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"]${langAttr}`) ||
+                    `.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"]${langAttr}${majorMinorAttr}`) ||
+                    document.querySelector(`.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"]${majorMinorAttr}`) ||
                     document.querySelector(`.section[data-play="${highlightPlay}"][data-mode="${highlightMode}"]`) ||
                     document.querySelector(`.section[data-play="${highlightPlay}"][data-mode="all"]`);
                 // Hide all other sections (and their group titles) when navigating from a finished game
@@ -596,12 +650,17 @@
                         sec.style.display = (sec === targetSection) ? "" : "none";
                     });
                     // Hide group titles that don't belong to the visible play mode
-                    const titleMap = { solo: "soloGroupTitle", random: "randomGroupTitle", bot: "botGroupTitle", multi: "multiGroupTitle", gomokuMulti: "gomokuMultiGroupTitle" };
+                    const titleMap = { solo: "soloGroupTitle", random: "randomGroupTitle", bot: "botGroupTitle", multi: "multiGroupTitle", gomokuMulti: "gomokuMultiGroupTitle", majorMinor: "majorMinorGroupTitle" };
                     Object.entries(titleMap).forEach(([play, id]) => {
                         const el = document.getElementById(id);
                         if (!el) return;
                         const isGomokuMulti = visiblePlay === "multi" && targetSection.dataset.mode === "gomoku";
-                        el.style.display = (play === visiblePlay && !isGomokuMulti) || (play === "gomokuMulti" && isGomokuMulti) ? "" : "none";
+                        const isMajorMinor = visiblePlay === "solo" && targetSection.dataset.mode === "major_minor";
+                        el.style.display =
+                            (play === visiblePlay && !isGomokuMulti && !isMajorMinor) ||
+                            (play === "gomokuMulti" && isGomokuMulti) ||
+                            (play === "majorMinor" && isMajorMinor)
+                            ? "" : "none";
                     });
                     setTimeout(() => targetSection.scrollIntoView({ behavior: "smooth", block: "start" }), 200);
                 } else if (targetSection) {
