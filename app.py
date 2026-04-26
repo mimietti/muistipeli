@@ -2,7 +2,7 @@ import gevent
 import gevent.monkey
 gevent.monkey.patch_all()
 
-from flask import Flask, render_template, request, jsonify  # noqa: F401
+from flask import Flask, render_template, request, jsonify, send_from_directory  # noqa: F401
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import random
 import os
@@ -3159,6 +3159,11 @@ def process_gomoku_place(idx, player_info, room, sid=None):
 # ---------------------------------------------------------------------------
 # Flask routes
 # ---------------------------------------------------------------------------
+
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, "static"), "favicon.svg", mimetype="image/svg+xml")
+
 
 @app.route("/")
 def index():
