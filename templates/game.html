@@ -3584,7 +3584,6 @@
             continueBtn.style.marginTop = "18px";
             continueBtn.textContent = t("major_minor_continue");
             continueBtn.addEventListener("click", () => navigateTo(leaderboardUrl));
-            const feedback = document.getElementById("majorMinorFeedback");
             if (feedback) feedback.after(continueBtn);
         });
 
