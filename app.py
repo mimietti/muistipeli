@@ -3749,7 +3749,7 @@ def handle_start_custom_game(data=None):
         chord_audio_type = "single"
     try:
         chord_tempo = float(data.get("chord_tempo", 2.5))
-        chord_tempo = max(0.1, min(10.0, chord_tempo))
+        chord_tempo = max(0.5, min(10.0, chord_tempo))
     except (TypeError, ValueError):
         chord_tempo = 2.5
     # "spanish" / "language" legacy: word_source=theme + card_mode=image_word
@@ -4571,8 +4571,8 @@ def handle_preference_changed(data=None):
         room.players[sid]["pref_gomoku_capture_pairs"] = bool(data["gomoku_capture_pairs"])
     try:
         pref_tempo = float(data.get("chord_tempo") or 0)
-        if pref_tempo >= 0.1:
-            room.players[sid]["pref_chord_tempo"] = max(0.1, min(10.0, pref_tempo))
+        if pref_tempo >= 0.5:
+            room.players[sid]["pref_chord_tempo"] = max(0.5, min(10.0, pref_tempo))
     except (TypeError, ValueError):
         pass
     room.players[sid]["pref_ready"] = True
