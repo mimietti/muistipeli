@@ -372,7 +372,7 @@ CHORD_REFERENCE_ENTRY = next((entry for entry in CHORD_LIBRARY if entry["label"]
 
 CHORD_PROGRESSIONS_DEF = [
     {"label": "I – V – vi – IV",    "example": "Let It Be – Beatles",         "chords": ["C major", "G major", "A minor", "F major"]},
-    {"label": "I – IV – V – I",     "example": "Twist and Shout – Beatles",   "chords": ["C major", "F major", "G major", "C major"]},
+    {"label": "I – IV – V – I",     "example": "Wild Thing – The Troggs",     "chords": ["C major", "F major", "G major", "C major"]},
     {"label": "I – vi – IV – V",    "example": "Stand By Me – Ben E. King",   "chords": ["C major", "A minor", "F major", "G major"]},
     {"label": "vi – ii – V7 – I",   "example": "Autumn Leaves – jazzstandardi","chords": ["A minor", "D minor", "G7", "C major"]},
     {"label": "I – IV – vi – V",    "example": "Let Her Go – Passenger",      "chords": ["C major", "F major", "A minor", "G major"]},
