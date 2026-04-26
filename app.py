@@ -84,6 +84,9 @@ def _init_db():
                 cur.execute("""
                     ALTER TABLE results ADD COLUMN IF NOT EXISTS gomoku_capture_pairs BOOLEAN
                 """)
+                cur.execute("""
+                    ALTER TABLE results ADD COLUMN IF NOT EXISTS major_minor_length INT
+                """)
         print("[DB] Tietokanta alustettu.")
     except Exception as e:
         print(f"[DB] Alustusvirhe: {e}")
@@ -94,7 +97,7 @@ _init_db()
 
 SOLO_PENALTY_PER_MISTAKE = 3  # seconds
 
-def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None, target_language=None, bot_difficulty=None, round_result=None, gomoku_size=None, gomoku_visible_pairs=None, gomoku_capture_pairs=None):
+def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mistakes=None, card_mode=None, round_won=None, target_language=None, bot_difficulty=None, round_result=None, gomoku_size=None, gomoku_visible_pairs=None, gomoku_capture_pairs=None, major_minor_length=None):
     total_time = None
     if time_secs is not None and mistakes is not None:
         total_time = time_secs + mistakes * SOLO_PENALTY_PER_MISTAKE
@@ -105,9 +108,9 @@ def save_result(username, play_mode, game_mode, pairs_found, time_secs=None, mis
         with conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty, round_result, gomoku_size, gomoku_visible_pairs, gomoku_capture_pairs)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty, round_result, gomoku_size, gomoku_visible_pairs, gomoku_capture_pairs)
+                    """INSERT INTO results (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty, round_result, gomoku_size, gomoku_visible_pairs, gomoku_capture_pairs, major_minor_length)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (username, play_mode, game_mode, pairs_found, time_secs, mistakes, total_time, card_mode, round_won, target_language, bot_difficulty, round_result, gomoku_size, gomoku_visible_pairs, gomoku_capture_pairs, major_minor_length)
                 )
     except Exception as e:
         print(f"[DB] Tallennusvirhe: {e}")
@@ -222,6 +225,10 @@ class RoomState:
     gomoku_size: int = GOMOKU_SIZE
     gomoku_visible_pairs: int = GOMOKU_VISIBLE_PAIRS_DEFAULT
     gomoku_capture_pairs: bool = GOMOKU_CAPTURE_PAIRS_DEFAULT
+    major_minor_length: int = 1
+    major_minor_score: int = 0
+    major_minor_answer: str = ""
+    major_minor_question: dict = field(default_factory=dict)
 
 
 # --- Global indexes (not game state) ---
@@ -395,6 +402,28 @@ def _build_chord_progressions_with_urls():
     return result
 
 CHORD_PROGRESSIONS = _build_chord_progressions_with_urls()
+MAJOR_MINOR_SEQUENCE_OPTIONS = [
+    ("major", "major", "minor"),
+    ("major", "minor", "major"),
+    ("major", "minor", "minor"),
+    ("minor", "minor", "major"),
+    ("minor", "major", "minor"),
+    ("minor", "major", "major"),
+]
+
+
+def get_major_minor_chords(quality):
+    suffix = f" {quality}"
+    return [entry for entry in CHORD_LIBRARY if str(entry.get("label", "")).endswith(suffix)]
+
+
+def major_minor_answer_label(answer_key, ui_language="en"):
+    parts = str(answer_key or "").split("-")
+    labels = {
+        "major": "duuri" if ui_language == "fi" else "major",
+        "minor": "molli" if ui_language == "fi" else "minor",
+    }
+    return " – ".join(labels.get(part, part) for part in parts if part)
 
 
 # ---------------------------------------------------------------------------
@@ -2105,6 +2134,75 @@ def launch_gomoku_round(room):
     init_gomoku_round(room)
 
 
+def save_major_minor_result(room, result="loss"):
+    if not room.player_order:
+        return
+    elapsed = round(time.time() - room.solo_start_time) if room.solo_start_time else None
+    save_result(
+        username=room.player_order[0],
+        play_mode="solo",
+        game_mode="major_minor",
+        pairs_found=room.major_minor_score,
+        time_secs=elapsed,
+        mistakes=0,
+        card_mode="major_minor",
+        round_result=result,
+        major_minor_length=room.major_minor_length,
+    )
+
+
+def emit_major_minor_question(room):
+    length = 3 if room.major_minor_length == 3 else 1
+    major_chords = get_major_minor_chords("major")
+    minor_chords = get_major_minor_chords("minor")
+    if not major_chords or not minor_chords:
+        emit_to_room("game_setup_error", {"reason": "Duuri- ja mollisointuja ei löytynyt tarpeeksi."}, room_id=room.room_id)
+        return False
+    qualities = (random.choice(["major", "minor"]),) if length == 1 else random.choice(MAJOR_MINOR_SEQUENCE_OPTIONS)
+    sequence = []
+    debug_labels = []
+    for quality in qualities:
+        entry = random.choice(major_chords if quality == "major" else minor_chords)
+        sequence.append(entry["url"])
+        debug_labels.append(entry["label"])
+    answer_key = "-".join(qualities)
+    room.major_minor_answer = answer_key
+    room.major_minor_question = {"qualities": list(qualities), "labels": debug_labels, "audio_sequence": sequence}
+    emit_to_room("major_minor_question", {
+        "score": room.major_minor_score,
+        "sequence_length": length,
+        "audio_sequence": sequence,
+        "choices": ["-".join(item) for item in (MAJOR_MINOR_SEQUENCE_OPTIONS if length == 3 else [("major",), ("minor",)])],
+    }, room_id=room.room_id)
+    return True
+
+
+def launch_major_minor_round(room):
+    if not is_solo(room):
+        emit_to_room("game_setup_error", {"reason": "Duuri vai molli on yksinpeli."}, room_id=room.room_id)
+        return
+    room.status = "playing"
+    room.game_mode = "major_minor"
+    room.card_mode = "major_minor"
+    room.grid_data = []
+    room.player_order = [v["username"] for v in get_effective_players_ordered(room)]
+    room.player_points = {name: 0 for name in room.player_order}
+    room.major_minor_score = 0
+    room.major_minor_answer = ""
+    room.major_minor_question = {}
+    room.solo_start_time = time.time()
+    for p in room.players.values():
+        p["in_waiting"] = False
+    emit_to_room("init_major_minor", {
+        "score": 0,
+        "sequence_length": room.major_minor_length,
+        "play_mode": room.play_mode,
+        "card_mode": room.card_mode,
+        "room_id": room.room_id,
+    }, room_id=room.room_id)
+    emit_major_minor_question(room)
+
+
 def conclude_round(winner_label, room, surrendered_by=None):
     clear_audio_preview_lock(room)
     room.last_round_starter = room.round_starter
@@ -2743,7 +2841,7 @@ def try_match_from_queue():
 def build_lobby_payload(room):
     players_ordered = get_active_players_ordered(room)
     usernames = [v["username"] for v in players_ordered]
-    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token"), "in_waiting": v.get("in_waiting", False), "pref_card_mode": v.get("pref_card_mode"), "pref_target_language": v.get("pref_target_language"), "pref_gomoku_size": v.get("pref_gomoku_size"), "pref_gomoku_visible_pairs": v.get("pref_gomoku_visible_pairs"), "pref_gomoku_capture_pairs": v.get("pref_gomoku_capture_pairs")} for v in players_ordered]
+    infos = [{"username": v["username"], "reconnect_token": v.get("reconnect_token"), "in_waiting": v.get("in_waiting", False), "pref_card_mode": v.get("pref_card_mode"), "pref_target_language": v.get("pref_target_language"), "pref_gomoku_size": v.get("pref_gomoku_size"), "pref_gomoku_visible_pairs": v.get("pref_gomoku_visible_pairs"), "pref_gomoku_capture_pairs": v.get("pref_gomoku_capture_pairs"), "pref_major_minor_length": v.get("pref_major_minor_length")} for v in players_ordered]
     last_token = infos[-1]["reconnect_token"] if infos else None
     return {
         "room_id": room.room_id,
@@ -2757,6 +2855,7 @@ def build_lobby_payload(room):
         "gomoku_size": room.gomoku_size,
         "gomoku_visible_pairs": room.gomoku_visible_pairs,
         "gomoku_capture_pairs": room.gomoku_capture_pairs,
+        "major_minor_length": room.major_minor_length,
         "players": usernames,
         "players_info": infos,
         "last_joined_token": last_token,
@@ -3208,7 +3307,7 @@ def leaderboard():
                                username, time_secs, mistakes, total_time
                         FROM results
                         WHERE play_mode = 'solo' AND game_mode != 'random' AND total_time IS NOT NULL
-                          AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku')
+                          AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku', 'major_minor')
                           AND username != %s
                         ORDER BY card_mode, tl, total_time ASC""",
                      (bot_name,)),
@@ -3218,7 +3317,7 @@ def leaderboard():
                                username, pairs_found, mistakes, time_secs
                         FROM results
                         WHERE play_mode = 'bot' AND pairs_found IS NOT NULL
-                          AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku')
+                          AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku', 'major_minor')
                           AND username != %s
                         ORDER BY card_mode, tl,
                                  CASE COALESCE(bot_difficulty, 'easy')
@@ -3235,7 +3334,7 @@ def leaderboard():
                                username, time_secs, mistakes, total_time
                         FROM results
                         WHERE game_mode = 'random' AND play_mode != 'bot' AND total_time IS NOT NULL
-                          AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku')
+                          AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku', 'major_minor')
                           AND username != %s
                         ORDER BY card_mode, tl, total_time ASC""",
                      (bot_name,)),
@@ -3308,6 +3407,34 @@ def leaderboard():
                         "score_type": "gomoku",
                         "rows": [row[2:] for row in gomoku_bot_rows]
                     })
+                for mm_length in (1, 3):
+                    cur.execute("""
+                        SELECT 'major_minor' AS card_mode,
+                               '' AS tl,
+                               username,
+                               pairs_found,
+                               time_secs,
+                               COALESCE(major_minor_length, 1) AS mml
+                        FROM results
+                        WHERE play_mode = 'solo' AND card_mode = 'major_minor'
+                          AND COALESCE(major_minor_length, 1) = %s
+                          AND pairs_found IS NOT NULL
+                          AND username != %s
+                        ORDER BY pairs_found DESC,
+                                 time_secs ASC NULLS LAST,
+                                 username ASC
+                        LIMIT 10
+                    """, (mm_length, bot_name))
+                    major_minor_rows = cur.fetchall()
+                    if major_minor_rows:
+                        sections.append({
+                            "play": "solo",
+                            "card_mode": "major_minor",
+                            "target_language": "",
+                            "score_type": "major_minor",
+                            "major_minor_length": mm_length,
+                            "rows": [row[2:] for row in major_minor_rows]
+                        })
                 cur.execute("""
                     SELECT username,
                            SUM(CASE
@@ -3318,7 +3445,7 @@ def leaderboard():
                            COUNT(*) AS rounds
                     FROM results
                     WHERE play_mode = 'multiplayer' AND round_won IS NOT NULL
-                      AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku')
+                      AND COALESCE(card_mode, '') NOT IN ('same_chords', 'gomoku', 'major_minor')
                       AND username != %s
                     GROUP BY username
                     ORDER BY wins DESC, ties DESC, rounds ASC
@@ -3379,10 +3506,10 @@ def on_join(data):
     requested_play_mode = "solo" if wants_solo else ("bot" if wants_bot else "queue")
     explicit_card_mode = "card_mode" in (data or {})
     preferred_card_mode = str((data or {}).get("card_mode") or "image_word").strip().lower()
-    if preferred_card_mode not in {"images", "image_word", "words", "chords", "same_chords", "gomoku"}:
+    if preferred_card_mode not in {"images", "image_word", "words", "chords", "same_chords", "gomoku", "major_minor"}:
         preferred_card_mode = "image_word"
     preferred_target_language = str((data or {}).get("target_language") or "").strip().lower()
-    if preferred_card_mode in {"images", "chords", "same_chords", "gomoku"}:
+    if preferred_card_mode in {"images", "chords", "same_chords", "gomoku", "major_minor"}:
         preferred_target_language = ""
 
     if not reconnect_token:
@@ -3585,6 +3712,23 @@ def handle_grid_request(data=None):
         })
         return
 
+    if room.card_mode == "major_minor" and room.status in ("playing", "results"):
+        emit("init_major_minor", {
+            "score": room.major_minor_score,
+            "sequence_length": room.major_minor_length,
+            "play_mode": room.play_mode,
+            "card_mode": room.card_mode,
+            "room_id": room.room_id,
+        })
+        if room.status == "playing" and room.major_minor_answer and room.major_minor_question:
+            emit("major_minor_question", {
+                "score": room.major_minor_score,
+                "sequence_length": room.major_minor_length,
+                "audio_sequence": list(room.major_minor_question.get("audio_sequence") or []),
+                "choices": ["-".join(item) for item in (MAJOR_MINOR_SEQUENCE_OPTIONS if room.major_minor_length == 3 else [("major",), ("minor",)])],
+            })
+        return
+
     if room.queue_round_prepared and queue_can_prepare_round_while_waiting(room):
         emit("queue_round_prepared", build_lobby_payload(room))
         emit("no_grid", {"reason": "queue_round_prepared"})
@@ -3743,6 +3887,7 @@ def handle_start_custom_game(data=None):
     except (TypeError, ValueError):
         gomoku_visible_pairs = room.gomoku_visible_pairs
     gomoku_capture_pairs = bool(data.get("gomoku_capture_pairs", room.gomoku_capture_pairs))
+    major_minor_length = 3 if str(data.get("major_minor_mode", "")).strip().lower() in {"triple", "three", "3"} else 1
     word_filter_mode = str(data.get("word_filter_mode", room.word_filter_mode or "clear")).strip().lower()
     chord_audio_type = str(data.get("chord_audio_type", "single")).strip().lower()
     if chord_audio_type not in {"single", "progression"}:
@@ -3782,9 +3927,19 @@ def handle_start_custom_game(data=None):
         room.status = "setup"
         launch_gomoku_round(room)
         return
+    if mode == "major_minor" or card_mode == "major_minor":
+        room.card_mode = "major_minor"
+        room.game_mode = "major_minor"
+        room.major_minor_length = major_minor_length
+        all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
+        room.ui_language = ui_language if ui_language in all_ui_langs else "en"
+        room.player_order = [v["username"] for v in get_effective_players_ordered(room)]
+        room.round_starter = get_round_starter_name(room)
+        launch_major_minor_round(room)
+        return
     if mode not in {"manual", "theme", "random", "chords", "same_chords", "gomoku"}:
         mode = "manual"
-    if card_mode not in {"images", "image_word", "words", "chords", "same_chords", "gomoku"}:
+    if card_mode not in {"images", "image_word", "words", "chords", "same_chords", "gomoku", "major_minor"}:
         card_mode = "image_word"
     all_ui_langs = {"fi", "en"} | set(SUPPORTED_LANGUAGES.keys())
     room.ui_language = ui_language if ui_language in all_ui_langs else "en"
@@ -4177,6 +4332,48 @@ def handle_audio_preview_finished(data=None):
         finalize_revealed_cards(room, clicker=player_info)
 
 
+@socketio.on("major_minor_answer")
+def handle_major_minor_answer(data=None):
+    _, player_info = resolve_player_for_event(data)
+    if not player_info:
+        return
+    room = resolve_room_for_event(data, player_info)
+    if room.card_mode != "major_minor" or room.status != "playing":
+        return
+    answer = str((data or {}).get("answer") or "").strip().lower()
+    correct = answer == room.major_minor_answer
+    labels = list((room.major_minor_question or {}).get("labels") or [])
+    correct_label = major_minor_answer_label(room.major_minor_answer, room.ui_language)
+    if correct:
+        room.major_minor_score += 1
+        emit("major_minor_answer_result", {
+            "correct": True,
+            "score": room.major_minor_score,
+            "correct_answer": room.major_minor_answer,
+            "correct_label": correct_label,
+            "played_labels": labels,
+            "sequence_length": room.major_minor_length,
+        })
+        socketio.sleep(0.7)
+        emit_major_minor_question(room)
+        return
+    save_major_minor_result(room, result="loss")
+    room.status = "results"
+    emit("major_minor_answer_result", {
+        "correct": False,
+        "score": room.major_minor_score,
+        "correct_answer": room.major_minor_answer,
+        "correct_label": correct_label,
+        "played_labels": labels,
+        "sequence_length": room.major_minor_length,
+    })
+    emit_to_room("major_minor_game_over", {
+        "score": room.major_minor_score,
+        "reason": "wrong",
+        "sequence_length": room.major_minor_length,
+    }, room_id=room.room_id)
+
+
 @socketio.on("surrender_round")
 def handle_surrender_round(data=None):
     _, player_info = resolve_player_for_event(data)
@@ -4185,6 +4382,15 @@ def handle_surrender_round(data=None):
         return
 
     room = resolve_room_for_event(data, player_info)
+    if room.card_mode == "major_minor" and room.status == "playing":
+        save_major_minor_result(room, result="surrender")
+        room.status = "results"
+        emit_to_room("major_minor_game_over", {
+            "score": room.major_minor_score,
+            "reason": "surrender",
+            "sequence_length": room.major_minor_length,
+        }, room_id=room.room_id)
+        return
     is_gomoku_active = room.card_mode == "gomoku" and room.status == "playing"
     if not is_gomoku_active and (not room.grid_data or not solo_or_enough_players(room)):
         emit("round_surrender_failed", {"reason": "round_not_active"})
@@ -4514,14 +4720,14 @@ def handle_join_queue(data=None):
             print(f"[INFO] Ohitetaan join_queue: {username} on jo matchatussa huoneessa {mapped_room_id}.")
             return
     card_mode = str(data.get("card_mode") or "image_word").strip().lower()
-    if card_mode not in {"images", "image_word", "words", "chords", "same_chords", "gomoku"}:
+    if card_mode not in {"images", "image_word", "words", "chords", "same_chords", "gomoku", "major_minor"}:
         card_mode = "image_word"
     target_language = str(data.get("target_language") or "").strip().lower()
     player_info["in_waiting"] = True
     player_info["pref_card_mode"] = card_mode
-    player_info["pref_target_language"] = "" if card_mode in {"images", "chords", "same_chords", "gomoku"} else target_language
+    player_info["pref_target_language"] = "" if card_mode in {"images", "chords", "same_chords", "gomoku", "major_minor"} else target_language
     player_info["pref_ready"] = (
-        card_mode in {"images", "chords", "same_chords", "gomoku"}
+        card_mode in {"images", "chords", "same_chords", "gomoku", "major_minor"}
         or bool(player_info["pref_target_language"])
     )
     room.card_mode = player_info["pref_card_mode"] or room.card_mode
@@ -4546,10 +4752,10 @@ def handle_preference_changed(data=None):
     if not room or sid not in room.players:
         return
     card_mode = str(data.get("card_mode") or "").strip().lower()
-    if card_mode in {"images", "image_word", "words", "chords", "same_chords", "gomoku"}:
+    if card_mode in {"images", "image_word", "words", "chords", "same_chords", "gomoku", "major_minor"}:
         room.players[sid]["pref_card_mode"] = card_mode
     target_language = str(data.get("target_language") or "").strip().lower()
-    if room.players[sid].get("pref_card_mode") in {"images", "chords", "same_chords", "gomoku"}:
+    if room.players[sid].get("pref_card_mode") in {"images", "chords", "same_chords", "gomoku", "major_minor"}:
         target_language = ""
     room.players[sid]["pref_target_language"] = target_language
     pref_chord_audio = str(data.get("chord_audio_type") or "").strip().lower()
@@ -4569,6 +4775,9 @@ def handle_preference_changed(data=None):
         pass
     if "gomoku_capture_pairs" in data:
         room.players[sid]["pref_gomoku_capture_pairs"] = bool(data["gomoku_capture_pairs"])
+    pref_major_minor = str(data.get("major_minor_mode") or "").strip().lower()
+    if pref_major_minor in {"single", "triple", "one", "three", "1", "3"}:
+        room.players[sid]["pref_major_minor_length"] = 3 if pref_major_minor in {"triple", "three", "3"} else 1
     try:
         pref_tempo = float(data.get("chord_tempo") or 0)
         if pref_tempo >= 0.5:
@@ -4601,6 +4810,9 @@ def handle_preference_changed(data=None):
             room.gomoku_visible_pairs = pref_vp
         if "pref_gomoku_capture_pairs" in room.players[sid]:
             room.gomoku_capture_pairs = room.players[sid]["pref_gomoku_capture_pairs"]
+        pref_mm_len = room.players[sid].get("pref_major_minor_length")
+        if pref_mm_len in {1, 3}:
+            room.major_minor_length = pref_mm_len
         pref_t = room.players[sid].get("pref_chord_tempo")
         if pref_t:
             room.chord_tempo_seconds = pref_t

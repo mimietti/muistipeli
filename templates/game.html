@@ -875,6 +875,80 @@
             opacity: 0.45;
             cursor: default;
         }
+        #major-minor-wrap {
+            max-width: 720px;
+            margin: 26px auto 10px;
+            padding: 24px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 14px;
+            background: rgba(15, 22, 20, 0.92);
+            box-shadow: 0 18px 45px rgba(0,0,0,0.26);
+            text-align: center;
+        }
+        .major-minor-title {
+            margin: 0 0 8px;
+            font-size: 34px;
+            color: #fffbe8;
+        }
+        .major-minor-score {
+            color: #7cf58a;
+            font-size: 20px;
+            font-weight: 800;
+            margin-bottom: 18px;
+        }
+        .major-minor-listen {
+            border: none;
+            border-radius: 999px;
+            padding: 14px 26px;
+            font-size: 20px;
+            font-weight: 800;
+            cursor: pointer;
+            background: #66df76;
+            color: #07110b;
+            margin-bottom: 18px;
+        }
+        .major-minor-choices {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .major-minor-choice {
+            min-width: 132px;
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 999px;
+            padding: 12px 18px;
+            background: rgba(255,255,255,0.07);
+            color: #f5f5ec;
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .major-minor-choice:hover,
+        .major-minor-choice:focus-visible {
+            background: rgba(124,245,138,0.18);
+            outline: none;
+        }
+        .major-minor-choice:disabled {
+            opacity: 0.45;
+            cursor: default;
+        }
+        .major-minor-feedback {
+            min-height: 64px;
+            margin-top: 18px;
+            color: #f5f5ec;
+            font-size: 18px;
+            line-height: 1.45;
+        }
+        .major-minor-feedback.good { color: #8cff98; }
+        .major-minor-feedback.bad { color: #ffb0a7; }
+        .major-minor-played {
+            display: block;
+            color: #fff2a8;
+            font-size: 15px;
+            margin-top: 6px;
+        }
     </style>
 </head>
 <body>
@@ -910,6 +984,13 @@
         <svg id="gomoku-board"></svg>
     </div>
     <div id="gomoku-rematch-panel"></div>
+    <div id="major-minor-wrap" style="display:none;">
+        <h2 class="major-minor-title" id="majorMinorTitle">Major or minor?</h2>
+        <div class="major-minor-score"><span id="majorMinorScoreLabel">Score</span>: <span id="majorMinorScore">0</span></div>
+        <button type="button" class="major-minor-listen" id="majorMinorListenBtn">Play again</button>
+        <div class="major-minor-choices" id="majorMinorChoices"></div>
+        <div class="major-minor-feedback" id="majorMinorFeedback"></div>
+    </div>
     <div id="chord-tempo-picker" style="display:none; max-width:860px; margin:0 auto 12px; padding:0 14px; box-sizing:border-box;">
         <div style="color:#fff2a8; font-size:13px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:4px;">
             <span id="chordTempoLabelGame">Chord duration</span>: <span id="chordTempoValueGame">2.5s</span>
@@ -985,6 +1066,16 @@
                 pixabay_retry: "Pixabay could not find an image for that word. Try another word.",
                 found_word: "Pair found: {word}",
                 audio_enable_prompt: "Tap once to enable sound on this device.",
+                major_minor_title: "Major or minor?",
+                major_minor_score: "Score",
+                major_minor_listen: "Play again",
+                major_minor_major: "Major",
+                major_minor_minor: "Minor",
+                major_minor_correct: "Correct!",
+                major_minor_wrong: "Wrong.",
+                major_minor_played: "Played: {labels}",
+                major_minor_game_over: "Game over. Score: {score}",
+                major_minor_continue: "Continue to leaderboard",
                 opponent_reconnecting: "Waiting for {name} to reconnect…",
                 opponent_returned: "{name} is back.",
                 pair_found_label: "Pair found",
@@ -1084,6 +1175,16 @@
                 pixabay_retry: "Pixabay ei löytänyt kuvaa annetulla sanalla. Kokeile toista sanaa.",
                 found_word: "Pari löytyi: {word}",
                 audio_enable_prompt: "Napauta kerran, niin äänet aktivoituvat tällä laitteella.",
+                major_minor_title: "Duuri vai molli?",
+                major_minor_score: "Tulos",
+                major_minor_listen: "Soita uudelleen",
+                major_minor_major: "Duuri",
+                major_minor_minor: "Molli",
+                major_minor_correct: "Oikein!",
+                major_minor_wrong: "Väärin.",
+                major_minor_played: "Soitettiin: {labels}",
+                major_minor_game_over: "Peli päättyi. Tulos: {score}",
+                major_minor_continue: "Jatka tulostaulukkoon",
                 opponent_reconnecting: "Odotetaan, että {name} yhdistää uudelleen…",
                 opponent_returned: "{name} palasi peliin.",
                 pair_found_label: "Pari löytyi",
@@ -1292,6 +1393,12 @@
             document.getElementById("themeProgressLabel").textContent = t("ready_label");
             document.getElementById("surrenderRoundBtn").textContent = isSoloMode ? t("cancel_game") : t("surrender_round");
             document.getElementById("exitGameBtn").textContent = t("exit_game");
+            const mmTitle = document.getElementById("majorMinorTitle");
+            if (mmTitle) mmTitle.textContent = t("major_minor_title");
+            const mmScoreLabel = document.getElementById("majorMinorScoreLabel");
+            if (mmScoreLabel) mmScoreLabel.textContent = t("major_minor_score");
+            const mmListenBtn = document.getElementById("majorMinorListenBtn");
+            if (mmListenBtn) mmListenBtn.textContent = t("major_minor_listen");
             syncSettingsControls();
             renderImagePairTracker();
             updatePlayers();
@@ -1390,6 +1497,8 @@
         let cards = [];
         let matched = new Set();
         let gomokuState = null;  // {size, whitePlayer, blackPlayer, myColor, currentTurn, whiteHistory, blackHistory, occupiedIndices, visiblePairs, winLine, revealBoard, revealTransition, captureRevealTransition, board}
+        let majorMinorState = null; // {score, sequenceLength, audioSequence, choices, answering}
+        let majorMinorActiveAudio = null;
 
         function getGridColumnCount(cardCount) {
             const vw = window.innerWidth || document.documentElement.clientWidth || 0;
@@ -1562,6 +1671,96 @@
             }
         }
 
+        function formatMajorMinorAnswer(answerKey) {
+            return String(answerKey || "")
+                .split("-")
+                .filter(Boolean)
+                .map((part) => part === "major" ? t("major_minor_major") : t("major_minor_minor"))
+                .join(" – ");
+        }
+
+        function setMajorMinorFeedback(html, className = "") {
+            const feedback = document.getElementById("majorMinorFeedback");
+            if (!feedback) return;
+            feedback.className = `major-minor-feedback ${className}`.trim();
+            feedback.innerHTML = html || "";
+        }
+
+        function playMajorMinorSequence() {
+            if (!majorMinorState || !Array.isArray(majorMinorState.audioSequence) || !majorMinorState.audioSequence.length) return;
+            if (majorMinorActiveAudio) {
+                try { majorMinorActiveAudio.pause(); majorMinorActiveAudio.currentTime = 0; } catch (_) {}
+                majorMinorActiveAudio = null;
+            }
+            const sequence = [...majorMinorState.audioSequence];
+            const playNext = () => {
+                const src = sequence.shift();
+                if (!src) {
+                    majorMinorActiveAudio = null;
+                    return;
+                }
+                const audio = createGameAudio(src);
+                majorMinorActiveAudio = audio;
+                audio.onended = () => setTimeout(playNext, 160);
+                safePlayAudio(audio, () => setTimeout(playNext, 160));
+            };
+            playNext();
+        }
+
+        function renderMajorMinorChoices() {
+            const choicesEl = document.getElementById("majorMinorChoices");
+            if (!choicesEl || !majorMinorState) return;
+            choicesEl.replaceChildren();
+            (majorMinorState.choices || []).forEach((choice) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "major-minor-choice";
+                btn.textContent = formatMajorMinorAnswer(choice);
+                btn.disabled = Boolean(majorMinorState.answering);
+                btn.addEventListener("click", () => {
+                    if (!majorMinorState || majorMinorState.answering) return;
+                    majorMinorState.answering = true;
+                    renderMajorMinorChoices();
+                    socket.emit("major_minor_answer", {
+                        reconnect_token: getReconnectToken(),
+                        username: myName,
+                        answer: choice
+                    });
+                });
+                choicesEl.appendChild(btn);
+            });
+        }
+
+        function showMajorMinorPanel(data = {}) {
+            stopChordPreview();
+            gomokuState = null;
+            cards = [];
+            majorMinorState = {
+                score: Number(data.score || 0),
+                sequenceLength: Number(data.sequence_length || 1),
+                audioSequence: [],
+                choices: [],
+                answering: false
+            };
+            gameOverShown = false;
+            isSoloMode = true;
+            window.currentCardMode = "major_minor";
+            window.currentGameMode = "major_minor";
+            document.getElementById("grid").style.display = "none";
+            imagePairTracker.style.display = "none";
+            document.getElementById("gomoku-wrap").style.display = "none";
+            document.getElementById("gomoku-rematch-panel").style.display = "none";
+            document.getElementById("major-minor-wrap").style.display = "block";
+            document.getElementById("players").style.display = "none";
+            soloStatsEl.classList.remove("active");
+            document.getElementById("majorMinorScore").textContent = String(majorMinorState.score);
+            document.getElementById("surrenderRoundBtn").textContent = t("cancel_game");
+            setMajorMinorFeedback("");
+            hideSetupStatus();
+            clearThemeProgress();
+            updateRoundActionsVisibility();
+        }
+
         armAudioUnlockListeners();
 
         function getLangLabel(langCode) {
@@ -1691,7 +1890,8 @@
         function updateRoundActionsVisibility() {
             if (!surrenderRoundBtn || !exitGameBtn) return;
             const gomokuActive = gomokuState !== null && !gameOverShown;
-            const roundActive = (gomokuActive || (Array.isArray(cards) && cards.length > 0)) && !gameOverShown;
+            const majorMinorActive = majorMinorState !== null && !gameOverShown;
+            const roundActive = (gomokuActive || majorMinorActive || (Array.isArray(cards) && cards.length > 0)) && !gameOverShown;
             surrenderRoundBtn.style.display = roundActive ? "inline-flex" : "none";
             // In solo mode: hide exit during active round (use cancel instead)
             // In multiplayer: exit only when no active round (results screen or before game starts)
@@ -3208,9 +3408,11 @@
             stopGomokuRevealAnimation();
             stopGomokuCaptureRevealAnimation();
             resetGomokuRematchPanel();
+            majorMinorState = null;
             document.getElementById("grid").style.display = "none";
             document.getElementById("image-pair-tracker").style.display = "none";
             document.getElementById("gomoku-wrap").style.display = "block";
+            document.getElementById("major-minor-wrap").style.display = "none";
             document.getElementById("players").style.display = "";
             window.currentCardMode = "gomoku";
             gameOverShown = false;
@@ -3245,6 +3447,67 @@
             updatePlayers();
             hideSetupStatus();
             hideRestartChoices();
+        });
+
+        socket.on("init_major_minor", (data) => {
+            console.log("[DEBUG] init_major_minor", data);
+            if (data && data.room_id) currentRoomId = data.room_id;
+            showMajorMinorPanel(data || {});
+        });
+
+        socket.on("major_minor_question", (data) => {
+            if (!majorMinorState) showMajorMinorPanel(data || {});
+            majorMinorState = {
+                ...majorMinorState,
+                score: Number((data && data.score) || majorMinorState.score || 0),
+                sequenceLength: Number((data && data.sequence_length) || majorMinorState.sequenceLength || 1),
+                audioSequence: Array.isArray(data && data.audio_sequence) ? data.audio_sequence : [],
+                choices: Array.isArray(data && data.choices) ? data.choices : [],
+                answering: false
+            };
+            document.getElementById("majorMinorScore").textContent = String(majorMinorState.score);
+            setMajorMinorFeedback("");
+            renderMajorMinorChoices();
+            playMajorMinorSequence();
+            updateRoundActionsVisibility();
+        });
+
+        socket.on("major_minor_answer_result", (data) => {
+            if (!majorMinorState) showMajorMinorPanel(data || {});
+            majorMinorState.score = Number((data && data.score) || 0);
+            majorMinorState.answering = true;
+            document.getElementById("majorMinorScore").textContent = String(majorMinorState.score);
+            const labels = Array.isArray(data && data.played_labels) ? data.played_labels.join(" – ") : "";
+            const answerText = (data && data.correct_label) || formatMajorMinorAnswer(data && data.correct_answer);
+            const resultKey = data && data.correct ? "major_minor_correct" : "major_minor_wrong";
+            const playedLine = labels ? `<span class="major-minor-played">${t("major_minor_played", { labels })}</span>` : "";
+            setMajorMinorFeedback(`${t(resultKey)} ${answerText}${playedLine}`, data && data.correct ? "good" : "bad");
+            renderMajorMinorChoices();
+        });
+
+        socket.on("major_minor_game_over", (data) => {
+            gameOverShown = true;
+            if (majorMinorActiveAudio) {
+                try { majorMinorActiveAudio.pause(); majorMinorActiveAudio.currentTime = 0; } catch (_) {}
+                majorMinorActiveAudio = null;
+            }
+            const score = Number((data && data.score) || 0);
+            const feedback = document.getElementById("majorMinorFeedback");
+            if (!feedback || !feedback.innerHTML.trim()) {
+                setMajorMinorFeedback(t("major_minor_game_over", { score }), "bad");
+            }
+            updateRoundActionsVisibility();
+            const username = encodeURIComponent(localStorage.getItem("username") || "");
+            const length = encodeURIComponent(String((data && data.sequence_length) || 1));
+            const leaderboardUrl = `/leaderboard?highlight=${username}&mode=major_minor&play=solo&pairs=${score}&major_minor_length=${length}`;
+            const continueBtn = document.createElement("button");
+            continueBtn.type = "button";
+            continueBtn.className = "major-minor-listen";
+            continueBtn.style.marginTop = "18px";
+            continueBtn.textContent = t("major_minor_continue");
+            continueBtn.addEventListener("click", () => navigateTo(leaderboardUrl));
+            const feedback = document.getElementById("majorMinorFeedback");
+            if (feedback) feedback.after(continueBtn);
         });
 
         socket.on("gomoku_update", (data) => {
@@ -3412,7 +3675,9 @@
             trackerPreviewUsedThisTurn = false;
             // Hide gomoku board if switching back to card mode
             gomokuState = null;
+            majorMinorState = null;
             document.getElementById("gomoku-wrap").style.display = "none";
+            document.getElementById("major-minor-wrap").style.display = "none";
             if (data.room_id) currentRoomId = data.room_id;
             gameOverShown = false;
             if (gridRetryTimer) {
@@ -3903,6 +4168,9 @@
                 username: myName,
                 reconnect_token: getReconnectToken()
             });
+        });
+        document.getElementById("majorMinorListenBtn")?.addEventListener("click", () => {
+            playMajorMinorSequence();
         });
         exitGameBtn.addEventListener("click", () => {
             endGame();
