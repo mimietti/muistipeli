@@ -68,6 +68,27 @@
             gap: 10px;
             min-height: 56px;
         }
+        .difficulty-picker {
+            display: none;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 0 0 14px;
+        }
+        .difficulty-picker button {
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            padding: 9px 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .difficulty-picker button.active {
+            background: limegreen;
+            color: #0c150e;
+            border-color: transparent;
+        }
         .player-vote {
             display: flex;
             align-items: center;
@@ -151,6 +172,11 @@
 
         <div class="card" id="rematchCard">
             <div class="card-title" id="rematchTitle">Play the next round?</div>
+            <div class="difficulty-picker" id="difficultyPicker">
+                <button type="button" data-bot-difficulty="easy" id="difficultyEasy">Forgetful</button>
+                <button type="button" data-bot-difficulty="medium" id="difficultyMedium">Challenger</button>
+                <button type="button" data-bot-difficulty="hard" id="difficultyHard">Relentless</button>
+            </div>
             <div id="rematchStatus" class="rematch-status"></div>
             <div id="statusMsg" class="status-msg"></div>
         </div>
@@ -191,6 +217,9 @@
                 opponent_returned: "{name} is back.",
                 draw_count: "draw",
                 draw_count_plural: "draws",
+                bot_difficulty_easy: "Forgetful",
+                bot_difficulty_medium: "Challenger",
+                bot_difficulty_hard: "Relentless",
             },
             fi: {
                 title: "Yhteenveto",
@@ -216,6 +245,9 @@
                 opponent_returned: "{name} palasi peliin.",
                 draw_count: "tasapeli",
                 draw_count_plural: "tasapeliä",
+                bot_difficulty_easy: "Hajamielinen",
+                bot_difficulty_medium: "Haastaja",
+                bot_difficulty_hard: "Armoton",
             },
         };
 
@@ -235,6 +267,10 @@
             return str;
         }
 
+        function getDifficultyLabel(code) {
+            return t(`bot_difficulty_${code}`);
+        }
+
         let result = {};
         try {
             result = JSON.parse(sessionStorage.getItem("summary_result") || "{}");
@@ -249,9 +285,12 @@
         const winner = result.winner || "";
         const players = Object.keys(points).length ? Object.keys(points) : Object.keys(roundWin);
         const isDrawWinner = winner === "Tasapeli" || winner === "Tie";
+        const isBotMode = result.play_mode === "bot" || players.includes("Muistibotti");
+        let currentBotDifficulty = result.bot_difficulty || localStorage.getItem("bot_difficulty") || "easy";
 
         const rematchBtn = document.getElementById("rematchBtn");
         const statusMsg = document.getElementById("statusMsg");
+        const difficultyPicker = document.getElementById("difficultyPicker");
 
         let myVoted = false;
         let opponentLeft = false;
@@ -264,6 +303,13 @@
             document.getElementById("rematchTitle").textContent = t("rematch_title");
             document.getElementById("rematchBtn").textContent = t("rematch_btn");
             document.getElementById("exitBtn").textContent = t("exit_btn");
+            if (difficultyPicker) {
+                difficultyPicker.style.display = isBotMode ? "flex" : "none";
+                difficultyPicker.querySelectorAll("button[data-bot-difficulty]").forEach((btn) => {
+                    btn.textContent = getDifficultyLabel(btn.dataset.botDifficulty);
+                    btn.classList.toggle("active", btn.dataset.botDifficulty === currentBotDifficulty);
+                });
+            }
             document.getElementById("footerCredit").textContent = `© Michael Miettinen • ${APP_VERSION}`;
 
             const winnerLine = document.getElementById("winnerLine");
@@ -360,6 +406,7 @@
                 socket.emit("join_summary", {
                     reconnect_token: reconnectToken,
                     username: myName,
+                    bot_difficulty: currentBotDifficulty,
                 });
             });
 
@@ -411,6 +458,20 @@
                 socket.emit("want_rematch", {
                     reconnect_token: reconnectToken,
                     username: myName,
+                    bot_difficulty: currentBotDifficulty,
+                });
+            });
+
+            difficultyPicker?.querySelectorAll("button[data-bot-difficulty]").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    currentBotDifficulty = btn.dataset.botDifficulty;
+                    try {
+                        localStorage.setItem("bot_difficulty", currentBotDifficulty);
+                        sessionStorage.setItem("bot_difficulty", currentBotDifficulty);
+                    } catch (_) {}
+                    difficultyPicker.querySelectorAll("button[data-bot-difficulty]").forEach((b) => {
+                        b.classList.toggle("active", b === btn);
+                    });
                 });
             });
 

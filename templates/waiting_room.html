@@ -3560,6 +3560,17 @@
                     selectedBotDifficulty = btn.dataset.botDifficulty;
                     try { localStorage.setItem("bot_difficulty", selectedBotDifficulty); } catch (e) {}
                     document.querySelectorAll("#botDifficultyEasy, #botDifficultyMedium, #botDifficultyHard").forEach(b => b.classList.toggle("active", b === btn));
+                    socket.emit("preference_changed", {
+                        card_mode: selectedCardMode,
+                        target_language: !["images", "chords", "same_chords", "major_minor", "gomoku"].includes(selectedCardMode) ? selectedLang : "",
+                        chord_audio_type: selectedChordAudioType,
+                        chord_tempo: parseFloat(localStorage.getItem("chord_progression_tempo") || "2.5"),
+                        major_minor_mode: selectedMajorMinorMode,
+                        gomoku_size: parseInt(selectedGomokuSize, 10),
+                        gomoku_visible_pairs: parseInt(selectedGomokuVisiblePairs, 10),
+                        gomoku_capture_pairs: selectedGomokuCapturePairs,
+                        bot_difficulty: selectedBotDifficulty
+                    });
                 });
             });
 

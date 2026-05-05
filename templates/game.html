@@ -854,6 +854,27 @@
             flex-wrap: wrap;
             margin-top: 14px;
         }
+        .gomoku-rematch-difficulty {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 8px 0 2px;
+        }
+        .gomoku-rematch-difficulty button {
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            padding: 9px 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .gomoku-rematch-difficulty button.active {
+            background: limegreen;
+            color: #0c150e;
+            border-color: transparent;
+        }
         .gomoku-rematch-btn {
             border: none;
             border-radius: 12px;
@@ -1214,6 +1235,7 @@
                 gomoku_move_rejected: "The move could not be played.",
                 gomoku_you_white: "You play white (○)",
                 gomoku_you_black: "You play black (●)",
+                label_bot_difficulty: "Bot difficulty",
                 gomoku_pairs_shown: "Showing the latest move pair",
                 gomoku_pairs_shown_plural: "Showing last {n} move pairs",
                 gomoku_pairs_shown_all: "Showing all pieces",
@@ -1329,6 +1351,7 @@
                 gomoku_move_rejected: "Siirtoa ei voitu tehdä.",
                 gomoku_you_white: "Pelaat valkoisella (○)",
                 gomoku_you_black: "Pelaat mustalla (●)",
+                label_bot_difficulty: "Botin vaikeusaste",
                 gomoku_pairs_shown: "Näytetään viimeisin siirtopari",
                 gomoku_pairs_shown_plural: "Näytetään {n} viimeistä siirtoparia",
                 gomoku_pairs_shown_all: "Näytetään kaikki nappulat",
@@ -1665,7 +1688,7 @@
         let trackerPreviewUsedThisTurn = false;
         let currentTranslationHint = null;
         let currentBotDifficulty = (function() {
-            try { return sessionStorage.getItem("bot_difficulty") || "easy"; } catch (_) { return "easy"; }
+            try { return localStorage.getItem("bot_difficulty") || sessionStorage.getItem("bot_difficulty") || "easy"; } catch (_) { return "easy"; }
         })();
         let currentTargetLanguage = (function() {
             try { return sessionStorage.getItem("game_setup_lang") || "es"; } catch (_) { return "es"; }
@@ -2158,6 +2181,8 @@
                     round_ties: Number((data && data.round_ties) || 0),
                     room_id: currentRoomId,
                     my_name: myName,
+                    play_mode: (data && data.play_mode) || localStorage.getItem("play_mode") || "",
+                    bot_difficulty: (data && data.bot_difficulty) || currentBotDifficulty,
                 }));
             } catch (_) {}
         }
@@ -3127,6 +3152,10 @@
                 html += `<ellipse cx="${x - radius * 0.25}" cy="${y - radius * 0.42}" rx="${radius * 0.42}" ry="${radius * 0.23}" fill="${rimGlowFill}" opacity="${opacity * (isWhite ? 0.44 : 0.18)}"/>`;
                 html += `<ellipse cx="${x - radius * 0.4}" cy="${y - radius * 0.48}" rx="${radius * 0.17}" ry="${radius * 0.1}" fill="${specularFill}" opacity="${opacity * (isWhite ? 0.95 : 0.52)}"/>`;
                 html += `<ellipse cx="${x - radius * 0.08}" cy="${y - radius * 0.15}" rx="${radius * 0.78}" ry="${radius * 0.72}" fill="none" stroke="${isWhite ? '#ffffff' : '#5e675e'}" stroke-width="${radius * 0.08}" stroke-opacity="${opacity * (isWhite ? 0.24 : 0.14)}"/>`;
+                if (win) {
+                    html += `<circle cx="${x}" cy="${y}" r="${radius + 6}" fill="none" stroke="#f6d04d" stroke-width="4" opacity="${opacity * 0.96}" pointer-events="none"/>`;
+                    html += `<circle cx="${x}" cy="${y}" r="${radius + 10}" fill="none" stroke="#fff2a8" stroke-width="1.8" opacity="${opacity * 0.72}" pointer-events="none"/>`;
+                }
                 return { x, y, isWhite, opacity };
             };
             const renderHiddenMarker = (idx, progress = 1) => {
@@ -3482,7 +3511,12 @@
                     });
                 }
                 console.log("[DEBUG] Emitting gomoku_place", { index: idx, row, col });
-                socket.emit("gomoku_place", { index: idx });
+                socket.emit("gomoku_place", {
+                    index: idx,
+                    reconnect_token: getReconnectToken(),
+                    username: myName,
+                    room_id: currentRoomId
+                });
             };
         }
 
@@ -3642,6 +3676,16 @@
             const ties = Number(data.round_ties || 0);
             const winner = data.winner || "";
             const isDraw = winner === "Tasapeli" || winner === "Tie";
+            const isBotMode = (localStorage.getItem("play_mode") || "") === "bot"
+                || [data.white_player, data.black_player, ...(Object.keys(wins || {}))].includes("Muistibotti");
+            const difficultyPicker = isBotMode ? `
+                    <div class="gomoku-rematch-label">${t("label_bot_difficulty")}</div>
+                    <div class="gomoku-rematch-difficulty" id="gomoku-rematch-difficulty">
+                        <button type="button" data-bot-difficulty="easy">${getDifficultyLabel("easy")}</button>
+                        <button type="button" data-bot-difficulty="medium">${getDifficultyLabel("medium")}</button>
+                        <button type="button" data-bot-difficulty="hard">${getDifficultyLabel("hard")}</button>
+                    </div>
+            ` : "";
             panel.innerHTML = `
                 <div class="gomoku-rematch-card">
                     <div class="gomoku-rematch-title">${isDraw ? t("draw_label") : t("game_over", { winner })}</div>
@@ -3663,6 +3707,7 @@
                 </div>
                 <div class="gomoku-rematch-card">
                     <div class="gomoku-rematch-label">${t("rematch_title")}</div>
+                    ${difficultyPicker}
                     <div id="gomoku-rematch-status"></div>
                     <div id="gomoku-rematch-msg" class="gomoku-rematch-status-msg"></div>
                     <div class="gomoku-rematch-actions">
@@ -3675,6 +3720,22 @@
             gomokuRematchMyVote = false;
             gomokuRematchOpponentLeft = false;
             gomokuRematchJoined = true;
+            if (isBotMode) {
+                const picker = document.getElementById("gomoku-rematch-difficulty");
+                picker?.querySelectorAll("button[data-bot-difficulty]").forEach((btn) => {
+                    btn.classList.toggle("active", btn.dataset.botDifficulty === currentBotDifficulty);
+                    btn.addEventListener("click", () => {
+                        currentBotDifficulty = btn.dataset.botDifficulty;
+                        try {
+                            localStorage.setItem("bot_difficulty", currentBotDifficulty);
+                            sessionStorage.setItem("bot_difficulty", currentBotDifficulty);
+                        } catch (_) {}
+                        picker.querySelectorAll("button[data-bot-difficulty]").forEach((b) => {
+                            b.classList.toggle("active", b === btn);
+                        });
+                    });
+                });
+            }
 
             document.getElementById("gomoku-rematch-btn")?.addEventListener("click", () => {
                 if (gomokuRematchMyVote || gomokuRematchOpponentLeft) return;
@@ -3682,6 +3743,7 @@
                 socket.emit("want_rematch", {
                     reconnect_token: getReconnectToken(),
                     username: myName,
+                    bot_difficulty: currentBotDifficulty,
                 });
                 renderGomokuRematchStatus([], (gomokuState && [gomokuState.whitePlayer, gomokuState.blackPlayer].filter(Boolean)) || []);
             });
@@ -3742,6 +3804,9 @@
                 revealBoard: Boolean(data.reveal_board),
                 board: data.board || {},
             };
+            if (Array.isArray(data.win_line) && data.win_line.length > 0) {
+                gomokuState.winLine = data.win_line;
+            }
             // Store player order for updatePlayers
             const gomokuPlayers = [data.white_player, data.black_player].filter(Boolean);
             try { sessionStorage.setItem("players", JSON.stringify(gomokuPlayers)); } catch (_) {}
@@ -3960,6 +4025,7 @@
                 socket.emit("start_same_settings_rematch", {
                     reconnect_token: getReconnectToken(),
                     username: myName,
+                    bot_difficulty: currentBotDifficulty,
                 });
             }, 600);
         });
@@ -4282,6 +4348,10 @@
             }
             gameOverShown = true;
             console.log("[DEBUG] Peli päättyi, näytetään tulokset.");
+            if (data && data.bot_difficulty) {
+                currentBotDifficulty = data.bot_difficulty;
+                try { sessionStorage.setItem("bot_difficulty", currentBotDifficulty); } catch (_) {}
+            }
             stopSoloTimer();
             soloStatsEl.classList.remove("active");
             persistSummary(data);

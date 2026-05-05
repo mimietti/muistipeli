@@ -232,6 +232,7 @@ class RoomState:
     gomoku_size: int = GOMOKU_SIZE
     gomoku_visible_pairs: int = GOMOKU_VISIBLE_PAIRS_DEFAULT
     gomoku_capture_pairs: bool = GOMOKU_CAPTURE_PAIRS_DEFAULT
+    gomoku_win_line: list = field(default_factory=list)
     major_minor_length: int = 1
     major_minor_score: int = 0
     major_minor_errors: int = 0
@@ -526,6 +527,7 @@ def reset_pending_state(room):
     room.current_click_sid = None
     room.bot_turn_scheduled = False
     room.bot_memory = {}
+    room.gomoku_win_line = []
     room.game_mode = "manual"
     room.ui_language = "en"
     room.queue_round_prepared = False
@@ -667,6 +669,7 @@ def clear_setup_work_state(room):
     room.current_click_sid = None
     room.bot_turn_scheduled = False
     room.bot_memory = {}
+    room.gomoku_win_line = []
 
 
 def mark_room_results_state(room):
@@ -2303,7 +2306,9 @@ def conclude_round(winner_label, room, surrendered_by=None):
         "round_ties": room.round_ties,
         "surrendered_by": surrendered_by,
         "solo_time": solo_time,
-        "solo_mistakes": room.solo_mistakes if is_solo(room) else None
+        "solo_mistakes": room.solo_mistakes if is_solo(room) else None,
+        "play_mode": room.play_mode,
+        "bot_difficulty": room.bot_difficulty,
     }, room_id=room.room_id)
 
 
@@ -3217,6 +3222,7 @@ def init_gomoku_round(room):
     room.gomoku_board = {}
     room.gomoku_white_history = []
     room.gomoku_black_history = []
+    room.gomoku_win_line = []
     room.bot_memory = {}
     room.player_points = {p: 0 for p in room.player_order}
     room.status = "playing"
@@ -3235,8 +3241,10 @@ def init_gomoku_round(room):
         "visible_pairs": room.gomoku_visible_pairs,
         "capture_pairs_enabled": room.gomoku_capture_pairs,
         "bot_difficulty": room.bot_difficulty,
+        "room_id": room.room_id,
         "reveal_board": False,
         "board": {},
+        "win_line": [],
     }, room_id=room.room_id)
     schedule_gomoku_bot_turn_if_needed(room)
 
@@ -3339,6 +3347,7 @@ def process_gomoku_place(idx, player_info, room, sid=None):
             opp_history[:] = [h for h in opp_history if h not in captured_set]
             print(f"[INFO] Gomoku-kaappaus: {my_color} kaappasi {captured}")
     win_line = gomoku_check_win(room.gomoku_board, idx, size=size)
+    room.gomoku_win_line = win_line or []
     room.turn = (room.turn + 1) % len(room.player_order)
     print(
         f"[INFO] Gomoku-nappula asetettu: player={player_name}, color={my_color}, idx={idx}, row={row}, col={col}, "
@@ -3833,8 +3842,10 @@ def handle_grid_request(data=None):
             "visible_pairs": room.gomoku_visible_pairs,
             "capture_pairs_enabled": room.gomoku_capture_pairs,
             "bot_difficulty": room.bot_difficulty,
+            "room_id": room.room_id,
             "reveal_board": room.status == "results",
             "board": dict(room.gomoku_board) if room.status == "results" else {},
+            "win_line": list(room.gomoku_win_line),
         })
         return
 
@@ -3937,8 +3948,10 @@ def handle_ready_for_game():
             "visible_pairs": room.gomoku_visible_pairs,
             "capture_pairs_enabled": room.gomoku_capture_pairs,
             "bot_difficulty": room.bot_difficulty,
+            "room_id": room.room_id,
             "reveal_board": room.status == "results",
             "board": dict(room.gomoku_board) if room.status == "results" else {},
+            "win_line": list(room.gomoku_win_line),
         })
         return
     if room.grid_data and len(room.grid_data) == 16:
@@ -4560,18 +4573,27 @@ def handle_surrender_round(data=None):
 
 @socketio.on("gomoku_place")
 def handle_gomoku_place(data):
+    data = data or {}
     sid = request.sid
-    room = get_room_for_sid(sid)
+    resolved_sid, player_info = resolve_player_for_event(data)
+    room = resolve_room_for_event(data, player_info)
     if not room or room.card_mode != "gomoku" or room.status != "playing":
         print(
-            f"[WARNING] Gomoku-siirto sivuutettiin: sid={sid}, room={'missing' if not room else room.room_id}, "
-            f"card_mode={None if not room else room.card_mode}, status={None if not room else room.status}, data={data}"
+            f"[WARNING] Gomoku-siirto sivuutettiin: sid={sid}, resolved_sid={resolved_sid}, "
+            f"room={'missing' if not room else room.room_id}, card_mode={None if not room else room.card_mode}, "
+            f"status={None if not room else room.status}, player={'missing' if not player_info else player_info.get('username')}, "
+            f"data={data}"
         )
         emit("gomoku_rejected", {"reason": "inactive_room"})
         return
-    player_info = room.players.get(sid, {})
-    idx = int(data.get("index", -1))
-    process_gomoku_place(idx, player_info, room, sid=sid)
+    if not player_info:
+        emit("gomoku_rejected", {"reason": "player_missing"})
+        return
+    try:
+        idx = int(data.get("index", -1))
+    except (TypeError, ValueError):
+        idx = -1
+    process_gomoku_place(idx, player_info, room, sid=resolved_sid)
 
 
 # ---------------------------------------------------------------------------
@@ -4595,6 +4617,13 @@ def build_same_settings_start_payload(room):
         payload["gomoku_size"] = room.gomoku_size or GOMOKU_SIZE
         payload["gomoku_visible_pairs"] = room.gomoku_visible_pairs
         payload["gomoku_capture_pairs"] = room.gomoku_capture_pairs
+    return payload
+
+
+def apply_rematch_overrides(payload, data):
+    bot_difficulty = str((data or {}).get("bot_difficulty") or "").strip().lower()
+    if bot_difficulty in BOT_MEMORY_USE_PROBABILITY:
+        payload["bot_difficulty"] = bot_difficulty
     return payload
 
 
@@ -4662,6 +4691,9 @@ def on_join_summary(data):
     except Exception:
         pass
     room.summary_sids[username] = sid
+    requested_difficulty = str((data or {}).get("bot_difficulty") or "").strip().lower()
+    if room.play_mode == "bot" and requested_difficulty in BOT_MEMORY_USE_PROBABILITY:
+        room.bot_difficulty = requested_difficulty
     if room.play_mode == "bot":
         for name in room.player_order:
             if is_bot_player(name, room):
@@ -4680,6 +4712,9 @@ def on_want_rematch(data):
     room = rooms.get(room_id)
     if not room or room.status != "results":
         return
+    requested_difficulty = str((data or {}).get("bot_difficulty") or "").strip().lower()
+    if room.play_mode == "bot" and requested_difficulty in BOT_MEMORY_USE_PROBABILITY:
+        room.bot_difficulty = requested_difficulty
     room.rematch_votes.add(username)
     if room.play_mode == "bot":
         for name in room.player_order:
@@ -4724,7 +4759,7 @@ def on_start_same_settings_rematch(data=None):
         emit("setup_already_running", {"reason": "setup_in_progress"})
         return
 
-    restart_payload = build_same_settings_start_payload(room)
+    restart_payload = apply_rematch_overrides(build_same_settings_start_payload(room), data)
     print(
         f"[INFO] Aloitetaan uusinta samoilla asetuksilla. "
         f"room={room.room_id}, mode={restart_payload.get('mode')}, card_mode={restart_payload.get('card_mode')}"
@@ -4904,6 +4939,9 @@ def handle_preference_changed(data=None):
     pref_chord_audio = str(data.get("chord_audio_type") or "").strip().lower()
     if pref_chord_audio in {"single", "progression"}:
         room.players[sid]["pref_chord_audio_type"] = pref_chord_audio
+    pref_bot_difficulty = str(data.get("bot_difficulty") or "").strip().lower()
+    if pref_bot_difficulty in BOT_MEMORY_USE_PROBABILITY:
+        room.players[sid]["pref_bot_difficulty"] = pref_bot_difficulty
     try:
         pref_gomoku_size = int(data.get("gomoku_size") or 0)
         if pref_gomoku_size in GOMOKU_ALLOWED_SIZES:
@@ -4952,6 +4990,9 @@ def handle_preference_changed(data=None):
             room.gomoku_visible_pairs = pref_vp
         if "pref_gomoku_capture_pairs" in room.players[sid]:
             room.gomoku_capture_pairs = room.players[sid]["pref_gomoku_capture_pairs"]
+        pref_bot_difficulty = room.players[sid].get("pref_bot_difficulty")
+        if room.play_mode == "bot" and pref_bot_difficulty in BOT_MEMORY_USE_PROBABILITY:
+            room.bot_difficulty = pref_bot_difficulty
         pref_mm_len = room.players[sid].get("pref_major_minor_length")
         if pref_mm_len in {1, 3}:
             room.major_minor_length = pref_mm_len
