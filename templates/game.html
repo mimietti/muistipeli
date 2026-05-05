@@ -3716,6 +3716,10 @@
             document.getElementById("major-minor-wrap").style.display = "none";
             document.getElementById("players").style.display = "";
             window.currentCardMode = "gomoku";
+            if (data.bot_difficulty) {
+                currentBotDifficulty = data.bot_difficulty;
+                try { sessionStorage.setItem("bot_difficulty", currentBotDifficulty); } catch (_) {}
+            }
             gameOverShown = false;
             gomokuState = {
                 size: data.size,

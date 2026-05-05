@@ -3119,6 +3119,7 @@ def choose_gomoku_bot_move(room):
     if not occupied:
         return center
     capture_pairs = room.gomoku_capture_pairs
+    all_stones_visible = (room.gomoku_visible_pairs or GOMOKU_VISIBLE_PAIRS_DEFAULT) >= size * size
     # 1. Win in 1
     for idx in empty:
         perceived[idx] = bot_color
@@ -3137,6 +3138,8 @@ def choose_gomoku_bot_move(room):
     # 3. Capture 2 opponent stones (capture pairs mode)
     if capture_pairs:
         capture_prob = {"easy": 0.25, "medium": 0.65, "hard": 1.0}.get(difficulty, 0.65)
+        if difficulty == "medium" and all_stones_visible:
+            capture_prob = 0.9
         if random.random() < capture_prob:
             best_cap, best_cap_count = -1, 0
             for idx in empty:
@@ -3151,6 +3154,8 @@ def choose_gomoku_bot_move(room):
     # 4. Block opponent capture threat (capture pairs mode)
     if capture_pairs:
         block_prob = {"easy": 0.15, "medium": 0.50, "hard": 1.0}.get(difficulty, 0.50)
+        if difficulty == "medium" and all_stones_visible:
+            block_prob = 0.9
         if random.random() < block_prob:
             best_block, best_block_count = -1, 0
             for idx in empty:
@@ -3185,8 +3190,10 @@ def choose_gomoku_bot_move(room):
         return random.choice(shortlist)
     if difficulty == "medium" and scored_candidates:
         scored_candidates.sort(key=lambda item: item[0], reverse=True)
-        shortlist_size = min(3, len(scored_candidates))
+        shortlist_size = min(2 if all_stones_visible else 3, len(scored_candidates))
         shortlist = [idx for _, idx in scored_candidates[:shortlist_size]]
+        if all_stones_visible and random.random() < 0.75:
+            return shortlist[0]
         return random.choice(shortlist)
     if best_candidates:
         if center in best_candidates:
@@ -3227,6 +3234,7 @@ def init_gomoku_round(room):
         "occupied_indices": [],
         "visible_pairs": room.gomoku_visible_pairs,
         "capture_pairs_enabled": room.gomoku_capture_pairs,
+        "bot_difficulty": room.bot_difficulty,
         "reveal_board": False,
         "board": {},
     }, room_id=room.room_id)
@@ -3824,6 +3832,7 @@ def handle_grid_request(data=None):
             "occupied_indices": sorted(room.gomoku_board.keys()),
             "visible_pairs": room.gomoku_visible_pairs,
             "capture_pairs_enabled": room.gomoku_capture_pairs,
+            "bot_difficulty": room.bot_difficulty,
             "reveal_board": room.status == "results",
             "board": dict(room.gomoku_board) if room.status == "results" else {},
         })
@@ -3927,6 +3936,7 @@ def handle_ready_for_game():
             "occupied_indices": sorted(room.gomoku_board.keys()),
             "visible_pairs": room.gomoku_visible_pairs,
             "capture_pairs_enabled": room.gomoku_capture_pairs,
+            "bot_difficulty": room.bot_difficulty,
             "reveal_board": room.status == "results",
             "board": dict(room.gomoku_board) if room.status == "results" else {},
         })
