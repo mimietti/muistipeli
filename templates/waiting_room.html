@@ -1253,10 +1253,9 @@
                 </div>
                 <div class="option-group-btns" id="gomokuVisiblePairsBtns">
                     <button class="opt-btn" data-gomoku-visible-pairs="1" id="gomokuVP1">1</button>
-                    <button class="opt-btn" data-gomoku-visible-pairs="2" id="gomokuVP2">2</button>
-                    <button class="opt-btn" data-gomoku-visible-pairs="3" id="gomokuVP3">3</button>
                     <button class="opt-btn" data-gomoku-visible-pairs="5" id="gomokuVP5">5</button>
                     <button class="opt-btn" data-gomoku-visible-pairs="10" id="gomokuVP10">10</button>
+                    <button class="opt-btn" data-gomoku-visible-pairs="169" id="gomokuVPAll">All</button>
                 </div>
             </div>
             <div class="option-group" id="gomokuCapturePairsPicker" style="display:none;">
@@ -1442,6 +1441,7 @@
                 label_gomoku_size: "Board size",
                 label_gomoku_visible_pairs: "Number of visible pairs",
                 gomoku_visible_pairs_help: "Choose how many previous move pairs are shown. Older pieces stay on the board, but you only know whose they are if you remember them.",
+                gomoku_visible_pairs_all: "All",
                 label_gomoku_capture_pairs: "Pair capture",
                 bot_difficulty_summary: "Difficulty: {difficulty}",
                 word_filter_clear: "Clear",
@@ -1611,6 +1611,7 @@
                 label_gomoku_size: "Laudan koko",
                 label_gomoku_visible_pairs: "Näkyvien parien määrä",
                 gomoku_visible_pairs_help: "Valitaan montako edellistä siirtoparia näytetään. Sitä vanhemmat nappulat pysyvät laudalla, mutta niistä ei enää tiedä kuin muistamalla kumman ne ovat.",
+                gomoku_visible_pairs_all: "Kaikki",
                 label_gomoku_capture_pairs: "Kahden kaappaus",
                 bot_difficulty_summary: "Vaikeusaste: {difficulty}",
                 word_filter_clear: "Selkeät",
@@ -1839,6 +1840,11 @@
             return labels[lang] || labels.en;
         }
 
+        function getGomokuVisiblePairsLabel(value) {
+            const n = Number(value || 5);
+            return n >= 169 ? t("gomoku_visible_pairs_all") : String(n);
+        }
+
         function getQueueWordSourceLabel(mode, cardMode = null) {
             const effectiveMode = cardMode || window.currentWaitingCardMode || localStorage.getItem("preferred_card_mode") || "image_word";
             if (effectiveMode === "gomoku" || effectiveMode === "major_minor" || mode === "gomoku" || mode === "major_minor") return "";
@@ -1958,7 +1964,7 @@
             chips.push([t("queue_summary_cards"), getQueueCardModeLabel(cardMode)]);
             if (cardMode === "gomoku") {
                 chips.push([t("label_gomoku_size"), `${payload.gomoku_size || 13}x${payload.gomoku_size || 13}`]);
-                chips.push([t("label_gomoku_visible_pairs"), String(payload.gomoku_visible_pairs || 5)]);
+                chips.push([t("label_gomoku_visible_pairs"), getGomokuVisiblePairsLabel(payload.gomoku_visible_pairs || 5)]);
                 if (typeof payload.gomoku_capture_pairs === "boolean") {
                     chips.push([t("label_gomoku_capture_pairs"), payload.gomoku_capture_pairs ? t("queue_summary_on") : t("queue_summary_off")]);
                 }
@@ -2052,6 +2058,7 @@
             el("botDifficultyEasy").textContent = getDifficultyLabel("easy");
             el("botDifficultyMedium").textContent = getDifficultyLabel("medium");
             el("botDifficultyHard").textContent = getDifficultyLabel("hard");
+            el("gomokuVPAll").textContent = t("gomoku_visible_pairs_all");
             el("startRoundBtn").textContent = getStartRoundButtonText();
             el("pageTitle").textContent = t(titleKey);
             el("introText").textContent = t(introKey);
@@ -3317,16 +3324,16 @@
                 ? localStorage.getItem("preferred_major_minor_mode")
                 : "single";
             let selectedGomokuSize = "13";
-            const gomokuVisiblePairOptions = ["1","2","3","5","10"];
+            const gomokuVisiblePairOptions = ["1","5","10","169"];
             const gomokuVisiblePairsDefault = "5";
             let storedGomokuVisiblePairs = localStorage.getItem("preferred_gomoku_visible_pairs");
-            if (storedGomokuVisiblePairs === "3" && localStorage.getItem("preferred_gomoku_visible_pairs_default_v2") !== "1") {
+            if (!gomokuVisiblePairOptions.includes(storedGomokuVisiblePairs)) {
                 storedGomokuVisiblePairs = gomokuVisiblePairsDefault;
                 try {
                     localStorage.setItem("preferred_gomoku_visible_pairs", storedGomokuVisiblePairs);
                     localStorage.setItem("preferred_gomoku_visible_pairs_default_v2", "1");
                 } catch (e) {}
-            } else if (gomokuVisiblePairOptions.includes(storedGomokuVisiblePairs)) {
+            } else {
                 try { localStorage.setItem("preferred_gomoku_visible_pairs_default_v2", "1"); } catch (e) {}
             }
             let selectedGomokuVisiblePairs = gomokuVisiblePairOptions.includes(storedGomokuVisiblePairs)

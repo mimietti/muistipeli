@@ -277,7 +277,7 @@
                                 <td class="total">{{ row[2] }}</td>
                                 <td class="dim">{{ row[3] }}</td>
                                 <td class="dim">{{ row[4] }}</td>
-                                <td class="dim">{{ row[5] }}x{{ row[5] }} · {{ row[6] }} · <span class="capture-setting" data-capture="{{ 'on' if row[7] else 'off' }}">{{ 'on' if row[7] else 'off' }}</span></td>
+                                <td class="dim">{{ row[5] }}x{{ row[5] }} · <span class="visible-setting" data-visible="{{ row[6] }}">{{ row[6] }}</span> · <span class="capture-setting" data-capture="{{ 'on' if row[7] else 'off' }}">{{ 'on' if row[7] else 'off' }}</span></td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -370,7 +370,7 @@
                             <td class="total">{{ row[1] }}</td>
                             <td class="dim">{{ row[2] }}</td>
                             <td class="dim">{{ row[3] }}</td>
-                            <td class="dim">{{ row[4] }}x{{ row[4] }} · {{ row[5] }} · <span class="capture-setting" data-capture="{{ 'on' if row[6] else 'off' }}">{{ 'on' if row[6] else 'off' }}</span></td>
+                            <td class="dim">{{ row[4] }}x{{ row[4] }} · <span class="visible-setting" data-visible="{{ row[5] }}">{{ row[5] }}</span> · <span class="capture-setting" data-capture="{{ 'on' if row[6] else 'off' }}">{{ 'on' if row[6] else 'off' }}</span></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -429,7 +429,7 @@
                 title: "Leaderboard", subtitle: "Solo — top 10, sorted by total time",
                 th_name: "Player", th_time: "Time", th_mistakes: "Mistakes", th_total: "Total", th_score: "Score", th_variant: "Variant",
                 th_difficulty: "Difficulty", th_settings: "Settings",
-                capture_on: "captures", capture_off: "no captures",
+                capture_on: "captures", capture_off: "no captures", visible_all: "all",
                 difficulty_easy: "Easy", difficulty_medium: "Medium", difficulty_hard: "Hard",
                 mode_images: "Images", mode_image_word: "Image + word", mode_words: "Word + word", mode_chords: "Chords", mode_major_minor: "Major or minor?", mode_gomoku: "Memory Gomoku",
                 major_minor_single: "One chord", major_minor_triple: "Three in a row",
@@ -444,7 +444,7 @@
                 best_title: "Parhaat tulokset", best_subtitle: "Top 3 per pelityyppi",
                 th_name: "Pelaaja", th_time: "Aika", th_mistakes: "Virheet", th_total: "Yhteensä", th_score: "Tulos", th_variant: "Tila",
                 th_difficulty: "Vaikeustaso", th_settings: "Asetukset",
-                capture_on: "kaappaus", capture_off: "ei kaappausta",
+                capture_on: "kaappaus", capture_off: "ei kaappausta", visible_all: "kaikki",
                 difficulty_easy: "Helppo", difficulty_medium: "Keskitaso", difficulty_hard: "Vaikea",
                 mode_images: "Kuvat", mode_image_word: "Kuva + sana", mode_words: "Sana + sana", mode_chords: "Soinnut", mode_major_minor: "Duuri vai molli?", mode_gomoku: "Muistinolla",
                 major_minor_single: "Yksi sointu", major_minor_triple: "Kolme peräkkäin",
@@ -617,6 +617,10 @@
                 e.textContent = e.dataset.capture === "on"
                     ? (t.capture_on || tr.en.capture_on)
                     : (t.capture_off || tr.en.capture_off);
+            });
+            document.querySelectorAll(".visible-setting[data-visible]").forEach(e => {
+                const visible = Number(e.dataset.visible || 0);
+                e.textContent = visible >= 169 ? (t.visible_all || tr.en.visible_all) : String(visible || "");
             });
         }
 

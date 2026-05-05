@@ -130,7 +130,7 @@ VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "y
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 DISCONNECT_NOTIFY_DELAY_SECONDS = 10
-APP_VERSION = "Beta v0.12 (2026-04-26)"
+APP_VERSION = "Beta v0.12 (2026-05-05)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -142,12 +142,19 @@ BOT_MEMORY_USE_PROBABILITY = {
     "medium": 0.55,
     "hard": 0.9,
 }
+GOMOKU_BOT_MEMORY_USE_PROBABILITY = {
+    "easy": 0.25,
+    "medium": 0.75,
+    "hard": 1.0,
+}
 GOMOKU_SIZE = 13
 GOMOKU_WIN = 5
+GOMOKU_DIRECTIONS = [(0, 1), (1, 0), (1, 1), (1, -1)]
 GOMOKU_ALLOWED_SIZES = {13}
 GOMOKU_VISIBLE_PAIRS_DEFAULT = 5
 GOMOKU_VISIBLE_PAIRS_MIN = 1
-GOMOKU_VISIBLE_PAIRS_MAX = 10
+GOMOKU_VISIBLE_PAIRS_ALL = GOMOKU_SIZE * GOMOKU_SIZE
+GOMOKU_VISIBLE_PAIRS_MAX = GOMOKU_VISIBLE_PAIRS_ALL
 GOMOKU_CAPTURE_PAIRS_DEFAULT = True
 DEFAULT_ROOM_ID = "default"
 MAX_PLAYERS = 2
@@ -961,6 +968,10 @@ def schedule_bot_turn_if_needed(room, delay=BOT_FIRST_FLIP_DELAY_SECONDS):
 
 def get_bot_memory_probability(room):
     return BOT_MEMORY_USE_PROBABILITY.get(room.bot_difficulty or "easy", 0.0)
+
+
+def get_gomoku_bot_memory_probability(room):
+    return GOMOKU_BOT_MEMORY_USE_PROBABILITY.get(room.bot_difficulty or "easy", 0.25)
 
 
 def remember_card_for_bot(room, index):
@@ -2921,7 +2932,7 @@ def gomoku_check_win(board, idx, size=GOMOKU_SIZE):
     if not color:
         return None
     row, col = divmod(idx, size)
-    for dr, dc in [(0, 1), (1, 0), (1, 1), (1, -1)]:
+    for dr, dc in GOMOKU_DIRECTIONS:
         line = [idx]
         for sign in (1, -1):
             r, c = row + sign * dr, col + sign * dc
@@ -2943,7 +2954,7 @@ def gomoku_apply_captures(board, idx, my_color, size):
     opp_color = "black" if my_color == "white" else "white"
     row, col = divmod(idx, size)
     captured = set()
-    for dr, dc in [(0, 1), (1, 0), (1, 1), (1, -1)]:
+    for dr, dc in GOMOKU_DIRECTIONS:
         for sign in (1, -1):
             r1, c1 = row + sign * dr, col + sign * dc
             r2, c2 = row + 2 * sign * dr, col + 2 * sign * dc
@@ -2966,7 +2977,7 @@ def gomoku_apply_captures(board, idx, my_color, size):
 def _gomoku_count_line(board, idx, color, size=GOMOKU_SIZE):
     row, col = divmod(idx, size)
     best = 0
-    for dr, dc in [(0, 1), (1, 0), (1, 1), (1, -1)]:
+    for dr, dc in GOMOKU_DIRECTIONS:
         n = 1
         for sign in (1, -1):
             r, c = row + sign * dr, col + sign * dc
@@ -2976,6 +2987,75 @@ def _gomoku_count_line(board, idx, color, size=GOMOKU_SIZE):
                 c += sign * dc
         best = max(best, n)
     return best
+
+
+def _gomoku_line_shapes(board, idx, color, size=GOMOKU_SIZE):
+    row, col = divmod(idx, size)
+    shapes = []
+    for dr, dc in GOMOKU_DIRECTIONS:
+        length = 1
+        open_ends = 0
+        for sign in (1, -1):
+            r, c = row + sign * dr, col + sign * dc
+            while 0 <= r < size and 0 <= c < size and board.get(r * size + c) == color:
+                length += 1
+                r += sign * dr
+                c += sign * dc
+            if 0 <= r < size and 0 <= c < size and board.get(r * size + c) is None:
+                open_ends += 1
+        shapes.append((length, open_ends))
+    return shapes
+
+
+def _gomoku_shape_score(shapes):
+    score = 0
+    for length, open_ends in shapes:
+        if length >= GOMOKU_WIN:
+            score += 1_000_000
+        elif length == 4:
+            score += 90_000 if open_ends == 2 else 35_000 if open_ends == 1 else 0
+        elif length == 3:
+            score += 12_000 if open_ends == 2 else 2_500 if open_ends == 1 else 0
+        elif length == 2:
+            score += 1_000 if open_ends == 2 else 180 if open_ends == 1 else 0
+        elif length == 1 and open_ends == 2:
+            score += 30
+    return score
+
+
+def _gomoku_would_be_capturable(board, idx, color, size=GOMOKU_SIZE):
+    opp_color = "black" if color == "white" else "white"
+    occupied = set(board.keys())
+    for landing in range(size * size):
+        if landing in occupied:
+            continue
+        board[landing] = opp_color
+        captured = gomoku_apply_captures(board, landing, opp_color, size=size)
+        del board[landing]
+        if idx in captured:
+            return True
+    return False
+
+
+def _gomoku_score_candidate(perceived, occupied, idx, bot_color, opp_color, size, capture_pairs):
+    perceived[idx] = bot_color
+    my_shapes = _gomoku_line_shapes(perceived, idx, bot_color, size=size)
+    my_score = _gomoku_shape_score(my_shapes)
+    cap_count = len(gomoku_apply_captures(perceived, idx, bot_color, size=size)) if capture_pairs else 0
+    capturable = capture_pairs and _gomoku_would_be_capturable(perceived, idx, bot_color, size=size)
+    del perceived[idx]
+
+    perceived[idx] = opp_color
+    opp_shapes = _gomoku_line_shapes(perceived, idx, opp_color, size=size)
+    opp_score = _gomoku_shape_score(opp_shapes)
+    opp_cap_count = len(gomoku_apply_captures(perceived, idx, opp_color, size=size)) if capture_pairs else 0
+    del perceived[idx]
+
+    distance_penalty = abs((idx // size) - (size // 2)) + abs((idx % size) - (size // 2))
+    neighbor_bonus = 80 if _gomoku_near_stone(idx, occupied, size=size, radius=1) else 0
+    capture_bonus = cap_count * 18_000 + opp_cap_count * 7_500
+    safety_penalty = 16_000 if capturable else 0
+    return my_score * 1.15 + opp_score + capture_bonus + neighbor_bonus - safety_penalty - distance_penalty
 
 
 def _gomoku_near_stone(idx, occupied, size=GOMOKU_SIZE, radius=2):
@@ -2989,8 +3069,28 @@ def _gomoku_near_stone(idx, occupied, size=GOMOKU_SIZE, radius=2):
     return False
 
 
+def normalize_gomoku_visible_pairs(value, fallback=GOMOKU_VISIBLE_PAIRS_DEFAULT):
+    if str(value).strip().lower() == "all":
+        return GOMOKU_VISIBLE_PAIRS_ALL
+    try:
+        visible_pairs = int(value)
+    except (TypeError, ValueError):
+        visible_pairs = fallback
+    if visible_pairs >= GOMOKU_VISIBLE_PAIRS_ALL:
+        return GOMOKU_VISIBLE_PAIRS_ALL
+    allowed = {1, 5, 10, GOMOKU_VISIBLE_PAIRS_ALL}
+    if visible_pairs in allowed:
+        return visible_pairs
+    if fallback in allowed:
+        return fallback
+    return GOMOKU_VISIBLE_PAIRS_DEFAULT
+
+
 def choose_gomoku_bot_move(room):
-    bot_name = next((name for name, info in room.players.items() if info.get("is_bot")), None)
+    bot_name = next(
+        (info.get("username") or name for name, info in room.players.items() if info.get("is_bot")),
+        None,
+    )
     if not bot_name:
         size = room.gomoku_size or GOMOKU_SIZE
         return random.randint(0, size * size - 1)
@@ -2998,14 +3098,18 @@ def choose_gomoku_bot_move(room):
     size = room.gomoku_size or GOMOKU_SIZE
     bot_color = "white" if bot_name == room.gomoku_white_player else "black"
     opp_color = "black" if bot_color == "white" else "white"
-    # Bot's perceived board: own stones + visible opp stone + remembered opp stones
-    perceived = {k: v for k, v in room.gomoku_board.items() if v == bot_color}
-    opp_history = room.gomoku_white_history if opp_color == "white" else room.gomoku_black_history
-    for opp_last in opp_history:
-        perceived[opp_last] = opp_color
-    for k, v in room.bot_memory.items():
-        if v == opp_color:
-            perceived[k] = v
+    # Hard gomoku bot plays as if it has perfect recall. Lower levels only use
+    # visible opponent stones plus remembered hidden stones.
+    if difficulty == "hard":
+        perceived = dict(room.gomoku_board)
+    else:
+        perceived = {k: v for k, v in room.gomoku_board.items() if v == bot_color}
+        opp_history = room.gomoku_white_history if opp_color == "white" else room.gomoku_black_history
+        for opp_last in opp_history:
+            perceived[opp_last] = opp_color
+        for k, v in room.bot_memory.items():
+            if v == opp_color:
+                perceived[k] = v
     all_cells = size * size
     occupied = set(room.gomoku_board.keys())
     empty = [i for i in range(all_cells) if i not in occupied]
@@ -3065,16 +3169,9 @@ def choose_gomoku_bot_move(room):
     near = [i for i in empty if _gomoku_near_stone(i, occupied, size=size)]
     candidates = near if near else empty
     for idx in candidates:
-        perceived[idx] = bot_color
-        my_score = _gomoku_count_line(perceived, idx, bot_color, size=size)
-        cap_bonus = len(gomoku_apply_captures(perceived, idx, bot_color, size=size)) * 3 if capture_pairs else 0
-        del perceived[idx]
-        perceived[idx] = opp_color
-        opp_score = _gomoku_count_line(perceived, idx, opp_color, size=size)
-        del perceived[idx]
-        score = my_score * 2 + opp_score + cap_bonus
-        distance_penalty = abs((idx // size) - (size // 2)) + abs((idx % size) - (size // 2))
-        weighted_score = score * 100 - distance_penalty
+        weighted_score = _gomoku_score_candidate(
+            perceived, occupied, idx, bot_color, opp_color, size, capture_pairs
+        )
         scored_candidates.append((weighted_score, idx))
         if weighted_score > best_score:
             best_score = weighted_score
@@ -3083,7 +3180,13 @@ def choose_gomoku_bot_move(room):
             best_candidates.append(idx)
     if difficulty == "easy" and scored_candidates:
         scored_candidates.sort(key=lambda item: item[0], reverse=True)
-        shortlist = [idx for _, idx in scored_candidates[:min(4, len(scored_candidates))]]
+        shortlist_size = min(8, len(scored_candidates))
+        shortlist = [idx for _, idx in scored_candidates[:shortlist_size]]
+        return random.choice(shortlist)
+    if difficulty == "medium" and scored_candidates:
+        scored_candidates.sort(key=lambda item: item[0], reverse=True)
+        shortlist_size = min(3, len(scored_candidates))
+        shortlist = [idx for _, idx in scored_candidates[:shortlist_size]]
         return random.choice(shortlist)
     if best_candidates:
         if center in best_candidates:
@@ -3211,7 +3314,7 @@ def process_gomoku_place(idx, player_info, room, sid=None):
     del history[:-n]
     # Bot memory: when human's previous stone becomes hidden, bot may remember it
     if room.play_mode == "bot" and old_hidden >= 0:
-        prob = get_bot_memory_probability(room)
+        prob = get_gomoku_bot_memory_probability(room) if room.card_mode == "gomoku" else get_bot_memory_probability(room)
         if random.random() < prob:
             room.bot_memory[old_hidden] = my_color
     # Pair capture: remove sandwiched opponent stones
@@ -3895,11 +3998,10 @@ def handle_start_custom_game(data=None):
         gomoku_size = room.gomoku_size or GOMOKU_SIZE
     if gomoku_size not in GOMOKU_ALLOWED_SIZES:
         gomoku_size = GOMOKU_SIZE
-    try:
-        gomoku_visible_pairs = int(data.get("gomoku_visible_pairs", room.gomoku_visible_pairs))
-        gomoku_visible_pairs = max(GOMOKU_VISIBLE_PAIRS_MIN, min(GOMOKU_VISIBLE_PAIRS_MAX, gomoku_visible_pairs))
-    except (TypeError, ValueError):
-        gomoku_visible_pairs = room.gomoku_visible_pairs
+    gomoku_visible_pairs = normalize_gomoku_visible_pairs(
+        data.get("gomoku_visible_pairs", room.gomoku_visible_pairs),
+        room.gomoku_visible_pairs,
+    )
     gomoku_capture_pairs = bool(data.get("gomoku_capture_pairs", room.gomoku_capture_pairs))
     major_minor_length = 3 if str(data.get("major_minor_mode", "")).strip().lower() in {"triple", "three", "3"} else 1
     word_filter_mode = str(data.get("word_filter_mode", room.word_filter_mode or "clear")).strip().lower()
@@ -4798,12 +4900,11 @@ def handle_preference_changed(data=None):
             room.players[sid]["pref_gomoku_size"] = pref_gomoku_size
     except (TypeError, ValueError):
         pass
-    try:
-        pref_visible_pairs = int(data.get("gomoku_visible_pairs") or 0)
-        if GOMOKU_VISIBLE_PAIRS_MIN <= pref_visible_pairs <= GOMOKU_VISIBLE_PAIRS_MAX:
-            room.players[sid]["pref_gomoku_visible_pairs"] = pref_visible_pairs
-    except (TypeError, ValueError):
-        pass
+    if "gomoku_visible_pairs" in data:
+        room.players[sid]["pref_gomoku_visible_pairs"] = normalize_gomoku_visible_pairs(
+            data.get("gomoku_visible_pairs"),
+            room.gomoku_visible_pairs,
+        )
     if "gomoku_capture_pairs" in data:
         room.players[sid]["pref_gomoku_capture_pairs"] = bool(data["gomoku_capture_pairs"])
     pref_major_minor = str(data.get("major_minor_mode") or "").strip().lower()

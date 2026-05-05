@@ -1216,6 +1216,7 @@
                 gomoku_you_black: "You play black (●)",
                 gomoku_pairs_shown: "Showing the latest move pair",
                 gomoku_pairs_shown_plural: "Showing last {n} move pairs",
+                gomoku_pairs_shown_all: "Showing all pieces",
                 gomoku_capture_pairs_on: "Pair capture: on",
                 gomoku_capture_pairs_off: "Pair capture: off",
                 rematch_title: "Play the next round?",
@@ -1330,6 +1331,7 @@
                 gomoku_you_black: "Pelaat mustalla (●)",
                 gomoku_pairs_shown: "Näytetään viimeisin siirtopari",
                 gomoku_pairs_shown_plural: "Näytetään {n} viimeistä siirtoparia",
+                gomoku_pairs_shown_all: "Näytetään kaikki nappulat",
                 gomoku_capture_pairs_on: "Kahden kaappaus: päällä",
                 gomoku_capture_pairs_off: "Kahden kaappaus: pois",
                 rematch_title: "Pelataanko uusi erä samoilla asetuksilla?",
@@ -4549,7 +4551,8 @@
 
             if (isGomokuMode) {
                 const vp = gomokuState.visiblePairs || 5;
-                const key = vp === 1 ? "gomoku_pairs_shown" : "gomoku_pairs_shown_plural";
+                const showsAll = vp >= (gomokuState.size || 13) * (gomokuState.size || 13);
+                const key = showsAll ? "gomoku_pairs_shown_all" : (vp === 1 ? "gomoku_pairs_shown" : "gomoku_pairs_shown_plural");
                 const label = document.createElement("div");
                 label.className = "players-status-label";
                 const captureKey = gomokuState.capturePairsEnabled ? "gomoku_capture_pairs_on" : "gomoku_capture_pairs_off";
