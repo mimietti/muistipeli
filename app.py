@@ -130,7 +130,7 @@ VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "y
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 DISCONNECT_NOTIFY_DELAY_SECONDS = 10
-APP_VERSION = "Beta v0.12 (2026-05-05)"
+APP_VERSION = "Beta v0.12 (2026-05-06)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -3063,6 +3063,68 @@ def _gomoku_score_candidate(perceived, occupied, idx, bot_color, opp_color, size
     return my_score * 1.15 + opp_score + capture_bonus + neighbor_bonus - safety_penalty - distance_penalty
 
 
+def _gomoku_apply_move_copy(board, idx, color, size, capture_pairs):
+    next_board = dict(board)
+    next_board[idx] = color
+    captured = gomoku_apply_captures(next_board, idx, color, size=size) if capture_pairs else []
+    for ci in captured:
+        next_board.pop(ci, None)
+    return next_board, captured
+
+
+def _gomoku_fast_candidate_score(board, occupied, idx, color, opp_color, size, capture_pairs):
+    board[idx] = color
+    line_score = _gomoku_count_line(board, idx, color, size=size) * 12_000
+    shape_score = _gomoku_shape_score(_gomoku_line_shapes(board, idx, color, size=size))
+    cap_score = len(gomoku_apply_captures(board, idx, color, size=size)) * 22_000 if capture_pairs else 0
+    del board[idx]
+
+    board[idx] = opp_color
+    block_score = _gomoku_shape_score(_gomoku_line_shapes(board, idx, opp_color, size=size)) * 0.9
+    del board[idx]
+
+    distance_penalty = abs((idx // size) - (size // 2)) + abs((idx % size) - (size // 2))
+    neighbor_bonus = 500 if _gomoku_near_stone(idx, occupied, size=size, radius=1) else 0
+    return line_score + shape_score + cap_score + block_score + neighbor_bonus - distance_penalty
+
+
+def _gomoku_hard_open_score(perceived, idx, bot_color, opp_color, size, capture_pairs):
+    occupied = set(perceived.keys())
+    next_board, captured = _gomoku_apply_move_copy(perceived, idx, bot_color, size, capture_pairs)
+    if gomoku_check_win(next_board, idx, size=size):
+        return 10_000_000
+
+    immediate = _gomoku_score_candidate(perceived, occupied, idx, bot_color, opp_color, size, capture_pairs)
+    next_occupied = set(next_board.keys())
+    opp_empty = [cell for cell in range(size * size) if cell not in next_occupied]
+    if not opp_empty:
+        return immediate
+
+    opp_near = [cell for cell in opp_empty if _gomoku_near_stone(cell, next_occupied, size=size)]
+    opp_pool = opp_near if opp_near else opp_empty
+    opp_candidates = sorted(
+        opp_pool,
+        key=lambda cell: _gomoku_fast_candidate_score(
+            next_board, next_occupied, cell, opp_color, bot_color, size, capture_pairs
+        ),
+        reverse=True,
+    )[:12]
+    strongest_reply = -1
+    for reply in opp_candidates:
+        reply_board, reply_caps = _gomoku_apply_move_copy(next_board, reply, opp_color, size, capture_pairs)
+        if gomoku_check_win(reply_board, reply, size=size):
+            strongest_reply = max(strongest_reply, 8_000_000)
+            continue
+        reply_score = _gomoku_score_candidate(
+            next_board, next_occupied, reply, opp_color, bot_color, size, capture_pairs
+        )
+        if reply_caps:
+            reply_score += len(reply_caps) * 14_000
+        strongest_reply = max(strongest_reply, reply_score)
+
+    return immediate + len(captured) * 10_000 - strongest_reply * 1.08
+
+
 def _gomoku_near_stone(idx, occupied, size=GOMOKU_SIZE, radius=2):
     if not occupied:
         return True
@@ -3140,11 +3202,37 @@ def choose_gomoku_bot_move(room):
             if difficulty != "easy" or random.random() < 0.8:
                 return idx
         del perceived[idx]
+
+    if difficulty == "hard" and capture_pairs and all_stones_visible:
+        hard_pool = [i for i in empty if _gomoku_near_stone(i, occupied, size=size)]
+        if not hard_pool:
+            hard_pool = empty
+        hard_candidates = sorted(
+            hard_pool,
+            key=lambda cell: _gomoku_fast_candidate_score(
+                perceived, occupied, cell, bot_color, opp_color, size, capture_pairs
+            ),
+            reverse=True,
+        )[:12]
+        best_hard_score = -float("inf")
+        best_hard_moves = []
+        for idx in hard_candidates:
+            score = _gomoku_hard_open_score(perceived, idx, bot_color, opp_color, size, capture_pairs)
+            if score > best_hard_score:
+                best_hard_score = score
+                best_hard_moves = [idx]
+            elif score == best_hard_score:
+                best_hard_moves.append(idx)
+        if best_hard_moves:
+            if center in best_hard_moves:
+                return center
+            return random.choice(best_hard_moves)
+
     # 3. Capture 2 opponent stones (capture pairs mode)
     if capture_pairs:
         capture_prob = {"easy": 0.25, "medium": 0.65, "hard": 1.0}.get(difficulty, 0.65)
         if difficulty == "medium" and all_stones_visible:
-            capture_prob = 0.9
+            capture_prob = 1.0
         if random.random() < capture_prob:
             best_cap, best_cap_count = -1, 0
             for idx in empty:
@@ -3160,7 +3248,7 @@ def choose_gomoku_bot_move(room):
     if capture_pairs:
         block_prob = {"easy": 0.15, "medium": 0.50, "hard": 1.0}.get(difficulty, 0.50)
         if difficulty == "medium" and all_stones_visible:
-            block_prob = 0.9
+            block_prob = 1.0
         if random.random() < block_prob:
             best_block, best_block_count = -1, 0
             for idx in empty:
@@ -3195,10 +3283,14 @@ def choose_gomoku_bot_move(room):
         return random.choice(shortlist)
     if difficulty == "medium" and scored_candidates:
         scored_candidates.sort(key=lambda item: item[0], reverse=True)
+        if all_stones_visible:
+            top_score = scored_candidates[0][0]
+            top_moves = [idx for score, idx in scored_candidates if score == top_score]
+            if center in top_moves:
+                return center
+            return random.choice(top_moves)
         shortlist_size = min(2 if all_stones_visible else 3, len(scored_candidates))
         shortlist = [idx for _, idx in scored_candidates[:shortlist_size]]
-        if all_stones_visible and random.random() < 0.75:
-            return shortlist[0]
         return random.choice(shortlist)
     if best_candidates:
         if center in best_candidates:
