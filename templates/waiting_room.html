@@ -2647,11 +2647,11 @@
                 }
                 if (payload && payload.gomoku_visible_pairs) {
                     const vpStr = String(payload.gomoku_visible_pairs);
-                    if (["1","2","3","5","10"].includes(vpStr)) {
+                    if (gomokuVisiblePairOptions.includes(vpStr)) {
                         selectedGomokuVisiblePairs = vpStr;
                         try {
                             localStorage.setItem("preferred_gomoku_visible_pairs", selectedGomokuVisiblePairs);
-                            localStorage.setItem("preferred_gomoku_visible_pairs_default_v2", "1");
+                            localStorage.setItem("preferred_gomoku_visible_pairs_default_v3", "1");
                         } catch (_) {}
                     }
                 }
@@ -3325,16 +3325,22 @@
                 : "single";
             let selectedGomokuSize = "13";
             const gomokuVisiblePairOptions = ["1","5","10","169"];
-            const gomokuVisiblePairsDefault = "5";
+            const gomokuVisiblePairsDefault = "169";
             let storedGomokuVisiblePairs = localStorage.getItem("preferred_gomoku_visible_pairs");
+            if (storedGomokuVisiblePairs === "5" && localStorage.getItem("preferred_gomoku_visible_pairs_default_v3") !== "1") {
+                storedGomokuVisiblePairs = gomokuVisiblePairsDefault;
+            }
             if (!gomokuVisiblePairOptions.includes(storedGomokuVisiblePairs)) {
                 storedGomokuVisiblePairs = gomokuVisiblePairsDefault;
                 try {
                     localStorage.setItem("preferred_gomoku_visible_pairs", storedGomokuVisiblePairs);
-                    localStorage.setItem("preferred_gomoku_visible_pairs_default_v2", "1");
+                    localStorage.setItem("preferred_gomoku_visible_pairs_default_v3", "1");
                 } catch (e) {}
             } else {
-                try { localStorage.setItem("preferred_gomoku_visible_pairs_default_v2", "1"); } catch (e) {}
+                try {
+                    localStorage.setItem("preferred_gomoku_visible_pairs", storedGomokuVisiblePairs);
+                    localStorage.setItem("preferred_gomoku_visible_pairs_default_v3", "1");
+                } catch (e) {}
             }
             let selectedGomokuVisiblePairs = gomokuVisiblePairOptions.includes(storedGomokuVisiblePairs)
                 ? storedGomokuVisiblePairs
@@ -3583,7 +3589,7 @@
                     selectedGomokuVisiblePairs = btn.dataset.gomokuVisiblePairs;
                     try {
                         localStorage.setItem("preferred_gomoku_visible_pairs", selectedGomokuVisiblePairs);
-                        localStorage.setItem("preferred_gomoku_visible_pairs_default_v2", "1");
+                        localStorage.setItem("preferred_gomoku_visible_pairs_default_v3", "1");
                     } catch (e) {}
                     document.querySelectorAll("#gomokuVisiblePairsBtns .opt-btn").forEach(b => b.classList.toggle("active", b === btn));
                     socket.emit("preference_changed", {

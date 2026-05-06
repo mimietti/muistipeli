@@ -780,7 +780,7 @@
         }
         .gomoku-click { fill: rgba(0, 0, 0, 0.001); pointer-events: all; }
         .gomoku-stone { transition: opacity 0.2s; }
-        .gomoku-win-stone { filter: drop-shadow(0 0 6px gold); }
+        .gomoku-win-stone { filter: drop-shadow(0 0 3px rgba(164, 34, 28, 0.42)); }
         .stone-expiring { pointer-events: none; }
         #gomoku-rematch-panel {
             display: none;
@@ -3050,6 +3050,7 @@
 
         const GOMOKU_CELL = 32;
         const GOMOKU_MARGIN = 20;
+        const GOMOKU_WIN = 5;
 
         function gomokuBoardSize(size) {
             return GOMOKU_MARGIN * 2 + size * GOMOKU_CELL;
@@ -3153,8 +3154,7 @@
                 html += `<ellipse cx="${x - radius * 0.4}" cy="${y - radius * 0.48}" rx="${radius * 0.17}" ry="${radius * 0.1}" fill="${specularFill}" opacity="${opacity * (isWhite ? 0.95 : 0.52)}"/>`;
                 html += `<ellipse cx="${x - radius * 0.08}" cy="${y - radius * 0.15}" rx="${radius * 0.78}" ry="${radius * 0.72}" fill="none" stroke="${isWhite ? '#ffffff' : '#5e675e'}" stroke-width="${radius * 0.08}" stroke-opacity="${opacity * (isWhite ? 0.24 : 0.14)}"/>`;
                 if (win) {
-                    html += `<circle cx="${x}" cy="${y}" r="${radius + 6}" fill="none" stroke="#f6d04d" stroke-width="4" opacity="${opacity * 0.96}" pointer-events="none"/>`;
-                    html += `<circle cx="${x}" cy="${y}" r="${radius + 10}" fill="none" stroke="#fff2a8" stroke-width="1.8" opacity="${opacity * 0.72}" pointer-events="none"/>`;
+                    html += `<circle cx="${x}" cy="${y}" r="${radius + 2.2}" fill="none" stroke="#a72f2a" stroke-width="1.35" opacity="${opacity * 0.72}" pointer-events="none"/>`;
                 }
                 return { x, y, isWhite, opacity };
             };
@@ -3178,6 +3178,42 @@
                 const t = Math.max(0, Math.min(1, progress));
                 const mixed = from.map((value, index) => Math.round(value + (to[index] - value) * t));
                 return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
+            };
+            const renderWinLine = () => {
+                const winLine = Array.isArray(g.winLine)
+                    ? g.winLine.map(Number).filter((idx) => Number.isFinite(idx))
+                    : [];
+                if (winLine.length < GOMOKU_WIN) return;
+                const points = winLine.map((idx) => {
+                    const [x, y] = gomokuXY(idx, size);
+                    return { x, y };
+                });
+                let start = points[0];
+                let end = points[points.length - 1];
+                let bestDistance = -1;
+                for (const a of points) {
+                    for (const b of points) {
+                        const dx = b.x - a.x;
+                        const dy = b.y - a.y;
+                        const distance = dx * dx + dy * dy;
+                        if (distance > bestDistance) {
+                            bestDistance = distance;
+                            start = a;
+                            end = b;
+                        }
+                    }
+                }
+                const dx = end.x - start.x;
+                const dy = end.y - start.y;
+                const length = Math.hypot(dx, dy) || 1;
+                const pad = 8;
+                const x1 = start.x - (dx / length) * pad;
+                const y1 = start.y - (dy / length) * pad;
+                const x2 = end.x + (dx / length) * pad;
+                const y2 = end.y + (dy / length) * pad;
+                html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#fff4df" stroke-width="4.4" stroke-linecap="round" opacity="0.52" pointer-events="none"/>`;
+                html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#a72f2a" stroke-width="2.1" stroke-linecap="round" opacity="0.92" pointer-events="none"/>`;
+                html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#efc2ad" stroke-width="0.65" stroke-linecap="round" opacity="0.72" pointer-events="none"/>`;
             };
 
             const boardInset = 12;
@@ -3471,6 +3507,7 @@
                 html += `<circle cx="${x}" cy="${y}" r="${stoneRadius}" fill="${fill}" stroke="${stroke}" stroke-width="${1.1 + 0.5 * returnEased}" opacity="${Math.min(1, stoneOpacity)}" class="stone-expiring"/>`;
                 html += `<circle cx="${x}" cy="${y}" r="${ringRadius}" fill="none" stroke="${ringStroke}" stroke-width="${2.6 - 0.8 * returnEased}" opacity="${Math.max(0, ringOpacity)}" class="stone-expiring"/>`;
             }
+            renderWinLine();
             svg.innerHTML = html;
             svg.onclick = (evt) => {
                 if (!gomokuState) {

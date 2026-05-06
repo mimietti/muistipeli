@@ -151,9 +151,9 @@ GOMOKU_SIZE = 13
 GOMOKU_WIN = 5
 GOMOKU_DIRECTIONS = [(0, 1), (1, 0), (1, 1), (1, -1)]
 GOMOKU_ALLOWED_SIZES = {13}
-GOMOKU_VISIBLE_PAIRS_DEFAULT = 5
 GOMOKU_VISIBLE_PAIRS_MIN = 1
 GOMOKU_VISIBLE_PAIRS_ALL = GOMOKU_SIZE * GOMOKU_SIZE
+GOMOKU_VISIBLE_PAIRS_DEFAULT = GOMOKU_VISIBLE_PAIRS_ALL
 GOMOKU_VISIBLE_PAIRS_MAX = GOMOKU_VISIBLE_PAIRS_ALL
 GOMOKU_CAPTURE_PAIRS_DEFAULT = True
 DEFAULT_ROOM_ID = "default"
@@ -3049,6 +3049,46 @@ def _gomoku_forcing_move_count(board, color, size=GOMOKU_SIZE):
     return count
 
 
+def _gomoku_immediate_winning_moves(board, color, size=GOMOKU_SIZE):
+    occupied = set(board.keys())
+    winning_moves = []
+    for idx in range(size * size):
+        if idx in occupied:
+            continue
+        board[idx] = color
+        if gomoku_check_win(board, idx, size=size):
+            winning_moves.append(idx)
+        del board[idx]
+    return winning_moves
+
+
+def _gomoku_opponent_reply_danger(board, bot_color, opp_color, size, capture_pairs):
+    winning_moves = _gomoku_immediate_winning_moves(board, opp_color, size=size)
+    if len(winning_moves) >= 2:
+        return 7_500_000 + len(winning_moves) * 450_000
+    if not winning_moves:
+        forcing_moves = _gomoku_forcing_move_count(board, opp_color, size=size)
+        if forcing_moves >= 2:
+            return 6_500_000 + forcing_moves * 250_000
+        return 0
+
+    block_idx = winning_moves[0]
+    if block_idx in board:
+        return 7_000_000
+    blocked_board, _ = _gomoku_apply_move_copy(board, block_idx, bot_color, size, capture_pairs)
+    occupied = set(blocked_board.keys())
+    opp_empty = [cell for cell in range(size * size) if cell not in occupied]
+    opp_near = [cell for cell in opp_empty if _gomoku_near_stone(cell, occupied, size=size)]
+    for opp_next in (opp_near if opp_near else opp_empty):
+        future_board, _ = _gomoku_apply_move_copy(blocked_board, opp_next, opp_color, size, capture_pairs)
+        if gomoku_check_win(future_board, opp_next, size=size):
+            return 7_000_000
+        future_wins = _gomoku_immediate_winning_moves(future_board, opp_color, size=size)
+        if len(future_wins) >= 2:
+            return 6_800_000 + len(future_wins) * 350_000
+    return 4_500_000
+
+
 def _gomoku_would_be_capturable(board, idx, color, size=GOMOKU_SIZE):
     opp_color = "black" if color == "white" else "white"
     occupied = set(board.keys())
@@ -3133,12 +3173,9 @@ def _gomoku_hard_open_score(perceived, idx, bot_color, opp_color, size, capture_
     strongest_reply = -1
     for reply in opp_candidates:
         reply_board, reply_caps = _gomoku_apply_move_copy(next_board, reply, opp_color, size, capture_pairs)
-        if gomoku_check_win(reply_board, reply, size=size):
-            strongest_reply = max(strongest_reply, 8_000_000)
-            continue
-        forcing_moves = _gomoku_forcing_move_count(reply_board, opp_color, size=size)
-        if forcing_moves >= 2:
-            strongest_reply = max(strongest_reply, 6_500_000 + forcing_moves * 250_000)
+        reply_danger = _gomoku_opponent_reply_danger(reply_board, bot_color, opp_color, size, capture_pairs)
+        if reply_danger:
+            strongest_reply = max(strongest_reply, reply_danger)
             continue
         if _gomoku_has_open_four(reply_board, reply, opp_color, size=size):
             strongest_reply = max(strongest_reply, 4_000_000)
