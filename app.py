@@ -3171,13 +3171,17 @@ def _gomoku_hard_open_score(perceived, idx, bot_color, opp_color, size, capture_
         reverse=True,
     )[:12]
     strongest_reply = -1
+    severe_reply_count = 0
     for reply in opp_candidates:
         reply_board, reply_caps = _gomoku_apply_move_copy(next_board, reply, opp_color, size, capture_pairs)
         reply_danger = _gomoku_opponent_reply_danger(reply_board, bot_color, opp_color, size, capture_pairs)
         if reply_danger:
+            if reply_danger >= 7_000_000:
+                severe_reply_count += 1
             strongest_reply = max(strongest_reply, reply_danger)
             continue
         if _gomoku_has_open_four(reply_board, reply, opp_color, size=size):
+            severe_reply_count += 1
             strongest_reply = max(strongest_reply, 4_000_000)
             continue
         reply_score = _gomoku_score_candidate(
@@ -3187,7 +3191,7 @@ def _gomoku_hard_open_score(perceived, idx, bot_color, opp_color, size, capture_
             reply_score += len(reply_caps) * 14_000
         strongest_reply = max(strongest_reply, reply_score)
 
-    return immediate + len(captured) * 10_000 - strongest_reply * 1.08
+    return immediate + len(captured) * 10_000 - strongest_reply * 1.08 - severe_reply_count * 120_000
 
 
 def _gomoku_near_stone(idx, occupied, size=GOMOKU_SIZE, radius=2):
@@ -3276,14 +3280,6 @@ def choose_gomoku_bot_move(room):
             del perceived[idx]
             if makes_open_four:
                 open_four_builders.append(idx)
-        if open_four_builders:
-            open_four_builders.sort(
-                key=lambda cell: _gomoku_fast_candidate_score(
-                    perceived, occupied, cell, bot_color, opp_color, size, capture_pairs
-                ),
-                reverse=True,
-            )
-            return open_four_builders[0]
 
         hard_pool = [i for i in empty if _gomoku_near_stone(i, occupied, size=size)]
         if not hard_pool:
@@ -3297,6 +3293,10 @@ def choose_gomoku_bot_move(room):
         )
         hard_candidates = ranked_hard_candidates[:12]
         hard_candidate_set = set(hard_candidates)
+        for cell in open_four_builders:
+            if cell not in hard_candidate_set:
+                hard_candidates.append(cell)
+                hard_candidate_set.add(cell)
         defensive_candidates = []
         for cell in ranked_hard_candidates[12:]:
             reply_board, _ = _gomoku_apply_move_copy(perceived, cell, opp_color, size, capture_pairs)
