@@ -3288,13 +3288,25 @@ def choose_gomoku_bot_move(room):
         hard_pool = [i for i in empty if _gomoku_near_stone(i, occupied, size=size)]
         if not hard_pool:
             hard_pool = empty
-        hard_candidates = sorted(
+        ranked_hard_candidates = sorted(
             hard_pool,
             key=lambda cell: _gomoku_fast_candidate_score(
                 perceived, occupied, cell, bot_color, opp_color, size, capture_pairs
             ),
             reverse=True,
-        )[:12]
+        )
+        hard_candidates = ranked_hard_candidates[:12]
+        hard_candidate_set = set(hard_candidates)
+        defensive_candidates = []
+        for cell in ranked_hard_candidates[12:]:
+            reply_board, _ = _gomoku_apply_move_copy(perceived, cell, opp_color, size, capture_pairs)
+            reply_wins = _gomoku_immediate_winning_moves(reply_board, opp_color, size=size)
+            if reply_wins:
+                defensive_candidates.append((len(reply_wins), cell))
+        for _, cell in sorted(defensive_candidates, reverse=True)[:12]:
+            if cell not in hard_candidate_set:
+                hard_candidates.append(cell)
+                hard_candidate_set.add(cell)
         best_hard_score = -float("inf")
         best_hard_moves = []
         for idx in hard_candidates:
