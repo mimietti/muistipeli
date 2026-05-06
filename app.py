@@ -3028,6 +3028,27 @@ def _gomoku_shape_score(shapes):
     return score
 
 
+def _gomoku_has_open_four(board, idx, color, size=GOMOKU_SIZE):
+    return any(
+        length == 4 and open_ends == 2
+        for length, open_ends in _gomoku_line_shapes(board, idx, color, size=size)
+    )
+
+
+def _gomoku_forcing_move_count(board, color, size=GOMOKU_SIZE):
+    occupied = set(board.keys())
+    count = 0
+    for idx in range(size * size):
+        if idx in occupied:
+            continue
+        board[idx] = color
+        forcing = bool(gomoku_check_win(board, idx, size=size)) or _gomoku_has_open_four(board, idx, color, size=size)
+        del board[idx]
+        if forcing:
+            count += 1
+    return count
+
+
 def _gomoku_would_be_capturable(board, idx, color, size=GOMOKU_SIZE):
     opp_color = "black" if color == "white" else "white"
     occupied = set(board.keys())
@@ -3114,6 +3135,13 @@ def _gomoku_hard_open_score(perceived, idx, bot_color, opp_color, size, capture_
         reply_board, reply_caps = _gomoku_apply_move_copy(next_board, reply, opp_color, size, capture_pairs)
         if gomoku_check_win(reply_board, reply, size=size):
             strongest_reply = max(strongest_reply, 8_000_000)
+            continue
+        forcing_moves = _gomoku_forcing_move_count(reply_board, opp_color, size=size)
+        if forcing_moves >= 2:
+            strongest_reply = max(strongest_reply, 6_500_000 + forcing_moves * 250_000)
+            continue
+        if _gomoku_has_open_four(reply_board, reply, opp_color, size=size):
+            strongest_reply = max(strongest_reply, 4_000_000)
             continue
         reply_score = _gomoku_score_candidate(
             next_board, next_occupied, reply, opp_color, bot_color, size, capture_pairs
@@ -3204,6 +3232,22 @@ def choose_gomoku_bot_move(room):
         del perceived[idx]
 
     if difficulty == "hard" and capture_pairs and all_stones_visible:
+        open_four_builders = []
+        for idx in empty:
+            perceived[idx] = opp_color
+            makes_open_four = _gomoku_has_open_four(perceived, idx, opp_color, size=size)
+            del perceived[idx]
+            if makes_open_four:
+                open_four_builders.append(idx)
+        if open_four_builders:
+            open_four_builders.sort(
+                key=lambda cell: _gomoku_fast_candidate_score(
+                    perceived, occupied, cell, bot_color, opp_color, size, capture_pairs
+                ),
+                reverse=True,
+            )
+            return open_four_builders[0]
+
         hard_pool = [i for i in empty if _gomoku_near_stone(i, occupied, size=size)]
         if not hard_pool:
             hard_pool = empty
