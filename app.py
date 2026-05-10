@@ -130,7 +130,7 @@ VERBOSE_DEBUG = str(os.getenv("VERBOSE_DEBUG", "0")).lower() in {"1", "true", "y
 RECONNECT_GRACE_SECONDS = max(30, int(os.getenv("RECONNECT_GRACE_SECONDS", "300")))
 PAGE_TRANSITION_GRACE_SECONDS = 5
 DISCONNECT_NOTIFY_DELAY_SECONDS = 10
-APP_VERSION = "Beta v0.12 (2026-05-06)"
+APP_VERSION = "Beta v0.12 (2026-05-10)"
 BOT_USERNAME = "Muistibotti"
 BOT_FIRST_FLIP_DELAY_SECONDS = 2.5
 BOT_SECOND_FLIP_DELAY_SECONDS = 1.9
@@ -143,9 +143,14 @@ BOT_MEMORY_USE_PROBABILITY = {
     "hard": 0.9,
 }
 GOMOKU_BOT_MEMORY_USE_PROBABILITY = {
-    "easy": 0.25,
-    "medium": 0.75,
+    "easy": 0.75,
+    "medium": 1.0,
     "hard": 1.0,
+}
+GOMOKU_BOT_EFFECTIVE_DIFFICULTY = {
+    "easy": "medium",
+    "medium": "hard",
+    "hard": "hard",
 }
 GOMOKU_SIZE = 13
 GOMOKU_WIN = 5
@@ -975,6 +980,11 @@ def get_bot_memory_probability(room):
 
 def get_gomoku_bot_memory_probability(room):
     return GOMOKU_BOT_MEMORY_USE_PROBABILITY.get(room.bot_difficulty or "easy", 0.25)
+
+
+def get_gomoku_bot_effective_difficulty(room):
+    difficulty = room.bot_difficulty or "easy"
+    return GOMOKU_BOT_EFFECTIVE_DIFFICULTY.get(difficulty, "medium")
 
 
 def remember_card_for_bot(room, index):
@@ -3049,6 +3059,20 @@ def _gomoku_forcing_move_count(board, color, size=GOMOKU_SIZE):
     return count
 
 
+def _gomoku_forcing_moves(board, color, size=GOMOKU_SIZE):
+    occupied = set(board.keys())
+    moves = []
+    for idx in range(size * size):
+        if idx in occupied:
+            continue
+        board[idx] = color
+        forcing = bool(gomoku_check_win(board, idx, size=size)) or _gomoku_has_open_four(board, idx, color, size=size)
+        del board[idx]
+        if forcing:
+            moves.append(idx)
+    return moves
+
+
 def _gomoku_immediate_winning_moves(board, color, size=GOMOKU_SIZE):
     occupied = set(board.keys())
     winning_moves = []
@@ -3230,7 +3254,7 @@ def choose_gomoku_bot_move(room):
     if not bot_name:
         size = room.gomoku_size or GOMOKU_SIZE
         return random.randint(0, size * size - 1)
-    difficulty = room.bot_difficulty or "easy"
+    difficulty = get_gomoku_bot_effective_difficulty(room)
     size = room.gomoku_size or GOMOKU_SIZE
     bot_color = "white" if bot_name == room.gomoku_white_player else "black"
     opp_color = "black" if bot_color == "white" else "white"
@@ -3272,14 +3296,9 @@ def choose_gomoku_bot_move(room):
                 return idx
         del perceived[idx]
 
-    if difficulty == "hard" and capture_pairs and all_stones_visible:
-        open_four_builders = []
-        for idx in empty:
-            perceived[idx] = opp_color
-            makes_open_four = _gomoku_has_open_four(perceived, idx, opp_color, size=size)
-            del perceived[idx]
-            if makes_open_four:
-                open_four_builders.append(idx)
+    if difficulty == "hard" and all_stones_visible:
+        bot_forcing_moves = _gomoku_forcing_moves(perceived, bot_color, size=size)
+        opp_forcing_moves = _gomoku_forcing_moves(perceived, opp_color, size=size)
 
         hard_pool = [i for i in empty if _gomoku_near_stone(i, occupied, size=size)]
         if not hard_pool:
@@ -3291,22 +3310,50 @@ def choose_gomoku_bot_move(room):
             ),
             reverse=True,
         )
-        hard_candidates = ranked_hard_candidates[:12]
+        hard_candidates = ranked_hard_candidates[:24]
         hard_candidate_set = set(hard_candidates)
-        for cell in open_four_builders:
+        for cell in bot_forcing_moves + opp_forcing_moves:
             if cell not in hard_candidate_set:
                 hard_candidates.append(cell)
                 hard_candidate_set.add(cell)
         defensive_candidates = []
-        for cell in ranked_hard_candidates[12:]:
+        for cell in ranked_hard_candidates[24:]:
             reply_board, _ = _gomoku_apply_move_copy(perceived, cell, opp_color, size, capture_pairs)
             reply_wins = _gomoku_immediate_winning_moves(reply_board, opp_color, size=size)
-            if reply_wins:
-                defensive_candidates.append((len(reply_wins), cell))
-        for _, cell in sorted(defensive_candidates, reverse=True)[:12]:
+            reply_forcing = _gomoku_forcing_move_count(reply_board, opp_color, size=size)
+            if reply_wins or reply_forcing >= 2:
+                defensive_candidates.append((len(reply_wins), reply_forcing, cell))
+        for _, _, cell in sorted(defensive_candidates, reverse=True)[:16]:
             if cell not in hard_candidate_set:
                 hard_candidates.append(cell)
                 hard_candidate_set.add(cell)
+
+        if bot_forcing_moves:
+            best_attack_score = -float("inf")
+            best_attacks = []
+            for idx in bot_forcing_moves:
+                score = _gomoku_hard_open_score(perceived, idx, bot_color, opp_color, size, capture_pairs)
+                if score > best_attack_score:
+                    best_attack_score = score
+                    best_attacks = [idx]
+                elif score == best_attack_score:
+                    best_attacks.append(idx)
+            if best_attacks:
+                return random.choice(best_attacks)
+
+        if opp_forcing_moves:
+            best_block_score = -float("inf")
+            best_blocks = []
+            for idx in opp_forcing_moves:
+                score = _gomoku_hard_open_score(perceived, idx, bot_color, opp_color, size, capture_pairs)
+                if score > best_block_score:
+                    best_block_score = score
+                    best_blocks = [idx]
+                elif score == best_block_score:
+                    best_blocks.append(idx)
+            if best_blocks:
+                return random.choice(best_blocks)
+
         best_hard_score = -float("inf")
         best_hard_moves = []
         for idx in hard_candidates:
